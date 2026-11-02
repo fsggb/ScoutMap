@@ -1,0 +1,65 @@
+name: Déploiement ScoutMap
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: scoutmap-pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Vérifier les services Géoplateforme
+    runs-on: ubuntu-latest
+    steps:
+      - name: Interroger les services
+        run: |
+          set -u
+          fail=0
+          probe() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$2" || echo 000)
+            echo "$1 -> HTTP $code"
+            case "$code" in 2*) ;; *) fail=1 ;; esac
+          }
+          probe "Tuiles Plan IGN" "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX=12&TILEROW=2820&TILECOL=2074"
+          probe "Photographies aériennes" "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX=12&TILEROW=2820&TILECOL=2074"
+          probe "Itinéraire" "https://data.geopf.fr/navigation/itineraire?resource=bdtopo-valhalla&start=2.35,48.85&end=2.37,48.86&profile=pedestrian&geometryFormat=geojson&getSteps=false"
+          probe "Altimétrie" "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=2.35&lat=48.85&resource=ign_rge_alti_wld&zonly=true"
+          probe "Géocodage" "https://data.geopf.fr/geocodage/search?q=Paris&limit=1"
+          if [ "$fail" -ne 0 ]; then
+            echo "::warning::Un ou plusieurs services Géoplateforme ne répondent pas : le site est tout de même redéployé, vérifiez le fonctionnement."
+          fi
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assembler le site
+        run: |
+          mkdir -p build
+          cp -a index.html assets css js build/
+          touch build/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

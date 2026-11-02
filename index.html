@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="ScoutMap : cartes IGN, itinéraires, azimuts, profils d'altitude et export GPX pour l'orientation et les raids scouts.">
+  <title>ScoutMap</title>
+  <link rel="icon" type="image/png" href="assets/fsggb.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./"><img class="brand-logo" src="assets/fsggb.png" alt="FSGGB" width="36" height="36"><strong>ScoutMap</strong></a>
+  <div class="search" role="search">
+    <input id="q" type="search" placeholder="Rechercher un lieu, une adresse, un sommet…" autocomplete="off" aria-label="Rechercher un lieu">
+    <ul id="suggest" class="suggest" hidden></ul>
+  </div>
+  <nav class="actions" aria-label="Actions">
+    <button class="nav-btn" id="btn-import" title="Importer un fichier GPX">Importer GPX</button>
+    <input id="file-gpx" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden>
+    <button class="nav-btn" id="btn-export" title="Exporter en GPX">Exporter GPX</button>
+    <button class="nav-btn" id="btn-hub" title="Enregistrer dans votre espace ScoutHub" hidden>Enregistrer dans ScoutHub</button>
+    <button class="nav-btn" id="btn-print" title="Imprimer la carte, le tableau et le profil">Imprimer</button>
+  </nav>
+</header>
+
+<div class="app">
+  <aside class="panel" id="panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="route">Itinéraire</button>
+      <button class="tab" role="tab" data-tab="az">Azimuts</button>
+      <button class="tab" role="tab" data-tab="meas">Mesure</button>
+      <button class="tab" role="tab" data-tab="data">Traces</button>
+    </div>
+
+    <section class="pane" data-pane="route">
+      <p class="help">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Glissez un repère pour le déplacer, cliquez sur le tracé pour ajouter une étape.</p>
+      <div class="row">
+        <div class="seg" id="route-profile">
+          <button data-v="pedestrian">À pied</button><button data-v="car">Voiture</button>
+        </div>
+        <select id="route-opt" aria-label="Optimisation"><option value="fastest">Plus rapide</option><option value="shortest">Plus court</option></select>
+      </div>
+      <p class="note">Vélo/VTT : non proposé par la Géoplateforme (profils « à pied » et « voiture » uniquement).</p>
+      <ol class="wps" id="wps"></ol>
+      <div class="row">
+        <button class="ghost" id="route-reverse">Inverser</button>
+        <button class="ghost" id="route-undo">Retirer le dernier</button>
+        <button class="ghost danger" id="route-clear">Effacer</button>
+      </div>
+      <div class="stats" id="route-stats" hidden></div>
+      <label class="inline">Allure de marche <input id="speed" type="number" min="1" max="8" step="0.5" value="4"> km/h</label>
+      <details id="steps-box" hidden><summary>Feuille de route</summary><ol class="steps" id="steps"></ol></details>
+      <p class="status" id="route-status" role="status"></p>
+    </section>
+
+    <section class="pane" data-pane="az">
+      <p class="help">Posez des points : chaque segment donne l'azimut, la distance et le cumul (course d'orientation). Vous pouvez aussi viser une étape par azimut et distance depuis le dernier point.</p>
+      <div class="row">
+        <label>Unité <select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
+        <label>Référence <select id="az-ref"><option value="true">Nord géographique</option><option value="mag">Nord magnétique</option></select></label>
+      </div>
+      <label class="inline" id="decl-row" hidden>Déclinaison magnétique <input id="az-decl" type="number" step="0.1" value="0"> ° (Est +)</label>
+      <p class="note" id="decl-note" hidden>Azimut magnétique = azimut géographique − déclinaison. Relevez la valeur dans la marge de votre carte IGN ; la convergence des méridiens est ignorée.</p>
+      <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
+      <fieldset class="aim"><legend>Ajouter une étape visée</legend>
+        <div class="row"><label>Azimut <input id="aim-az" type="number" step="any" placeholder="0"></label><label>Distance (m) <input id="aim-d" type="number" min="0" step="any" placeholder="500"></label><button class="ghost" id="aim-add">Placer</button></div>
+      </fieldset>
+      <div class="row">
+        <button class="ghost" id="az-close">Fermer le circuit</button>
+        <button class="ghost" id="az-undo">Retirer le dernier</button>
+        <button class="ghost danger" id="az-clear">Effacer</button>
+      </div>
+      <div class="stats" id="az-stats" hidden></div>
+    </section>
+
+    <section class="pane" data-pane="meas">
+      <p class="help">Cliquez pour poser les sommets de la ligne ou du polygone.</p>
+      <div class="row"><div class="seg" id="meas-mode"><button data-v="dist">Distance</button><button data-v="area">Surface</button></div></div>
+      <div class="stats" id="meas-stats"></div>
+      <div class="row">
+        <button class="ghost" id="meas-undo">Retirer le dernier</button>
+        <button class="ghost danger" id="meas-clear">Effacer</button>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="data">
+      <p class="help">Traces importées depuis un fichier GPX. Elles s'affichent sur la carte et peuvent alimenter le profil d'altitude.</p>
+      <ul class="tracks" id="tracks"></ul>
+      <p class="muted" id="tracks-empty">Aucune trace importée.</p>
+      <h3 class="sub">Fonds et couches</h3>
+      <div class="seg wrap" id="base-seg"><button data-v="plan">Plan IGN</button><button data-v="ortho">Photographies</button></div>
+      <div class="checks" id="overlays">
+        <label><input type="checkbox" data-ov="contour"> Courbes de niveau</label>
+        <label><input type="checkbox" data-ov="shade"> Ombrage du relief</label>
+        <label><input type="checkbox" data-ov="slope"> Pentes</label>
+        <label><input type="checkbox" data-ov="cadastre"> Parcelles cadastrales</label>
+      </div>
+      <h3 class="sub">Travail en cours</h3>
+      <p class="muted">Votre travail est mémorisé dans ce navigateur.</p>
+      <button class="ghost danger" id="reset-all">Tout effacer</button>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <div id="map" aria-label="Carte"></div>
+    <div class="mapbar">
+      <select id="coord-fmt" aria-label="Format des coordonnées">
+        <option value="wgs">WGS 84 (°)</option><option value="dms">WGS 84 (° ′ ″)</option><option value="l93">Lambert-93</option><option value="utm">UTM</option>
+      </select>
+      <button id="coords" class="coords" title="Copier les coordonnées">—</button>
+    </div>
+    <section class="profile-dock" id="profile-dock">
+      <div class="profile-head">
+        <strong>Profil d'altitude</strong>
+        <select id="profile-src" aria-label="Source du profil"></select>
+        <span class="pstats" id="pstats"></span>
+        <button class="text-btn" id="profile-toggle" aria-expanded="true">Réduire</button>
+      </div>
+      <div class="profile-body" id="profile-body"><svg id="profile" role="img" aria-label="Profil d'altitude"></svg><div class="ptip" id="ptip" hidden></div><p class="muted pempty" id="pempty">Tracez un itinéraire, des azimuts ou importez une trace pour afficher le profil.</p></div>
+    </section>
+  </main>
+</div>
+
+<section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+<div id="toast" class="toast" role="status" hidden></div>
+<dialog id="dlg-export">
+  <h2>Exporter en GPX</h2>
+  <div class="checks" id="export-opts"></div>
+  <div class="dlg-actions"><button class="ghost" id="export-cancel">Annuler</button><button class="primary" id="export-ok">Télécharger</button></div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/app.js"></script>
+<script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
+</body>
+</html>
