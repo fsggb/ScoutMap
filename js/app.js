@@ -582,7 +582,7 @@
     if (!parts.length) { toast('Rien à exporter : tracez un itinéraire, des azimuts ou importez une trace.'); return; }
     exportTarget = target;
     $('#export-opts').innerHTML = parts.map(function (p) { return '<label><input type="checkbox" value="' + esc(p.id) + '" checked> ' + esc(p.label) + '</label>'; }).join('');
-    $('#export-ok').textContent = target === 'hub' ? 'Enregistrer' : 'Télécharger';
+    $('#export-ok').textContent = 'Enregistrer';
     $('#dlg-export').showModal();
   }
   $('#btn-export').addEventListener('click', function () { openExport('download'); });
@@ -591,19 +591,10 @@
     var ids = $$('#export-opts input:checked').map(function (i) { return i.value; });
     if (!ids.length) { toast('Cochez au moins un élément.'); return; }
     var gpx = buildGpx(ids); $('#dlg-export').close();
-    if (exportTarget === 'hub' && typeof window.ScoutHubSave === 'function') {
-      Promise.resolve(window.ScoutHubSave({ name: fileName(), mime: 'application/gpx+xml', content: gpx }))
-        .then(function () { toast('Enregistré dans ScoutHub.'); }).catch(function (e) { toast('ScoutHub : ' + ((e && e.message) || 'échec de l’enregistrement')); });
-    } else {
-      download(fileName(), gpx, 'application/gpx+xml');
-      try { if (window.ScoutHub && window.ScoutHub.offer) window.ScoutHub.offer(fileName(), new TextEncoder().encode(gpx)); } catch (e) { /* client ScoutHub absent */ }
-    }
+    // L'enregistrement dans ScoutCloud est proposé par la boîte « Enregistrer sous » du client ScoutHub.
+    download(fileName(), gpx, 'application/gpx+xml');
   });
-  // Point d'extension ScoutHub : définir window.ScoutHubSave({name, mime, content}) pour activer le bouton.
-  function syncHub() { $('#btn-hub').hidden = typeof window.ScoutHubSave !== 'function'; }
-  $('#btn-hub').addEventListener('click', function () { openExport('hub'); });
-  window.addEventListener('scouthub:ready', syncHub);
-  window.ScoutMap = { exportGpx: function () { return buildGpx(gpxParts().map(function (p) { return p.id; })); }, state: S, fileName: fileName, refreshHub: syncHub };
+  window.ScoutMap = { exportGpx: function () { return buildGpx(gpxParts().map(function (p) { return p.id; })); }, state: S, fileName: fileName };
 
   // ---------- Impression ----------
   function fillPrint() {
@@ -720,5 +711,4 @@
   applyLayers(); syncRouteUi(); $('#coord-fmt').value = S.coordFmt; applyDock();
   renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); setTab(S.tab); showCoords();
   if (S.route.wps.length > 1) computeRoute(); else refreshProfile();
-  syncHub(); setTimeout(syncHub, 1500);
 })();
