@@ -6,31 +6,54 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = G.esc;
   var GP = 'https://data.geopf.fr';
-  var KEY = 'scoutmap.v2';
+  var KEY = 'scoutmap.v3';
   function ic(n, c) { return '<svg class="ic' + (c ? ' ' + c : '') + '" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function sp(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function arr(v) { return Array.isArray(v) ? v : (v == null ? [] : [v]); }
 
   // ---------- État ----------
+  /* Chaque tracé est un calque. S.route / S.az / S.meas sont les calques en cours d'édition ;
+     S.layers contient les autres calques (itinéraires, azimuts, mesures déjà tracés). */
+  var ROUTE_PAL = ['#000761', '#0e7490', '#7a3db8', '#d97706', '#1a7f37', '#2563eb'];
+  var AZ_PAL = ['#c6a24e', '#d97706', '#7a3db8', '#0e7490', '#b4232c'];
+  var MEAS_PAL = ['#2563eb', '#0e7490', '#7a3db8', '#d97706'];
+  var uidc = 0;
+  function nid() { return Date.now() * 100 + (uidc++ % 100); }
+  function freshRoute(prev, n) {
+    return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: prev ? prev.opt : 'fastest', loop: false,
+      maxOn: false, maxKm: prev ? prev.maxKm : 10, avoidMotorway: prev ? prev.avoidMotorway : true, flagNat: prev ? prev.flagNat : true, wps: [] };
+  }
+  function freshAz(prev, n) {
+    return { id: nid(), name: 'Azimuts ' + n, color: AZ_PAL[(n - 1) % AZ_PAL.length], pts: [], unit: prev ? prev.unit : 'deg', ref: prev ? prev.ref : 'true', decl: prev ? prev.decl : 0 };
+  }
+  function freshMeas(prev, n) {
+    return { id: nid(), name: 'Mesure ' + n, color: MEAS_PAL[(n - 1) % MEAS_PAL.length], mode: prev ? prev.mode : 'dist', pts: [] };
+  }
+  var FRESH = { route: freshRoute, az: freshAz, meas: freshMeas };
   var S = {
     name: '', rail: 'explore', panelOpen: true,
     base: 'plan', ov: { contour: false, shade: false, slope: false, cadastre: false },
-    detail: 1, snap: true, speed: 4, profileSrc: 'route', dockOpen: true, dockH: 230,
+    detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true },
-    route: { opt: 'fastest', loop: false, maxOn: false, maxKm: 10, avoidMotorway: true, flagNat: true, wps: [] },
-    az: { pts: [], unit: 'deg', ref: 'true', decl: 0 },
-    meas: { mode: 'dist', pts: [] },
+    route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), layers: [],
     tracks: [], view: { c: [46.6, 2.5], z: 5.6 }
   };
   try {
-    var saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('scoutmap.v1') || 'null');
+    var raw = localStorage.getItem(KEY), old = false;
+    if (!raw) { raw = localStorage.getItem('scoutmap.v2') || localStorage.getItem('scoutmap.v1'); old = true; }
+    var saved = JSON.parse(raw || 'null');
     if (saved) {
+      if (old) { delete saved.detail; delete saved.snap; if (saved.speed === 4) delete saved.speed; }
       ['route', 'az', 'meas', 'vis', 'ov'].forEach(function (k) { if (saved[k]) Object.assign(S[k], saved[k]); });
-      ['name', 'rail', 'panelOpen', 'base', 'detail', 'snap', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
+      ['name', 'rail', 'panelOpen', 'base', 'detail', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
+      if (Array.isArray(saved.layers)) S.layers = saved.layers.filter(function (l) { return l && l.data && l.type && FRESH[l.type]; });
       if (['explore', 'route', 'az', 'meas', 'layers'].indexOf(S.rail) < 0) S.rail = 'explore';
       if (!S.view || !S.view.c) S.view = { c: [46.6, 2.5], z: 5.6 };
       delete S.route.profile;
     }
   } catch (e) { /* stockage indisponible */ }
+  ['route', 'az', 'meas'].forEach(function (k) { if (!S[k].id) S[k].id = nid(); });
+  S.layers.forEach(function (l) { if (!l.data.id) l.data.id = nid(); });
   var saveTimer;
   function persist() {
     updateHint();
@@ -65,21 +88,23 @@
       maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: ATTR, keepBuffer: 2
     }, d.o || {}, extra || {}));
   }
-  var tiles = {};
+  var tiles = {}, curOff = 1;
 
   // ---------- Carte ----------
   var map = L.map('map', { zoomControl: false, zoomSnap: 0, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 19, minZoom: 4,
     doubleClickZoom: false, attributionControl: false }).setView(S.view.c, S.view.z);
   L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
   L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
-  var gSearch = L.layerGroup().addTo(map), gTracks = L.layerGroup().addTo(map), gMeas = L.layerGroup().addTo(map),
+  var gStored = L.layerGroup().addTo(map), gSearch = L.layerGroup().addTo(map), gTracks = L.layerGroup().addTo(map), gMeas = L.layerGroup().addTo(map),
     gAz = L.layerGroup().addTo(map), gRoute = L.layerGroup().addTo(map), gCursor = L.layerGroup().addTo(map);
   var GROUPS = { route: gRoute, az: gAz, meas: gMeas };
 
+  // Netteté : automatique = fond standard quand on voit une grande étendue, détaillé quand on s'approche.
+  function wantOff() { return S.detail === 'auto' ? (curScale() >= 200000 ? 0 : 1) : +S.detail; }
   function buildTiles() {
     Object.keys(tiles).forEach(function (k) { map.removeLayer(tiles[k]); });
     tiles = {};
-    Object.keys(LAYERS).forEach(function (k) { tiles[k] = tile(k, S.detail); });
+    Object.keys(LAYERS).forEach(function (k) { tiles[k] = tile(k, curOff); });
     applyLayers();
   }
   function applyLayers() {
@@ -90,7 +115,7 @@
     tiles[S.base].bringToBack();
     $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
     $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', !!S.ov[b.dataset.ov]); });
-    $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', +b.dataset.v === S.detail); });
+    $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
   }
   function thumbUrl(key) {
@@ -107,18 +132,15 @@
 
   map.on('moveend', function () { var c = map.getCenter(); S.view = { c: [c.lat, c.lng], z: map.getZoom() }; persist(); });
 
-  // ---------- Échelle (aimantée) ----------
+  // ---------- Échelle ----------
   var MPP0 = 156543.03392, PXM = 0.00026458333;
-  var SCALES = [1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2500000, 5000000, 10000000];
+  var SCALES = [25000, 50000];                       // seules échelles prédéfinies
   function scaleAt(z, lat) { return MPP0 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z) / PXM; }
   function zoomFor(sc, lat) { return Math.log(MPP0 * Math.cos(lat * Math.PI / 180) / (sc * PXM)) / Math.LN2; }
   function curScale() { var c = map.getCenter(); return scaleAt(map.getZoom(), c.lat); }
-  var quietUntil = 0, lastWheel = { t: 0, pt: null };
-  function quiet(ms) { quietUntil = Date.now() + (ms || 1500); }
-  function fit(bounds, opts) { quiet(); map.fitBounds(bounds, opts); }
+  function fit(bounds, opts) { map.fitBounds(bounds, opts); }
   function setScale(sc, center) {
     var c = center ? L.latLng(center[0], center[1]) : map.getCenter();
-    quiet(700);
     map.setView(c, Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), zoomFor(sc, c.lat))), { animate: true });
   }
   function niceScale(sc) {
@@ -131,35 +153,18 @@
     $('#scale-val').textContent = '1 : ' + sp(sc);
     $$('#scale-list button').forEach(function (b) { b.classList.toggle('on', +b.dataset.s === sc); });
   }
-  function snapNow() {
-    var c = map.getCenter(), sc = scaleAt(map.getZoom(), c.lat), best = null, bd = 0.14;
-    SCALES.forEach(function (t) { var d = Math.abs(Math.log(sc / t)); if (d < bd) { bd = d; best = t; } });
-    if (best && bd > 0.004) {
-      var z = zoomFor(best, c.lat);
-      if (lastWheel.pt && Date.now() - lastWheel.t < 1500) map.setZoomAround(lastWheel.pt, z, { animate: true });
-      else map.setZoom(z, { animate: true });
-    }
-  }
-  map.getContainer().addEventListener('wheel', function (e) {
-    var r = map.getContainer().getBoundingClientRect();
-    lastWheel = { t: Date.now(), pt: L.point(e.clientX - r.left, e.clientY - r.top) };
-  }, { passive: true });
   map.on('zoom move', updateScaleUI);
-  map.on('zoomend', function () { updateScaleUI(); if (S.snap && Date.now() > quietUntil) snapNow(); });
-  function stepScale(dir) {
-    var sc = curScale(), t = null, i;
-    if (dir > 0) { for (i = SCALES.length - 1; i >= 0; i--) if (SCALES[i] < sc / 1.04) { t = SCALES[i]; break; } }
-    else { for (i = 0; i < SCALES.length; i++) if (SCALES[i] > sc * 1.04) { t = SCALES[i]; break; } }
-    if (t) setScale(t); else if (dir > 0) map.zoomIn(); else map.zoomOut();
-  }
-  $('#zoom-in').addEventListener('click', function () { stepScale(1); });
-  $('#zoom-out').addEventListener('click', function () { stepScale(-1); });
+  map.on('zoomend', function () {
+    updateScaleUI();
+    if (S.detail === 'auto') { var o = wantOff(); if (o !== curOff) { curOff = o; buildTiles(); } }
+  });
+  $('#zoom-in').addEventListener('click', function () { map.zoomIn(); });
+  $('#zoom-out').addEventListener('click', function () { map.zoomOut(); });
   $('#scale-list').innerHTML = SCALES.map(function (s) { return '<button data-s="' + s + '">1 : ' + sp(s) + '</button>'; }).join('');
   $('#scale-list').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setScale(+b.dataset.s); });
   $('#scale-custom').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { var v = +this.value; if (v >= 200) { setScale(v); this.value = ''; } }
   });
-  $('#snap-on').addEventListener('change', function () { S.snap = this.checked; persist(); if (S.snap) snapNow(); });
 
   // ---------- Utilitaires UI ----------
   var toastT;
@@ -176,8 +181,37 @@
   function openDlg(id) { var d = $('#' + id); if (!d.open) d.showModal(); }
   $$('[data-close-dlg]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
 
+  // ---------- Sélection de points (carte ↔ panneau) ----------
+  var SEL = null;                                    // { k: 'route'|'az'|'meas', i }
+  var routeMarkers = [], azMarkers = [], measMarkers = [];
+  function select(k, i, scrollRow) {
+    SEL = k ? { k: k, i: i } : null;
+    applySel(scrollRow);
+  }
+  function applySel(scrollRow) {
+    function mark(list, k) { list.forEach(function (m, i) { var el = m.getElement && m.getElement(); if (el) el.classList.toggle('sel', !!SEL && SEL.k === k && SEL.i === i); }); }
+    mark(routeMarkers, 'route'); mark(azMarkers, 'az'); mark(measMarkers, 'meas');
+    var row = null;
+    $$('#wps li[data-i]').forEach(function (li) { var on = !!SEL && SEL.k === 'route' && +li.dataset.i === SEL.i; li.classList.toggle('sel', on); if (on) row = li; });
+    $$('#az-table tr[data-i]').forEach(function (tr) {
+      var want = SEL && SEL.k === 'az' ? Math.max(1, SEL.i) : -1, on = +tr.dataset.i === want; tr.classList.toggle('sel', on); if (on) row = tr;
+    });
+    if (row && scrollRow && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function deleteSelected() {
+    if (!SEL) return false;
+    var k = SEL.k, i = SEL.i;
+    if (k === 'route') { removeWp(i); select(S.route.wps.length ? 'route' : null, Math.min(i, S.route.wps.length - 1)); }
+    else if (k === 'az') {
+      var n = S.az.pts.length, closed = azClosed();
+      if (closed && (i === 0 || i === n - 1)) { S.az.pts.splice(n - 1, 1); S.az.pts.splice(0, 1); } else S.az.pts.splice(i, 1);
+      renderAz(); persist(); select(S.az.pts.length ? 'az' : null, Math.min(i, S.az.pts.length - 1));
+    } else if (k === 'meas') { S.meas.pts.splice(i, 1); renderMeas(); persist(); select(S.meas.pts.length ? 'meas' : null, Math.min(i, S.meas.pts.length - 1)); }
+    return true;
+  }
+  function panToIfHidden(latlng) { if (!map.getBounds().pad(-0.1).contains(latlng)) map.panTo(latlng); }
+
   // ---------- Outils, panneau, rail ----------
-  var PANES = ['explore', 'route', 'az', 'meas', 'layers'];
   function setTool(t) {
     RT.tool = t;
     var c = map.getContainer();
@@ -198,7 +232,13 @@
     setTimeout(function () { map.invalidateSize(); drawProfile(); }, 220);
   }
   function togglePanel() { S.panelOpen = !S.panelOpen; applyPanel(); persist(); }
-  $$('.rail-btn[data-rail]').forEach(function (b) { b.addEventListener('click', function () { if (S.rail === b.dataset.rail && S.panelOpen && b.dataset.rail !== 'explore') { RT.tool === 'pan' && /route|az|meas/.test(b.dataset.rail) ? setTool(b.dataset.rail) : togglePanel(); } else setRail(b.dataset.rail); }); });
+  $$('.rail-btn[data-rail]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var r = b.dataset.rail;
+      if (S.rail === r && S.panelOpen && r !== 'explore') { if (RT.tool === 'pan' && /route|az|meas/.test(r)) setTool(r); else togglePanel(); }
+      else setRail(r);
+    });
+  });
   $('#rail-toggle').addEventListener('click', togglePanel);
   $$('[data-go]').forEach(function (b) { b.addEventListener('click', function () { setRail(b.dataset.go); }); });
   $$('.card[data-act]').forEach(function (b) {
@@ -211,10 +251,10 @@
       if (S.route.loop) return n === 0 ? 'Boucle : cliquez sur la carte pour poser le départ.' : 'Ajoutez des points de passage : le retour au départ est automatique.';
       if (n === 0) return 'Cliquez sur la carte pour poser le départ (A).';
       if (n === 1) return 'Cliquez pour poser l’arrivée.';
-      return 'Cliquez pour prolonger · cliquez sur A pour fermer la boucle.';
+      return 'Cliquez pour prolonger (ou sur le tracé pour insérer) · clic sur A : boucle · Suppr : retirer le point choisi.';
     }
-    if (r === 'az') return S.az.pts.length < 1 ? 'Cliquez pour poser le premier point.' : S.az.pts.length > 2 ? 'Cliquez pour ajouter un point · cliquez sur le point 1 pour fermer le circuit.' : 'Cliquez pour ajouter un point.';
-    return 'Cliquez pour poser les sommets de la mesure.';
+    if (r === 'az') return S.az.pts.length < 1 ? 'Cliquez pour poser le premier point.' : S.az.pts.length > 2 ? 'Cliquez pour ajouter un point · clic sur le point 1 : fermer · Suppr : retirer le point choisi.' : 'Cliquez pour ajouter un point.';
+    return 'Cliquez pour poser les sommets · Suppr : retirer le point choisi.';
   }
   function updateHint() {
     var el = $('#toolhint'), r = S.rail;
@@ -225,6 +265,103 @@
     else { $('#hint-txt').textContent = hintText(); $('#hint-btn').textContent = 'Terminer'; }
   }
   $('#hint-btn').addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); });
+
+  // ---------- Calques : modèle ----------
+  function isEmpty(t, d) { return t === 'route' ? !d.wps.length : !d.pts.length; }
+  // Liste unifiée des calques de tracé (en cours d'édition + stockés), regroupés par type.
+  function layersList() {
+    var out = [];
+    ['route', 'az', 'meas'].forEach(function (t) {
+      var d = S[t];
+      out.push({ type: t, id: d.id, key: t, active: true, name: d.name, color: d.color, vis: S.vis[t] !== false, data: d, res: t === 'route' ? RT.route : null, empty: isEmpty(t, d) });
+    });
+    S.layers.forEach(function (l) {
+      out.push({ type: l.type, id: l.data.id, key: 'L' + l.data.id, active: false, name: l.data.name, color: l.data.color, vis: l.vis !== false, data: l.data, res: l.res || null, empty: false, item: l });
+    });
+    var order = { route: 0, az: 1, meas: 2 };
+    out.sort(function (a, b) { return order[a.type] - order[b.type] || a.id - b.id; });
+    return out;
+  }
+  function archiveActive(t) {
+    if (isEmpty(t, S[t])) return false;
+    S.layers.push({ type: t, vis: S.vis[t] !== false, data: S[t], res: t === 'route' ? RT.route : null });
+    return true;
+  }
+  function newLayer(t, opts) {
+    var archived = archiveActive(t);
+    if (archived || !S[t].id) {
+      var n = S.layers.filter(function (l) { return l.type === t; }).length + 1;
+      var prev = S[t]; S[t] = FRESH[t](prev, n);
+      if (t === 'route') RT.route = null;
+    }
+    S.vis[t] = true; applyVis();
+    if (t === 'route' && opts && opts.loop !== undefined) S.route.loop = opts.loop;
+    renderType(t); setRail(t); persist();
+  }
+  function activate(id) {
+    var i = -1;
+    S.layers.forEach(function (l, k) { if (l.data.id === id) i = k; });
+    if (i < 0) return;
+    var it = S.layers.splice(i, 1)[0], t = it.type;
+    archiveActive(t);
+    S[t] = it.data; S.vis[t] = true; applyVis();
+    RT.route = t === 'route' ? (it.res || null) : RT.route;
+    if (t !== 'route') { /* rien : azimuts et mesures se redessinent depuis leurs points */ }
+    select(null);
+    renderType(t); setRail(t); setTool('pan'); persist();
+    var b = layerBounds(t); if (b) fit(b, { padding: [70, 70], maxZoom: 17 });
+  }
+  function renderType(t) {
+    if (t === 'route') refreshRouteView(); else if (t === 'az') renderAz(); else renderMeas();
+    renderStored(); renderLayerList(); refreshProfile();
+  }
+  function removeLayer(key) {
+    if (key === 'route') { S.route.wps = []; S.route.loop = false; RT.route = null; select(null); refreshRouteView(); }
+    else if (key === 'az') { S.az.pts = []; select(null); renderAz(); }
+    else if (key === 'meas') { S.meas.pts = []; select(null); renderMeas(); }
+    else if (key[0] === 'L') { S.layers = S.layers.filter(function (l) { return 'L' + l.data.id !== key; }); renderStored(); renderLayerList(); refreshProfile(); }
+    persist();
+  }
+  function renameLayer(key, name) {
+    name = (name || '').trim(); if (!name) return;
+    var L0 = layersList().filter(function (l) { return l.key === key; })[0];
+    if (L0) { L0.data.name = name; syncNames(); renderLayerList(); refreshProfile(); renderStored(); persist(); }
+  }
+  function syncNames() {
+    $('#route-name').value = S.route.name; $('#az-name').value = S.az.name; $('#meas-name').value = S.meas.name;
+  }
+  [['route-name', 'route'], ['az-name', 'az'], ['meas-name', 'meas']].forEach(function (p) {
+    $('#' + p[0]).addEventListener('input', function () { S[p[1]].name = this.value || ''; renderLayerList(); persist(); });
+    $('#' + p[0]).addEventListener('change', function () { if (!this.value.trim()) { this.value = S[p[1]].name = 'Sans nom'; renderLayerList(); } });
+  });
+  $('#route-new').addEventListener('click', function () { newLayer('route'); });
+  $('#az-new').addEventListener('click', function () { newLayer('az'); });
+  $('#meas-new').addEventListener('click', function () { newLayer('meas'); });
+  $$('[data-newlayer]').forEach(function (b) { b.addEventListener('click', function () { newLayer(b.dataset.newlayer); }); });
+
+  // Calques stockés : dessin statique, clic = reprendre l'édition
+  function renderStored() {
+    gStored.clearLayers();
+    S.layers.forEach(function (l) {
+      if (l.vis === false) return;
+      var d = l.data, col = d.color, id = d.id;
+      function click(e) { if (RT.tool === 'pan') { L.DomEvent.stopPropagation(e); activate(id); } }
+      function tip(layer) { layer.bindTooltip(esc(d.name) + ' – cliquer pour modifier', { sticky: true }); return layer; }
+      if (l.type === 'route' && l.res) {
+        L.polyline(l.res.line, { color: '#fff', weight: 8, opacity: 0.85, interactive: false, lineCap: 'round' }).addTo(gStored);
+        tip(L.polyline(l.res.line, { color: col, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round', className: 'stored-line' }).on('click', click)).addTo(gStored);
+      }
+      if (l.type === 'route') {
+        d.wps.forEach(function (p, i) { L.marker([p.lat, p.lon], { icon: pin(lblOf(d, i), clsOf(d, i)), zIndexOffset: 500 }).on('click', click).addTo(gStored); });
+      } else if (l.type === 'az') {
+        if (d.pts.length > 1) tip(L.polyline(d.pts, { color: col, weight: 4, dashArray: '10 6', opacity: 0.95, className: 'stored-line' }).on('click', click)).addTo(gStored);
+        d.pts.forEach(function (p, i) { L.marker(p, { icon: pin(String(i + 1), 'az'), zIndexOffset: 400 }).on('click', click).addTo(gStored); });
+      } else if (l.type === 'meas') {
+        if (d.pts.length > 1) tip((d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: 0.2, dashArray: '2 6', className: 'stored-line' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6', className: 'stored-line' })).on('click', click)).addTo(gStored);
+        d.pts.forEach(function (p) { L.circleMarker(p, { radius: 5, color: '#fff', weight: 2, fillColor: col, fillOpacity: 1, interactive: false }).addTo(gStored); });
+      }
+    });
+  }
 
   // ---------- Altimétrie & profil ----------
   function lineKey(line) {
@@ -278,9 +415,11 @@
   var currentProfile = null;
   function sources() {
     var out = [];
-    if (S.vis.route !== false && RT.route && RT.route.line.length > 1) out.push({ id: 'route', label: 'Itinéraire', line: RT.route.line });
-    if (S.vis.az !== false && S.az.pts.length > 1) out.push({ id: 'az', label: 'Azimuts', line: S.az.pts });
-    if (S.vis.meas !== false && S.meas.pts.length > 1 && S.meas.mode === 'dist') out.push({ id: 'meas', label: 'Mesure', line: S.meas.pts });
+    layersList().forEach(function (l) {
+      if (!l.vis || l.empty) return;
+      var line = l.type === 'route' ? (l.res && l.res.line) : l.type === 'az' ? l.data.pts : (l.data.mode === 'dist' ? l.data.pts : null);
+      if (line && line.length > 1) out.push({ id: l.key, label: l.name, line: line });
+    });
     S.tracks.forEach(function (t) { if (t.show !== false) out.push({ id: 't' + t.id, label: t.name, line: t.coords, ele: t.ele }); });
     return out;
   }
@@ -298,7 +437,7 @@
     $('#pstats').innerHTML = chip('', 'Calcul du profil…');
     profileFor(cur.line, cur.ele).then(function (p) {
       if (tok !== profToken) return;
-      currentProfile = p; currentProfile.label = cur.label;
+      currentProfile = p; currentProfile.src = cur.id;
       var over = cur.id === 'route' && overMax();
       $('#pstats').innerHTML = chip('Distance', G.fmtDist(p.pts[p.pts.length - 1].d), over ? 'bad' : '') + chip('D+', Math.round(p.asc) + ' m') + chip('D−', Math.round(p.desc) + ' m') +
         chip('Altitude', Math.round(p.min) + ' – ' + Math.round(p.max) + ' m');
@@ -395,7 +534,28 @@
     svg.addEventListener('mouseleave', leave); svg.addEventListener('touchend', leave);
   })();
 
-  // ---------- Itinéraire ----------
+  // ---------- Noms de lieux (village ou hameau) ----------
+  var PLACE = {};
+  function placeFor(lat, lon) {
+    var key = lat.toFixed(3) + ',' + lon.toFixed(3);
+    if (PLACE[key] !== undefined) return Promise.resolve(PLACE[key]);
+    function q(cat) {
+      return fetch(GP + '/geocodage/reverse?index=poi&limit=1&lon=' + lon.toFixed(5) + '&lat=' + lat.toFixed(5) + '&category=' + encodeURIComponent(cat))
+        .then(function (r) { return r.ok ? r.json() : { features: [] }; })
+        .then(function (j) { var f = (j.features || [])[0]; return f ? (arr(f.properties.toponym || f.properties.name)[0] || '') : ''; })
+        .catch(function () { return ''; });
+    }
+    // Le hameau (lieu-dit habité) s'il est tout proche, sinon la commune.
+    return Promise.all([q('lieu-dit habité'), q('commune')]).then(function (r) { PLACE[key] = r[0] || r[1] || ''; return PLACE[key]; });
+  }
+  function fillPlaces(d) {
+    return Promise.all(d.wps.map(function (w) {
+      if (w.place !== undefined) return Promise.resolve();
+      return placeFor(w.lat, w.lon).then(function (n) { w.place = n; });
+    })).then(function () { if (d === S.route) { renderWpList(); renderSteps(); renderRouteMarkers(); } persist(); });
+  }
+
+  // ---------- Itinéraire : fonctions par calque ----------
   var STEP_FR = {
     depart: 'Départ', arrive: 'Arrivée', turn: 'Tourner', 'new name': 'Continuer', continue: 'Continuer', merge: 'Rejoindre',
     'on ramp': 'Prendre la bretelle', 'off ramp': 'Quitter par la bretelle', fork: 'Bifurquer', 'end of road': 'Au bout de la route',
@@ -421,20 +581,24 @@
   function stepName(st) { var m = stepMeta(st); return m.name || m.num || ''; }
   function natOf(m) { return /^N\s?\d/i.test(m.num) ? m.num.replace(/\s/g, '').toUpperCase() : /nationale/i.test(m.cls) ? 'nationale' : ''; }
 
-  function effWps() { var w = S.route.wps; return S.route.loop && w.length >= 2 ? w.concat([w[0]]) : w; }
-  function isLoop() { return S.route.loop && S.route.wps.length >= 2; }
-  function wpLabel(i, n) { return i === 0 ? 'A' : (i === n - 1 && !isLoop()) ? 'B' : String(i); }
-  function wpClass(i, n) { return i === 0 ? 'start' : (i === n - 1 && !isLoop()) ? 'end' : 'via'; }
-  function wpTitle(i, n) { return i === 0 ? 'Départ' : (i === n - 1 && !isLoop()) ? 'Arrivée' : 'Étape ' + i; }
-  function wpName(i) { var w = S.route.wps[i], n = S.route.wps.length; return (w && w.name) || wpTitle(i, n); }
+  // d = données d'un calque itinéraire ; les points sont numérotés dans l'ordre de passage.
+  function loopOf(d) { return !!d.loop && d.wps.length >= 2; }
+  function effOf(d) { return loopOf(d) ? d.wps.concat([d.wps[0]]) : d.wps; }
+  function lblOf(d, i) { return i === 0 ? 'A' : (i === d.wps.length - 1 && !loopOf(d)) ? 'B' : String(i); }
+  function clsOf(d, i) { return i === 0 ? 'start' : (i === d.wps.length - 1 && !loopOf(d)) ? 'end' : 'via'; }
+  function titleOf(d, i) { return i === 0 ? 'Départ' : (i === d.wps.length - 1 && !loopOf(d)) ? 'Arrivée' : 'Étape ' + i; }
+  function nameOf(d, i) { var w = d.wps[i]; return (w && (w.name || w.place)) || titleOf(d, i); }
+  function effWps() { return effOf(S.route); }
   function overMax() { return !!(RT.route && S.route.maxOn && S.route.maxKm > 0 && RT.route.dist > S.route.maxKm * 1000); }
 
-  var routeMarkers = [], routeLine = null, routeCasing = null;
+  var routeLine = null, routeCasing = null;
   function addWp(p, name, idx) {
     ensureVisible('route');
     var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
-    if (idx == null) S.route.wps.push(o); else S.route.wps.splice(idx, 0, o);
-    renderRouteMarkers(); computeRoute(); persist();
+    var at = idx == null ? S.route.wps.length : idx;
+    S.route.wps.splice(at, 0, o);
+    renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
+    fillPlaces(S.route);
   }
   function closeLoop() {
     if (S.route.wps.length < 2 || S.route.loop) return;
@@ -443,39 +607,83 @@
   }
   function renderRouteMarkers() {
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
-    var w = S.route.wps, n = w.length, closable = RT.tool === 'route' && n >= 2 && !S.route.loop;
+    var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
     w.forEach(function (p, i) {
-      var m = L.marker([p.lat, p.lon], { draggable: true, icon: pin(wpLabel(i, n), wpClass(i, n), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
-      m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(wpName(i)), { direction: 'top', offset: [0, -14] });
-      m.on('dragend', function () { var q = m.getLatLng(); S.route.wps[i] = { lat: q.lat, lon: q.lng, name: S.route.wps[i].name }; renderWpList(); computeRoute(); persist(); });
-      m.on('click', function () { if (i === 0 && closable) closeLoop(); });
+      var m = L.marker([p.lat, p.lon], { draggable: true, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
+      m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
+      m.on('dragstart', function () { select('route', i, true); });
+      m.on('dragend', function () {
+        var q = m.getLatLng(); S.route.wps[i] = { lat: q.lat, lon: q.lng, name: S.route.wps[i].name };
+        renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
+      });
+      m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
       m.on('contextmenu', function () { removeWp(i); });
       routeMarkers.push(m);
     });
-    renderWpList();
+    renderWpList(); applySel();
   }
   function renderWpList() {
-    var w = S.route.wps, n = w.length, loop = isLoop();
-    $('#wps-empty').hidden = n > 0;
-    $('#wp-count').textContent = n ? '(' + n + ')' : '';
+    var d = S.route, w = d.wps, loop = loopOf(d);
+    $('#wps-empty').hidden = w.length > 0;
+    $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
-      return '<li><span class="badge ' + wpClass(i, n) + '">' + wpLabel(i, n) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || '') + '" placeholder="' + esc(wpTitle(i, n)) + '" aria-label="Nom du point">' +
-        '<small>' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-i="' + i + '" title="Retirer ce point" aria-label="Retirer">' + ic('x') + '</button></li>';
+      return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || '') + '" placeholder="' + esc(p.place || titleOf(d, i)) + '" aria-label="Nom du point">' +
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name ? ' · près de ' + esc(p.place) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
-    $$('#wps .ibtn').forEach(function (b) { b.addEventListener('click', function () { removeWp(+b.dataset.i); }); });
-    $$('#wps .wp-name').forEach(function (b) {
-      b.addEventListener('input', function () { var o = S.route.wps[+b.dataset.i]; if (this.value.trim()) o.name = this.value.trim(); else delete o.name; persist(); });
-    });
+    applySel();
   }
-  function removeWp(i) { S.route.wps.splice(i, 1); renderRouteMarkers(); computeRoute(); persist(); }
+  (function wpListEvents() {
+    var ul = $('#wps'), dragFrom = -1;
+    ul.addEventListener('click', function (e) {
+      var del = e.target.closest('[data-del]');
+      if (del) { removeWp(+del.dataset.del); return; }
+      var li = e.target.closest('li[data-i]'); if (!li) return;
+      var i = +li.dataset.i; select('route', i); var w = S.route.wps[i]; if (w) panToIfHidden(L.latLng(w.lat, w.lon));
+    });
+    ul.addEventListener('input', function (e) {
+      var inp = e.target.closest('.wp-name'); if (!inp) return;
+      var o = S.route.wps[+inp.dataset.i]; if (!o) return;
+      if (inp.value.trim()) o.name = inp.value.trim(); else delete o.name;
+      persist();
+    });
+    ul.addEventListener('focusin', function (e) { var li = e.target.closest('li[data-i]'); if (li && e.target.matches('.wp-name')) select('route', +li.dataset.i); });
+    ul.addEventListener('dragstart', function (e) {
+      var g = e.target.closest('.grip'); if (!g) { e.preventDefault(); return; }
+      var li = g.closest('li'); dragFrom = +li.dataset.i; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dragFrom));
+      if (e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(li, 12, 12);
+      li.classList.add('dragging');
+    });
+    ul.addEventListener('dragover', function (e) {
+      var li = e.target.closest('li[data-i]'); if (!li || dragFrom < 0) return;
+      e.preventDefault(); $$('#wps li').forEach(function (x) { x.classList.toggle('drop', x === li); });
+    });
+    ul.addEventListener('drop', function (e) {
+      var li = e.target.closest('li[data-i]'); if (!li || dragFrom < 0) return;
+      e.preventDefault(); var to = +li.dataset.i, from = dragFrom; dragFrom = -1;
+      if (from !== to) moveWp(from, to);
+    });
+    ul.addEventListener('dragend', function () { dragFrom = -1; $$('#wps li').forEach(function (x) { x.classList.remove('dragging', 'drop'); }); });
+  })();
+  function moveWp(from, to) {
+    var w = S.route.wps, x = w.splice(from, 1)[0]; w.splice(to, 0, x);
+    renderRouteMarkers(); computeRoute(); persist(); select('route', to, true);
+    toast('Ordre de passage modifié : les points sont renumérotés.');
+  }
+  function removeWp(i) { S.route.wps.splice(i, 1); if (SEL && SEL.k === 'route') SEL = null; renderRouteMarkers(); computeRoute(); persist(); }
+  function reverseRoute() {
+    var w = S.route.wps; if (w.length < 2) { toast('Posez au moins deux points pour inverser le sens.'); return; }
+    S.route.wps = loopOf(S.route) ? [w[0]].concat(w.slice(1).reverse()) : w.reverse();
+    select(null); renderRouteMarkers(); computeRoute(); persist();
+    toast('Sens du parcours inversé.');
+  }
   $('#route-undo').addEventListener('click', function () { if (S.route.wps.length) removeWp(S.route.wps.length - 1); });
-  $('#route-clear').addEventListener('click', function () { S.route.wps = []; renderRouteMarkers(); computeRoute(); persist(); });
-  $('#route-reverse').addEventListener('click', function () { S.route.wps.reverse(); renderRouteMarkers(); computeRoute(); persist(); });
+  $('#route-clear').addEventListener('click', function () { S.route.wps = []; select(null); renderRouteMarkers(); computeRoute(); persist(); });
+  $('#route-reverse').addEventListener('click', reverseRoute);
   $$('#route-mode button').forEach(function (b) {
     b.addEventListener('click', function () { S.route.loop = b.dataset.v === 'loop'; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist(); });
   });
   $('#route-opt').addEventListener('change', function () { S.route.opt = this.value; computeRoute(); persist(); });
-  $('#speed').addEventListener('input', function () { S.speed = Math.max(1, +this.value || 4); renderRouteStats(); persist(); });
+  $('#speed').addEventListener('input', function () { S.speed = Math.max(1, +this.value || 5); renderRouteStats(); persist(); });
   $('#opt-motorway').addEventListener('change', function () { S.route.avoidMotorway = this.checked; computeRoute(); persist(); });
   $('#opt-national').addEventListener('change', function () { S.route.flagNat = this.checked; renderNatWarn(); persist(); });
   $('#max-on').addEventListener('change', function () { S.route.maxOn = this.checked; syncRouteUi(); onMaxChange(); persist(); });
@@ -487,20 +695,29 @@
     $('#route-opt').value = S.route.opt; $('#speed').value = S.speed;
     $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat;
     $('#max-on').checked = !!S.route.maxOn; $('#max-km').value = S.route.maxKm; $('#max-km').disabled = !S.route.maxOn;
+    syncNames();
   }
   function setRouteStatus(msg, err) { var el = $('#route-status'); el.textContent = msg || ''; el.className = 'status' + (err ? ' error' : ''); }
-  function routeColor() { return overMax() ? '#c0262d' : '#000761'; }
+  function routeColor() { return overMax() ? '#c0262d' : S.route.color; }
   function restyleRoute() { if (routeLine) routeLine.setStyle({ color: routeColor() }); }
-
-  var routeTimer;
   function clearRouteLines() {
     if (routeLine) { gRoute.removeLayer(routeLine); routeLine = null; }
     if (routeCasing) { gRoute.removeLayer(routeCasing); routeCasing = null; }
   }
+  // Redessine le calque itinéraire en cours d'édition (après activation d'un calque, par exemple).
+  function refreshRouteView() {
+    clearTimeout(routeTimer); if (RT.routeCtl) RT.routeCtl.abort();
+    clearRouteLines(); syncRouteUi(); renderRouteMarkers();
+    if (RT.route && RT.route.line) { drawRoute(); renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); setRouteStatus(''); refreshProfile(); }
+    else computeRoute();
+    fillPlaces(S.route);
+  }
+
+  var routeTimer;
   function computeRoute() {
     clearTimeout(routeTimer);
     clearRouteLines();
-    RT.route = null; renderRouteStats(); renderGauge(); renderNatWarn(); $('#steps-box').hidden = true;
+    RT.route = null; renderRouteStats(); renderGauge(); renderNatWarn(); $('#steps-box').hidden = true; renderLayerList(); renderStored();
     if (RT.routeCtl) RT.routeCtl.abort();
     var w = effWps();
     if (w.length < 2) {
@@ -509,6 +726,7 @@
     }
     if (w.length > 17) { setRouteStatus('Maximum : 15 étapes intermédiaires.', true); return; }
     setRouteStatus('Calcul de l’itinéraire…');
+    var tag = S.route.id;
     routeTimer = setTimeout(function () {
       var c = RT.routeCtl = new AbortController();
       var f = function (p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); };
@@ -520,6 +738,7 @@
       fetch(url, { signal: c.signal }).then(function (r) {
         return r.json().then(function (j) { if (!r.ok || j.error) throw new Error((j.error && j.error.message) || (j.message) || 'Erreur ' + r.status); return j; });
       }).then(function (j) {
+        if (tag !== S.route.id) return;
         var line = j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; });
         var nat = {};
         (j.portions || []).forEach(function (p) { (p.steps || []).forEach(function (s) { var k = natOf(stepMeta(s)); if (k) nat[k] = (nat[k] || 0) + (s.distance || 0); }); });
@@ -527,11 +746,11 @@
         RT.route = { line: line, dist: j.distance, dur: j.duration, portions: j.portions || [],
           nat: Object.keys(nat).map(function (k) { return { label: k, dist: nat[k] }; }) };
         drawRoute(); setRouteStatus('');
-        renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn();
+        renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderLayerList();
         if (overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(RT.route.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
         var b = L.latLngBounds(line.map(ll));
         if (!map.getBounds().contains(b)) fit(b, { padding: [90, 90], maxZoom: 16 });
-        S.profileSrc = 'route'; refreshProfile();
+        S.profileSrc = 'route'; refreshProfile(); persist();
       }).catch(function (e) {
         if (e.name === 'AbortError') return;
         setRouteStatus('Itinéraire impossible : ' + (e.message || 'service indisponible') + '. Rapprochez les points d’une route ou d’un chemin.', true);
@@ -546,13 +765,27 @@
     routeLine.on('click', function (e) {
       if (RT.tool !== 'route') return;
       L.DomEvent.stopPropagation(e);
-      var idx = nearestIndex(r.line, [e.latlng.lat, e.latlng.lng]), leg = legOf(idx);
-      addWp([e.latlng.lat, e.latlng.lng], null, leg + 1);
+      insertOnRoute([e.latlng.lat, e.latlng.lng]);
     });
     routeLine.on('mouseover', function () { if (RT.tool === 'route') routeLine.setStyle({ color: '#c6a24e' }); });
     routeLine.on('mouseout', restyleRoute);
     routeLine.bringToFront();
     routeMarkers.forEach(function (m) { m.setZIndexOffset(1000); });
+  }
+  // Insère un point dans le tronçon du tracé le plus proche : la numérotation suit l'ordre de passage.
+  function insertOnRoute(p) {
+    var r = RT.route, idx = nearestIndex(r.line, p), leg = legOf(idx);
+    addWp(p, null, Math.min(leg + 1, S.route.wps.length));
+  }
+  // Distance (en pixels écran) du point de clic au tracé calculé.
+  function pixelDistToRoute(latlng) {
+    var r = RT.route; if (!r || r.line.length < 2) return Infinity;
+    var P = map.latLngToLayerPoint(latlng), best = Infinity, prev = map.latLngToLayerPoint(ll(r.line[0]));
+    for (var i = 1; i < r.line.length; i++) {
+      var q = map.latLngToLayerPoint(ll(r.line[i]));
+      var d = L.LineUtil.pointToSegmentDistance(P, prev, q); if (d < best) best = d; prev = q;
+    }
+    return best;
   }
   function nearestIndex(line, p, from) {
     var best = from || 0, bd = Infinity;
@@ -573,10 +806,9 @@
   }
   function renderSteps() {
     var r = RT.route; if (!r) return;
-    var items = [], n = effWps().length;
+    var items = [], d = S.route, n = d.wps.length;
     r.portions.forEach(function (p, pi) {
-      var a = wpName(pi), b = pi + 1 >= S.route.wps.length ? wpName(0) : wpName(pi + 1);
-      items.push('<li class="leg"><span>' + esc(a) + ' → ' + esc(b) + '</span><span>' + G.fmtDist(p.distance) + '</span></li>');
+      items.push('<li class="leg"><span>' + esc(nameOf(d, pi)) + ' → ' + esc(nameOf(d, (pi + 1) % n)) + '</span><span>' + G.fmtDist(p.distance) + '</span></li>');
       (p.steps || []).forEach(function (s) {
         var nm = stepName(s);
         items.push('<li><span>' + esc(stepText(s)) + (nm ? ' <i>' + esc(nm) + '</i>' : '') + '</span><b>' + (s.distance > 0 ? G.fmtDist(s.distance) : '') + '</b></li>');
@@ -587,7 +819,7 @@
   function renderRouteStats() {
     var el = $('#route-stats'), r = RT.route;
     if (!r) { el.hidden = true; return; }
-    var p = (currentProfile && currentProfile.label === 'Itinéraire') ? currentProfile : (RT.elevCache[lineKey(r.line)] || null);
+    var p = (currentProfile && currentProfile.src === 'route') ? currentProfile : (RT.elevCache[lineKey(r.line)] || null);
     var html = '<div class="' + (overMax() ? 'over' : '') + '"><span>Distance</span><b>' + G.fmtDist(r.dist) + '</b></div><div><span>Durée IGN (à pied)</span><b>' + G.fmtDur(r.dur) + '</b></div>';
     if (p) html += '<div><span>Dénivelé</span><b>+' + Math.round(p.asc) + ' / −' + Math.round(p.desc) + ' m</b></div><div><span>Marche estimée</span><b>' + G.fmtDur((r.dist / 1000 / S.speed + p.asc / 400) * 3600) + '</b></div>';
     el.innerHTML = html; el.hidden = false;
@@ -611,45 +843,46 @@
   }
 
   // ---------- Azimuts ----------
-  var azMarkers = [], azLines = [], azLabels = [];
-  function azParams() { return { unit: S.az.unit, ref: S.az.ref, decl: +S.az.decl || 0 }; }
-  function azClosed() { var p = S.az.pts; return p.length > 2 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]; }
+  var azLines = [], azLabels = [];
+  function azParams(d) { d = d || S.az; return { unit: d.unit, ref: d.ref, decl: +d.decl || 0 }; }
+  function azClosedOf(d) { var p = d.pts; return p.length > 2 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]; }
+  function azClosed() { return azClosedOf(S.az); }
   function addAz(p, idx) {
     ensureVisible('az');
-    if (idx != null) S.az.pts.splice(idx, 0, p);
-    else if (azClosed()) S.az.pts.splice(S.az.pts.length - 1, 0, p);
-    else S.az.pts.push(p);
-    renderAz(); persist();
+    var at;
+    if (idx != null) at = idx; else if (azClosed()) at = S.az.pts.length - 1; else at = S.az.pts.length;
+    S.az.pts.splice(at, 0, p);
+    renderAz(); persist(); select('az', at, true);
   }
   function renderAz() {
     azMarkers.concat(azLines, azLabels).forEach(function (l) { gAz.removeLayer(l); }); azMarkers = []; azLines = []; azLabels = [];
-    var pts = S.az.pts, a = azParams(), closed = azClosed(), closable = RT.tool === 'az' && pts.length > 2 && !closed;
-    $('#az-unit').value = a.unit; $('#az-ref').value = a.ref; $('#az-decl').value = a.decl;
+    var pts = S.az.pts, a = azParams(), closed = azClosed(), closable = RT.tool === 'az' && pts.length > 2 && !closed, col = S.az.color;
+    $('#az-unit').value = a.unit; $('#az-ref').value = a.ref; $('#az-decl').value = a.decl; syncNames();
     $('#decl-row').hidden = a.ref !== 'mag'; $('#decl-note').hidden = a.ref !== 'mag';
     var rows = '', cum = 0;
     pts.forEach(function (p, i) {
       var m = L.marker(p, { draggable: true, icon: pin(String(i + 1), 'az', i === 0 && closable ? 'closable' : ''), zIndexOffset: 900 }).addTo(gAz);
       if (i === 0 && closable) m.bindTooltip('Cliquer pour fermer le circuit', { direction: 'top', offset: [0, -14] });
+      m.on('dragstart', function () { select('az', i, true); });
       m.on('dragend', function () {
         var q = m.getLatLng(), wasClosed = azClosed();
         S.az.pts[i] = [q.lat, q.lng];
         if (wasClosed && i === 0) S.az.pts[S.az.pts.length - 1] = [q.lat, q.lng];
         renderAz(); persist();
       });
-      m.on('click', function () { if (i === 0 && closable) closeAz(); });
+      m.on('click', function () { if (i === 0 && closable) closeAz(); select('az', i, true); });
       m.on('contextmenu', function () { S.az.pts.splice(i, 1); renderAz(); persist(); });
       azMarkers.push(m);
       if (i > 0) {
         var q = pts[i - 1], t = G.bearing(q, p), d = G.haversine(q, p); cum += d;
         var v = G.trueToUnit(t, a.unit, a.ref, a.decl), back = G.trueToUnit((t + 180) % 360, a.unit, a.ref, a.decl);
-        azLines.push(L.polyline([q, p], { color: '#c6a24e', weight: 4, dashArray: '10 6', opacity: 0.95, interactive: false }).addTo(gAz));
+        azLines.push(L.polyline([q, p], { color: col, weight: 4, dashArray: '10 6', opacity: 0.95, interactive: false }).addTo(gAz));
         var mid = [(q[0] + p[0]) / 2, (q[1] + p[1]) / 2];
         azLabels.push(L.marker(mid, { interactive: false, icon: L.divIcon({ className: 'az-label', html: '<span>' + G.fmtAz(v, a.unit) + ' · ' + G.fmtDist(d) + '</span>', iconSize: [0, 0] }) }).addTo(gAz));
-        rows += '<tr><td>' + i + '→' + (i + 1) + '</td><td><b>' + G.fmtAz(v, a.unit) + '</b></td><td>' + G.fmtAz(back, a.unit) + '</td><td>' + G.fmtDist(d) + '</td><td>' + G.fmtDist(cum) + '</td><td><button class="ibtn danger" data-i="' + i + '" title="Retirer le point ' + (i + 1) + '">' + ic('x') + '</button></td></tr>';
+        rows += '<tr data-i="' + i + '"><td>' + i + '→' + (i + 1) + '</td><td><b>' + G.fmtAz(v, a.unit) + '</b></td><td>' + G.fmtAz(back, a.unit) + '</td><td>' + G.fmtDist(d) + '</td><td>' + G.fmtDist(cum) + '</td><td><button class="ibtn danger" data-del="' + i + '" title="Retirer le point ' + (i + 1) + '">' + ic('x') + '</button></td></tr>';
       }
     });
     $('#az-table tbody').innerHTML = rows || '<tr><td colspan="6" class="muted">Posez au moins deux points.</td></tr>';
-    $$('#az-table .ibtn').forEach(function (b) { b.addEventListener('click', function () { S.az.pts.splice(+b.dataset.i, 1); renderAz(); persist(); }); });
     var st = $('#az-stats');
     if (pts.length > 1) {
       var gap = G.haversine(pts[0], pts[pts.length - 1]);
@@ -657,17 +890,23 @@
       st.hidden = false;
     } else st.hidden = true;
     $('#aim-az').placeholder = a.unit === 'deg' ? '0–360' : a.unit === 'grd' ? '0–400' : '0–6400';
-    renderLayerList(); refreshProfile();
+    renderLayerList(); refreshProfile(); applySel();
   }
+  $('#az-table').addEventListener('click', function (e) {
+    var del = e.target.closest('[data-del]');
+    if (del) { S.az.pts.splice(+del.dataset.del, 1); select(null); renderAz(); persist(); return; }
+    var tr = e.target.closest('tr[data-i]'); if (!tr) return;
+    var i = +tr.dataset.i; select('az', i); panToIfHidden(ll(S.az.pts[i]));
+  });
   function closeAz() {
-    if (S.az.pts.length > 2 && !azClosed()) { S.az.pts.push(S.az.pts[0].slice()); renderAz(); persist(); toast('Circuit fermé.'); } else toast('Posez au moins trois points.');
+    if (S.az.pts.length > 2 && !azClosed()) { S.az.pts.push(S.az.pts[0].slice()); renderAz(); persist(); toast('Circuit fermé.'); } else if (S.az.pts.length <= 2) toast('Posez au moins trois points.');
   }
   ['az-unit', 'az-ref'].forEach(function (id) {
     $('#' + id).addEventListener('change', function () { S.az.unit = $('#az-unit').value; S.az.ref = $('#az-ref').value; renderAz(); persist(); });
   });
   $('#az-decl').addEventListener('input', function () { S.az.decl = +this.value || 0; renderAz(); persist(); });
-  $('#az-undo').addEventListener('click', function () { S.az.pts.pop(); renderAz(); persist(); });
-  $('#az-clear').addEventListener('click', function () { S.az.pts = []; renderAz(); persist(); });
+  $('#az-undo').addEventListener('click', function () { S.az.pts.pop(); select(null); renderAz(); persist(); });
+  $('#az-clear').addEventListener('click', function () { S.az.pts = []; select(null); renderAz(); persist(); });
   $('#az-close').addEventListener('click', closeAz);
   $('#aim-add').addEventListener('click', function () {
     var last = lastPoint(), v = parseFloat($('#aim-az').value), d = parseFloat($('#aim-d').value);
@@ -681,32 +920,35 @@
   // ---------- Mesure ----------
   var measLayers = [];
   function renderMeas() {
-    measLayers.forEach(function (l) { gMeas.removeLayer(l); }); measLayers = [];
-    var pts = S.meas.pts, area = S.meas.mode === 'area';
+    measLayers.forEach(function (l) { gMeas.removeLayer(l); }); measLayers = []; measMarkers = [];
+    var pts = S.meas.pts, area = S.meas.mode === 'area', col = S.meas.color;
     $$('#meas-mode button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.meas.mode); });
+    syncNames();
     if (pts.length > 1) {
       var shape = area && pts.length > 2
-        ? L.polygon(pts, { color: '#000761', weight: 3, fillColor: '#c6a24e', fillOpacity: 0.25, dashArray: '2 6', interactive: false })
-        : L.polyline(pts, { color: '#000761', weight: 3, dashArray: '2 6', interactive: false });
+        ? L.polygon(pts, { color: col, weight: 3, fillColor: '#c6a24e', fillOpacity: 0.25, dashArray: '2 6', interactive: false })
+        : L.polyline(pts, { color: col, weight: 3, dashArray: '2 6', interactive: false });
       measLayers.push(shape.addTo(gMeas));
     }
     pts.forEach(function (p, i) {
       var m = L.marker(p, { draggable: true, icon: L.divIcon({ className: 'pin-wrap', html: '<div class="dot"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }) }).addTo(gMeas);
+      m.on('dragstart', function () { select('meas', i); });
       m.on('drag', function () { var q = m.getLatLng(); S.meas.pts[i] = [q.lat, q.lng]; });
       m.on('dragend', function () { renderMeas(); persist(); });
+      m.on('click', function () { select('meas', i); });
       m.on('contextmenu', function () { S.meas.pts.splice(i, 1); renderMeas(); persist(); });
-      measLayers.push(m);
+      measLayers.push(m); measMarkers.push(m);
     });
     var len = G.pathLength(pts), el = $('#meas-stats');
     if (area) {
       var ring = pts.length > 2 ? pts.concat([pts[0]]) : pts;
       el.innerHTML = '<div><span>Surface</span><b>' + (pts.length > 2 ? G.fmtArea(G.areaM2(pts)) : '—') + '</b></div><div><span>Périmètre</span><b>' + G.fmtDist(G.pathLength(ring)) + '</b></div>';
     } else el.innerHTML = '<div><span>Distance</span><b>' + G.fmtDist(len) + '</b></div><div><span>Points</span><b>' + pts.length + '</b></div>';
-    renderLayerList(); refreshProfile();
+    renderLayerList(); refreshProfile(); applySel();
   }
   $$('#meas-mode button').forEach(function (b) { b.addEventListener('click', function () { S.meas.mode = b.dataset.v; renderMeas(); persist(); }); });
-  $('#meas-undo').addEventListener('click', function () { S.meas.pts.pop(); renderMeas(); persist(); });
-  $('#meas-clear').addEventListener('click', function () { S.meas.pts = []; renderMeas(); persist(); });
+  $('#meas-undo').addEventListener('click', function () { S.meas.pts.pop(); select(null); renderMeas(); persist(); });
+  $('#meas-clear').addEventListener('click', function () { S.meas.pts = []; select(null); renderMeas(); persist(); });
 
   // ---------- Traces importées ----------
   var trackLayers = {};
@@ -761,59 +1003,90 @@
     });
   })();
 
-  // ---------- Calques ----------
-  function layerInfo() {
-    var rows = [], a = azParams();
-    var rt = RT.route;
-    rows.push({ k: 'route', name: 'Itinéraire', color: overMax() ? '#c0262d' : '#000761', empty: !S.route.wps.length,
-      meta: !S.route.wps.length ? 'Vide' : (S.route.loop ? 'Boucle · ' : '') + (rt ? G.fmtDist(rt.dist) : S.route.wps.length + ' point(s)') });
-    rows.push({ k: 'az', name: 'Azimuts', color: '#c6a24e', empty: !S.az.pts.length, meta: !S.az.pts.length ? 'Vide' : S.az.pts.length + ' points · ' + G.fmtDist(G.pathLength(S.az.pts)) });
-    rows.push({ k: 'meas', name: S.meas.mode === 'area' ? 'Mesure de surface' : 'Mesure de distance', color: '#2563eb', empty: !S.meas.pts.length,
-      meta: !S.meas.pts.length ? 'Vide' : S.meas.mode === 'area' ? G.fmtArea(G.areaM2(S.meas.pts)) : G.fmtDist(G.pathLength(S.meas.pts)) });
-    S.tracks.forEach(function (t) { rows.push({ k: 't' + t.id, track: t, name: t.name, color: t.color, meta: 'Trace GPX · ' + G.fmtDist(G.pathLength(t.coords)) }); });
-    return rows;
+  // ---------- Panneau des calques ----------
+  function layerMeta(l) {
+    if (l.empty) return 'Vide';
+    var d = l.data;
+    if (l.type === 'route') return (d.loop ? 'Boucle · ' : '') + (l.res ? G.fmtDist(l.res.dist) : d.wps.length + ' point(s)');
+    if (l.type === 'az') return d.pts.length + ' points · ' + G.fmtDist(G.pathLength(d.pts));
+    return d.mode === 'area' ? G.fmtArea(G.areaM2(d.pts)) : G.fmtDist(G.pathLength(d.pts));
   }
-  function layerVisible(r) { return r.track ? r.track.show !== false : S.vis[r.k] !== false; }
+  var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure' };
   function renderLayerList() {
     var el = $('#layer-list'); if (!el) return;
-    el.innerHTML = layerInfo().map(function (r) {
-      var v = layerVisible(r);
-      return '<li class="lrow' + (v ? '' : ' off') + (r.empty ? ' vide' : '') + '" data-k="' + esc(r.k) + '">' +
-        (r.empty ? '<span style="width:30px"></span>' : '<button class="ibtn" data-a="vis" title="' + (v ? 'Masquer' : 'Afficher') + '" aria-label="' + (v ? 'Masquer' : 'Afficher') + '">' + ic(v ? 'eye' : 'eye-off') + '</button>') +
-        '<span class="lsw" style="background:' + r.color + '"></span><div class="lmeta"><b>' + esc(r.name) + '</b><small>' + esc(r.meta) + '</small></div>' +
-        (r.empty ? '' : '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
+    var all = layersList(), rows = all.filter(function (l) {
+      if (!l.active || !l.empty) return true;
+      return !all.some(function (o) { return o.type === l.type && o !== l && !o.empty; });   // un calque vide en cours n'apparaît que s'il est seul de son type
+    });
+    var html = rows.map(function (l) {
+      var v = l.vis, canInv = l.type === 'route' && !l.empty;
+      return '<li class="lrow' + (v ? '' : ' off') + (l.empty ? ' vide' : '') + (l.active && !l.empty ? ' active' : '') + '" data-k="' + esc(l.key) + '">' +
+        (l.empty ? '<span style="width:30px"></span>' : '<button class="ibtn" data-a="vis" title="' + (v ? 'Masquer' : 'Afficher') + '" aria-label="' + (v ? 'Masquer' : 'Afficher') + '">' + ic(v ? 'eye' : 'eye-off') + '</button>') +
+        '<span class="lsw" style="background:' + l.color + '"></span><div class="lmeta"><b class="lname" data-a="rename" title="Double-clic pour renommer">' + esc(l.name) + '</b><small>' + TYPE_LABEL[l.type] + ' · ' + esc(layerMeta(l)) + (l.active && !l.empty ? ' · actif' : '') + '</small></div>' +
+        (l.empty ? '' : (canInv ? '<button class="ibtn" data-a="inv" title="Inverser le sens" aria-label="Inverser le sens">' + ic('swap') + '</button>' : '') +
+          (l.active ? '' : '<button class="ibtn" data-a="edit" title="Modifier ce calque" aria-label="Modifier">' + ic('edit') + '</button>') +
+          '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
     }).join('');
+    html += S.tracks.map(function (t) {
+      var v = t.show !== false;
+      return '<li class="lrow' + (v ? '' : ' off') + '" data-k="t' + t.id + '"><button class="ibtn" data-a="vis" title="' + (v ? 'Masquer' : 'Afficher') + '" aria-label="Basculer">' + ic(v ? 'eye' : 'eye-off') + '</button><span class="lsw" style="background:' + t.color + '"></span>' +
+        '<div class="lmeta"><b class="lname" data-a="rename" title="Double-clic pour renommer">' + esc(t.name) + '</b><small>Trace GPX · ' + G.fmtDist(G.pathLength(t.coords)) + '</small></div>' +
+        '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
+    }).join('');
+    el.innerHTML = html;
   }
-  function layerBounds(k) {
+  function layerBounds(key) {
     var pts = [];
-    if (k === 'route') pts = RT.route ? RT.route.line : S.route.wps.map(function (w) { return [w.lat, w.lon]; });
-    else if (k === 'az') pts = S.az.pts; else if (k === 'meas') pts = S.meas.pts;
-    else { var t = findTrack(k.slice(1)); pts = t ? t.coords : []; }
+    if (key === 'route' || key[0] === 'L') {
+      var L0 = layersList().filter(function (l) { return l.key === key; })[0];
+      if (L0 && L0.type === 'route') pts = L0.res ? L0.res.line : L0.data.wps.map(function (w) { return [w.lat, w.lon]; });
+      else if (L0) pts = L0.data.pts;
+    } else if (key === 'az') pts = S.az.pts; else if (key === 'meas') pts = S.meas.pts;
+    else { var t = findTrack(key.slice(1)); pts = t ? t.coords : []; }
     return pts.length ? L.latLngBounds(pts.map(ll)) : null;
   }
   $('#layer-list').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var k = b.closest('li').dataset.k, a = b.dataset.a;
+    var L0 = layersList().filter(function (l) { return l.key === k; })[0];
     if (a === 'vis') {
-      if (k[0] === 't' && k !== 'route') { var t = findTrack(k.slice(1)); t.show = t.show === false; renderTracks(); }
-      else { S.vis[k] = S.vis[k] === false; applyVis(); renderLayerList(); refreshProfile(); }
+      if (L0 && L0.active) { S.vis[L0.type] = !L0.vis; applyVis(); }
+      else if (L0) { L0.item.vis = !L0.vis; renderStored(); }
+      else { var t = findTrack(k.slice(1)); t.show = t.show === false; renderTracks(); }
+      renderLayerList(); refreshProfile(); persist();
     } else if (a === 'zoom') {
       var bd = layerBounds(k); if (bd) fit(bd, bd.getNorthEast().equals(bd.getSouthWest()) ? { maxZoom: 16 } : { padding: [60, 60], maxZoom: 17 });
-      if (k === 'route' || k === 'az' || k === 'meas') { S.profileSrc = k; refreshProfile(); } else { S.profileSrc = k; refreshProfile(); }
-    } else if (a === 'del') {
-      if (k === 'route') { S.route.wps = []; renderRouteMarkers(); computeRoute(); }
-      else if (k === 'az') { S.az.pts = []; renderAz(); }
-      else if (k === 'meas') { S.meas.pts = []; renderMeas(); }
-      else { S.tracks = S.tracks.filter(function (t) { return 't' + t.id !== k; }); renderTracks(); }
-      persist();
+      S.profileSrc = k; refreshProfile();
+    } else if (a === 'edit') { activate(L0.id); }
+    else if (a === 'inv') { if (!L0.active) activate(L0.id); reverseRoute(); }
+    else if (a === 'del') {
+      if (k[0] === 't') { S.tracks = S.tracks.filter(function (t) { return 't' + t.id !== k; }); renderTracks(); persist(); }
+      else removeLayer(k);
     }
+  });
+  $('#layer-list').addEventListener('dblclick', function (e) {
+    var n = e.target.closest('.lname'); if (!n) return;
+    var li = n.closest('li'), k = li.dataset.k, old = n.textContent;
+    var inp = document.createElement('input'); inp.className = 'lname-in'; inp.value = old; inp.maxLength = 60;
+    n.replaceWith(inp); inp.focus(); inp.select();
+    var done = false;
+    function commit(save) {
+      if (done) return; done = true;
+      var v = inp.value.trim();
+      if (save && v) {
+        if (k[0] === 't' && k !== 'route') { var t = findTrack(k.slice(1)); if (t) { t.name = v; renderTracks(); persist(); } } else renderLayerList(), renameLayer(k, v);
+      } else renderLayerList();
+    }
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(true); else if (ev.key === 'Escape') commit(false); });
+    inp.addEventListener('blur', function () { commit(true); });
   });
   $('#open-basemaps').addEventListener('click', function () { togglePop('layer-pop', true); });
   function resetAll(ask) {
-    if (ask && !confirm('Effacer tout le travail en cours (itinéraire, azimuts, mesures, traces) ?')) return;
-    S.route.wps = []; S.route.loop = false; S.az.pts = []; S.meas.pts = []; S.tracks = []; S.name = '';
+    if (ask && !confirm('Effacer tout le travail en cours (tous les calques, traces importées comprises) ?')) return;
+    S.route = freshRoute(null, 1); S.az = freshAz(null, 1); S.meas = freshMeas(null, 1); S.layers = []; S.tracks = []; S.name = '';
+    S.vis = { route: true, az: true, meas: true }; RT.route = null; select(null); applyVis();
     $('#proj-name').value = '';
-    syncRouteUi(); renderRouteMarkers(); computeRoute(); renderAz(); renderMeas(); renderTracks(); persist();
+    syncRouteUi(); refreshRouteView(); renderAz(); renderMeas(); renderTracks(); renderStored(); renderLayerList(); persist();
   }
   $('#reset-all').addEventListener('click', function () { resetAll(true); });
   $('#proj-name').addEventListener('input', function () { S.name = this.value; persist(); });
@@ -824,44 +1097,53 @@
   }
   function closePops() { $('#layer-pop').hidden = true; $('#scale-pop').hidden = true; }
   $('#layer-btn').addEventListener('click', function () { togglePop('layer-pop'); });
-  $('#scale-btn').addEventListener('click', function () { togglePop('scale-pop'); $('#snap-on').checked = S.snap; });
+  $('#scale-btn').addEventListener('click', function () { togglePop('scale-pop'); });
   $$('[data-close]').forEach(function (b) { b.addEventListener('click', function () { $('#' + b.dataset.close).hidden = true; }); });
   document.addEventListener('mousedown', function (e) {
     if (!e.target.closest('.pop,.layerbtn,.scalebtn,#open-basemaps')) closePops();
   });
   $('#base-grid').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.base = b.dataset.base; applyLayers(); persist(); } });
   $('#ov-grid').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.ov[b.dataset.ov] = !S.ov[b.dataset.ov]; applyLayers(); persist(); } });
-  $('#detail-seg').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.detail = +b.dataset.v; buildTiles(); persist(); } });
+  $('#detail-seg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
+  });
   $('#th-plan').src = thumbUrl('plan'); $('#th-ortho').src = thumbUrl('ortho');
 
   // ---------- Export GPX ----------
   function gpxParts() {
     var parts = [];
-    if (S.route.wps.length) parts.push({ id: 'route', label: 'Itinéraire (' + S.route.wps.length + ' repères' + (RT.route ? ', ' + G.fmtDist(RT.route.dist) : '') + ')' });
-    if (S.az.pts.length) parts.push({ id: 'az', label: 'Azimuts (' + S.az.pts.length + ' points)' });
-    if (S.meas.pts.length > 1) parts.push({ id: 'meas', label: 'Mesure' });
+    layersList().forEach(function (l) {
+      if (l.empty) return;
+      if (l.type === 'route') parts.push({ id: l.key, label: l.name + ' (' + l.data.wps.length + ' repères' + (l.res ? ', ' + G.fmtDist(l.res.dist) : '') + ')' });
+      else if (l.type === 'az') parts.push({ id: l.key, label: l.name + ' (' + l.data.pts.length + ' points)' });
+      else if (l.data.pts.length > 1) parts.push({ id: l.key, label: l.name });
+    });
     S.tracks.forEach(function (t) { parts.push({ id: 't' + t.id, label: 'Trace : ' + t.name }); });
     return parts;
   }
   function buildGpx(ids) {
-    var body = '', a = azParams();
-    if (ids.indexOf('route') >= 0 && S.route.wps.length) {
-      S.route.wps.forEach(function (p, i, w) { body += G.wptXml([p.lat, p.lon], p.name || wpTitle(i, w.length)); });
-      if (RT.route) {
-        var pr = RT.elevCache[lineKey(RT.route.line)], ele = null;
-        if (pr) { var cum = G.cumDist(RT.route.line); ele = RT.route.line.map(function (_, i) { var j = 0; while (j < pr.pts.length - 1 && pr.pts[j].d < cum[i]) j++; return pr.pts[j].z; }); }
-        body += G.trkXml(S.name || 'Itinéraire ScoutMap', RT.route.line, ele, G.fmtDist(RT.route.dist) + ' – à pied' + (S.route.loop ? ' – boucle' : ''));
-      }
-    }
-    if (ids.indexOf('az') >= 0 && S.az.pts.length) {
-      S.az.pts.forEach(function (p, i, pts) {
-        var d = '';
-        if (i > 0) d = 'Azimut ' + G.fmtAz(G.trueToUnit(G.bearing(pts[i - 1], p), a.unit, a.ref, a.decl), a.unit) + ' (' + (a.ref === 'mag' ? 'magnétique' : 'géographique') + '), ' + G.fmtDist(G.haversine(pts[i - 1], p));
-        body += G.wptXml(p, 'Balise ' + (i + 1), d);
-      });
-      if (S.az.pts.length > 1) body += G.trkXml('Azimuts ScoutMap', S.az.pts, null);
-    }
-    if (ids.indexOf('meas') >= 0 && S.meas.pts.length > 1) body += G.trkXml('Mesure ScoutMap', S.meas.pts, null);
+    var body = '';
+    layersList().forEach(function (l) {
+      if (ids.indexOf(l.key) < 0 || l.empty) return;
+      var d = l.data;
+      if (l.type === 'route') {
+        d.wps.forEach(function (p, i) { body += G.wptXml([p.lat, p.lon], nameOf(d, i)); });
+        if (l.res) {
+          var pr = RT.elevCache[lineKey(l.res.line)], ele = null;
+          if (pr) { var cum = G.cumDist(l.res.line); ele = l.res.line.map(function (_, i) { var j = 0; while (j < pr.pts.length - 1 && pr.pts[j].d < cum[i]) j++; return pr.pts[j].z; }); }
+          body += G.trkXml(d.name, l.res.line, ele, G.fmtDist(l.res.dist) + ' – à pied' + (d.loop ? ' – boucle' : ''));
+        }
+      } else if (l.type === 'az') {
+        var a = azParams(d);
+        d.pts.forEach(function (p, i, pts) {
+          var t = '';
+          if (i > 0) t = 'Azimut ' + G.fmtAz(G.trueToUnit(G.bearing(pts[i - 1], p), a.unit, a.ref, a.decl), a.unit) + ' (' + (a.ref === 'mag' ? 'magnétique' : 'géographique') + '), ' + G.fmtDist(G.haversine(pts[i - 1], p));
+          body += G.wptXml(p, 'Balise ' + (i + 1), t);
+        });
+        if (d.pts.length > 1) body += G.trkXml(d.name, d.pts, null);
+      } else if (d.pts.length > 1) body += G.trkXml(d.name, d.pts, null);
+    });
     S.tracks.forEach(function (t) { if (ids.indexOf('t' + t.id) >= 0) { body += G.trkXml(t.name, t.coords, t.ele); (t.wpts || []).forEach(function (w) { body += G.wptXml([w.lat, w.lon], w.name || 'Point'); }); } });
     return G.gpxDoc(body, S.name || 'ScoutMap ' + new Date().toLocaleDateString('fr-FR'));
   }
@@ -903,9 +1185,13 @@
   map.on('click', function (e) {
     var p = [e.latlng.lat, e.latlng.lng];
     closePops();
-    if (RT.tool === 'route') addWp(p);
+    if (RT.tool === 'route') {
+      // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
+      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else addWp(p);
+    }
     else if (RT.tool === 'az') addAz(p);
-    else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); }
+    else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }
+    else select(null);
   });
   function actionPopup(latlng, title, name) {
     var html = '<div class="pp"><b>' + esc(title) + '</b><small>' + esc(G.formatCoord('wgs', latlng.lat, latlng.lng)) + '</small><div class="pp-btns">' +
@@ -919,17 +1205,17 @@
       if (a === 'az') { addAz(p); map.closePopup(); setRail('az'); setTool('pan'); return; }
       if (a === 'copy') { var t = G.formatCoord('wgs', p[0], p[1]); navigator.clipboard && navigator.clipboard.writeText(t); toast('Coordonnées copiées.'); map.closePopup(); return; }
       ensureVisible('route');
-      if (a === 'start') w.unshift({ lat: p[0], lon: p[1], name: name });
-      else if (a === 'end') w.push({ lat: p[0], lon: p[1], name: name });
-      else if (w.length < 2) w.push({ lat: p[0], lon: p[1], name: name }); else w.splice(w.length - 1, 0, { lat: p[0], lon: p[1], name: name });
-      map.closePopup(); setRail('route'); setTool('pan'); renderRouteMarkers(); computeRoute(); persist();
+      var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
+      if (a === 'start') w.unshift(o);
+      else if (a === 'end') w.push(o);
+      else if (w.length < 2) w.push(o); else w.splice(w.length - 1, 0, o);
+      map.closePopup(); setRail('route'); setTool('pan'); renderRouteMarkers(); computeRoute(); persist(); fillPlaces(S.route);
     });
   }
   map.on('contextmenu', function (e) { actionPopup(e.latlng, 'Ce point'); });
 
   // ---------- Recherche ----------
   var qTimer, qCtl, qItems = [], qAct = -1;
-  function arr(v) { return Array.isArray(v) ? v : (v == null ? [] : [v]); }
   function itemOf(f) {
     var p = f.properties || {}, poi = p._type === 'poi';
     if (poi) {
@@ -993,7 +1279,6 @@
   function undo() {
     if (S.rail === 'route') $('#route-undo').click(); else if (S.rail === 'az') $('#az-undo').click(); else if (S.rail === 'meas') $('#meas-undo').click();
   }
-  function startRoute(loop) { S.route.loop = loop; syncRouteUi(); renderRouteMarkers(); computeRoute(); setRail('route'); persist(); }
   var MENUS = {
     file: [
       { t: 'Nouveau projet', i: 'file', a: function () { resetAll(true); } },
@@ -1003,21 +1288,22 @@
       { t: 'Exporter en PDF / imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
     ],
     edit: [
+      { t: 'Supprimer le point sélectionné', i: 'trash', k: 'Suppr', a: deleteSelected, dis: function () { return !SEL; } },
       { t: 'Retirer le dernier point', i: 'undo', k: 'Ctrl+Z', a: undo, dis: function () { return !canUndo(); } },
       '-',
-      { t: 'Inverser l’itinéraire', i: 'swap', a: function () { $('#route-reverse').click(); }, dis: function () { return S.route.wps.length < 2; } },
-      { t: 'Effacer l’itinéraire', i: 'trash', a: function () { $('#route-clear').click(); }, dis: function () { return !S.route.wps.length; } },
-      { t: 'Effacer les azimuts', i: 'trash', a: function () { $('#az-clear').click(); }, dis: function () { return !S.az.pts.length; } },
-      { t: 'Effacer les mesures', i: 'trash', a: function () { $('#meas-clear').click(); }, dis: function () { return !S.meas.pts.length; } },
+      { t: 'Inverser le sens de l’itinéraire', i: 'swap', a: reverseRoute, dis: function () { return S.route.wps.length < 2; } },
+      { t: 'Effacer l’itinéraire en cours', i: 'trash', a: function () { $('#route-clear').click(); }, dis: function () { return !S.route.wps.length; } },
+      { t: 'Effacer les azimuts en cours', i: 'trash', a: function () { $('#az-clear').click(); }, dis: function () { return !S.az.pts.length; } },
+      { t: 'Effacer la mesure en cours', i: 'trash', a: function () { $('#meas-clear').click(); }, dis: function () { return !S.meas.pts.length; } },
       '-',
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
     ],
     create: [
-      { t: 'Itinéraire à pied', i: 'route', k: 'I', a: function () { startRoute(false); } },
-      { t: 'Itinéraire en boucle', i: 'loop', a: function () { startRoute(true); } },
-      { t: 'Azimuts', i: 'compass', k: 'A', a: function () { setRail('az'); } },
-      { t: 'Mesure de distance', i: 'ruler', k: 'M', a: function () { S.meas.mode = 'dist'; renderMeas(); setRail('meas'); } },
-      { t: 'Mesure de surface', i: 'ruler', a: function () { S.meas.mode = 'area'; renderMeas(); setRail('meas'); } }
+      { t: 'Nouvel itinéraire à pied', i: 'route', k: 'I', a: function () { newLayer('route', { loop: false }); } },
+      { t: 'Nouvel itinéraire en boucle', i: 'loop', a: function () { newLayer('route', { loop: true }); } },
+      { t: 'Nouveaux azimuts', i: 'compass', k: 'A', a: function () { newLayer('az'); } },
+      { t: 'Nouvelle mesure de distance', i: 'ruler', k: 'M', a: function () { newLayer('meas'); S.meas.mode = 'dist'; renderMeas(); } },
+      { t: 'Nouvelle mesure de surface', i: 'ruler', a: function () { newLayer('meas'); S.meas.mode = 'area'; renderMeas(); } }
     ],
     view: [
       { t: 'Panneau latéral', chk: function () { return S.panelOpen; }, a: togglePanel },
@@ -1025,10 +1311,9 @@
       { t: 'Calques', i: 'layers', k: 'L', a: function () { setRail('layers'); } },
       { t: 'Fonds de carte et couches…', i: 'map', a: function () { togglePop('layer-pop', true); } },
       '-',
-      { t: 'Aimanter aux échelles courantes', chk: function () { return S.snap; }, a: function () { S.snap = !S.snap; $('#snap-on').checked = S.snap; persist(); if (S.snap) snapNow(); } },
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
-      { t: 'Voir toute la France', a: function () { quiet(); map.setView([46.6, 2.5], 5.6); } }
+      { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
@@ -1068,26 +1353,29 @@
     if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#file-gpx').click(); return; }
     if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
     if (typing || mod || e.altKey) return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && SEL) { e.preventDefault(); deleteSelected(); return; }
     var k = e.key.toLowerCase();
-    if (k === 'escape') { hideMenu(); closePops(); if (RT.tool !== 'pan') setTool('pan'); map.closePopup(); }
+    if (k === 'escape') { hideMenu(); closePops(); if (SEL) select(null); else if (RT.tool !== 'pan') setTool('pan'); map.closePopup(); }
     else if (k === 'i') setRail('route'); else if (k === 'a') setRail('az'); else if (k === 'm') setRail('meas'); else if (k === 'l') setRail('layers');
   });
   window.addEventListener('beforeunload', function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
 
   // ---------- Démarrage ----------
-  buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock(); $('#snap-on').checked = S.snap;
-  renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); showCoords(); updateScaleUI();
+  curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
+  renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); renderStored(); showCoords(); updateScaleUI();
   $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== S.rail; });
   $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === S.rail); });
   $('#app').classList.toggle('nopanel', !S.panelOpen);
   setTool('pan');
-  if (S.route.wps.length > 1 || (S.route.loop && S.route.wps.length > 1)) computeRoute(); else refreshProfile();
+  if (S.route.wps.length > 1) computeRoute(); else refreshProfile();
+  fillPlaces(S.route);
 
   // API interne pour doc.js
   window.SM = {
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
-    effWps: effWps, isLoop: isLoop, wpLabel: wpLabel, wpClass: wpClass, wpName: wpName, overMax: overMax, azParams: azParams, azClosed: azClosed,
-    scaleAt: scaleAt, zoomFor: zoomFor, curScale: curScale, niceScale: niceScale, fileName: fileName, openPdf: null
+    loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
+    layersList: layersList, fillPlaces: fillPlaces, scaleAt: scaleAt, zoomFor: zoomFor, curScale: curScale, niceScale: niceScale, fileName: fileName,
+    wantOff: wantOff, openPdf: null
   };
 })();

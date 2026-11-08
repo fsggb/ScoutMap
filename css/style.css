@@ -155,8 +155,8 @@ fieldset.aim{margin:14px 0;padding:4px 12px 12px;border:1px solid var(--line);bo
 fieldset.aim legend{font-size:12px;font-weight:650;color:var(--gold-d);padding:0 6px}
 
 /* Calques */
-.layers{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:6px}
-.lrow{display:flex;align-items:center;gap:8px;padding:7px 6px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.layers{list-style:none;margin:6px 0 10px;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.lrow{display:flex;align-items:center;gap:4px;padding:7px 4px 7px 6px;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff}
 .lrow.off .lmeta,.lrow.off .lsw{opacity:.45}
 .lrow.vide{background:#fafbfe;color:var(--muted)}
 .lsw{width:12px;height:30px;border-radius:5px;flex:none}
@@ -343,6 +343,34 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
 .d-mapfull{margin-top:8px}
 .d-scale{position:absolute;right:8px;top:8px;z-index:800;padding:3px 9px;background:rgba(255,255,255,.95);border:1px solid var(--navy);border-radius:6px;font-weight:700;color:var(--navy);font-size:9pt}
 
+/* ---------- Calques multiples, sélection, ordre de passage ---------- */
+.layer-head{display:flex;gap:8px;margin:0 0 10px}
+.layer-name{flex:1;min-width:0;font-weight:600;color:var(--navy)}
+.pin-wrap.sel .pin{box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold),0 3px 10px rgba(0,0,0,.55);transform:scale(1.18)}
+.pin-wrap.sel{z-index:2000!important}
+.wps li.sel{border-color:var(--navy);background:var(--gold-l);box-shadow:0 0 0 2px var(--gold)}
+.wps li{cursor:pointer}
+.wps li.dragging{opacity:.4}.wps li.drop{border-color:var(--navy);border-style:dashed;background:var(--navy-3)}
+.grip{cursor:grab;color:#9aa0b8;display:grid;place-items:center;width:18px;flex:none}.grip:active{cursor:grabbing}.grip .ic{width:16px;height:16px}
+.tbl tr.sel td{background:var(--gold-l)}
+.tbl tr[data-i]{cursor:pointer}
+.lrow.active{border-color:var(--navy);box-shadow:inset 3px 0 0 var(--gold)}
+.lname{cursor:text}
+.lname-in{width:100%;padding:3px 6px;font-weight:600;font-size:13.5px}
+.newlayers{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 12px}
+.newlayers .btn-ghost{padding:7px 4px;gap:5px}
+.layer-pick{display:grid;gap:4px;max-height:160px;overflow:auto;padding:8px;border:1px solid var(--line-2);border-radius:10px;background:#fafbfe}
+.layer-pick label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;margin:0;color:var(--ink)}
+.layer-pick label.dis{opacity:.45}
+.layer-pick .lsw{width:10px;height:18px}
+.layer-pick small{color:var(--muted)}
+.pick-actions{display:flex;gap:14px;margin-top:2px}
+.leaflet-container.tool-pan .stored-line.leaflet-interactive{cursor:pointer}
+.d-time{width:34mm}
+.d-tbl td.fill{height:9mm;background:#fff!important;border-left:1px solid #b9bdd0;border-bottom:1px solid #b9bdd0}
+.d-tbl th.fill{width:34mm}
+.sheet+.sheet{margin-top:24px}
+
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
@@ -372,6 +400,8 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
   .doc-bar{display:none!important}
   .doc-scroll{overflow:visible!important;padding:0!important}
   #doc-pages{width:auto!important}
-  .sheet{width:auto!important;min-height:0!important;padding:0!important;box-shadow:none!important}
+  .sheet{width:auto!important;min-height:0!important;padding:0!important;box-shadow:none!important;break-after:page}
+  .sheet:last-child{break-after:auto}
+  .sheet+.sheet{margin-top:0}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }

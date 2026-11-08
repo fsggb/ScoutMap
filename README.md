@@ -12,16 +12,18 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 - **Curseurs adaptés** : main pour déplacer la carte, croix pour poser des points, main fermée en glissant, pointeur sur le point de départ (clic = fermeture de la boucle), « + » sur le tracé (clic = ajout d'une étape). Une bulle indique ce qu'il faut faire et permet de revenir au déplacement (`Échap`).
 - **Recherche** de lieux, adresses, sommets (Géoplateforme) ou de coordonnées (« 48.40, 2.70 »), avec navigation au clavier.
 - **Fonds et couches** (bouton en bas à gauche, comme dans Google Maps) : Plan IGN, photographies aériennes ; courbes de niveau, ombrage du relief, pentes, cadastre.
-- **Calques** : itinéraire, azimuts, mesure et chaque trace GPX sont des calques (afficher/masquer, centrer, supprimer).
-- **Échelle** : affichée en permanence, réglable (échelles courantes ou valeur libre) et **aimantée** : à l'approche de 1 : 25 000, 1 : 50 000, etc., la carte se cale exactement dessus. Toute la France reste visible en dézoomant.
-- **Netteté du fond** : en mode « Détaillée » (par défaut), le fond affiché à une échelle donnée est celui du niveau juste au-dessus (à 1 : 25 000, on voit le contenu du niveau plus précis au lieu d'un fond dézoomé). « Très détaillée » sert à l'impression haute définition.
+- **Calques** : chaque itinéraire, chaque tracé d'azimuts, chaque mesure et chaque trace GPX est un calque indépendant (afficher/masquer, renommer par double-clic, inverser le sens, centrer, modifier, supprimer). Un clic sur un tracé de la carte le rouvre en édition.
+- **Échelle** : affichée en permanence ; zoom libre, avec deux échelles prédéfinies (1 : 25 000 et 1 : 50 000) ou une valeur libre. Toute la France reste visible en dézoomant.
+- **Netteté du fond** : en mode « Auto » (par défaut), fond standard quand on voit une grande étendue et fond détaillé en s'approchant : à 1 : 25 000, on voit le contenu du niveau juste au-dessus au lieu d'un fond dézoomé. « Standard », « Détaillée » et « Très détaillée » (impression) sont aussi disponibles.
 - **Profil d'altitude** repliable et redimensionnable, avec lecture de la pente au survol.
 
 ## Itinéraire (à pied)
 
 - Aller simple ou **boucle** (choix préalable, ou clic sur le point de départ A pour fermer la boucle automatiquement).
 - **Distance maximale** facultative : la distance réelle est comparée au maximum ; en cas de dépassement tout passe en rouge (jauge, tracé, chiffres, document imprimé) **sans bloquer** l'utilisateur, qui peut déplacer les points.
-- Plus rapide / plus court, allure de marche réglable, durée IGN et estimation de marche.
+- Plus rapide / plus court, allure de marche réglable (5 km/h par défaut), durée IGN et estimation de marche. Bouton « Inverser le sens » (en boucle, A reste le départ).
+- **Points numérotés dans l'ordre de passage** : un point posé près du tracé s'insère dans le bon tronçon, la poignée du panneau réordonne les points, et la numérotation suit toujours. Un clic sélectionne un point (surbrillance sur la carte et dans le panneau, et inversement) ; `Suppr` ou `⌫` le retire.
+- Les étapes prennent par défaut le nom du village ou du hameau voisin (Géoplateforme) ; chaque nom reste modifiable.
 - Points nommables (utilisés dans la feuille de route), glisser pour déplacer, clic droit pour retirer, clic sur le tracé pour ajouter une étape.
 - Éviter les autoroutes (contrainte appliquée par le service). Les routes nationales ne peuvent pas être exclues par la Géoplateforme : elles sont seulement **signalées** quand le service en donne le numéro (indicatif).
 
@@ -35,6 +37,8 @@ Azimut, contre-azimut, distance et cumul par segment (degrés, grades ou milliè
 
 - **Feuille de route simplifiée** : distance, dénivelé positif, étapes.
 - **Feuille de route détaillée** : durées, dénivelés, altitudes, consignes de guidage, avertissements.
+- Une colonne vide « Date et heure d'arrivée » est prévue pour chaque étape. Le dépassement de distance maximale n'est jamais mentionné sur les documents.
+- On choisit **quels calques imprimer** (un, plusieurs ou tous) : une feuille par itinéraire ou tracé d'azimuts, ou tous les calques choisis sur une même carte.
 - **Carte à l'échelle** : vue actuelle ou ajustée à l'itinéraire, imprimée à l'échelle exacte (imprimer à 100 %), fond très net.
 - Options : vue d'ensemble de l'itinéraire, profil d'altitude (coupe du dénivelé), tableau d'azimuts, cadre de notes ; A4 ou A3, portrait ou paysage.
 
