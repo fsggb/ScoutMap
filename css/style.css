@@ -155,8 +155,8 @@ fieldset.aim{margin:14px 0;padding:4px 12px 12px;border:1px solid var(--line);bo
 fieldset.aim legend{font-size:12px;font-weight:650;color:var(--gold-d);padding:0 6px}
 
 /* Calques */
-.layers{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:6px}
-.lrow{display:flex;align-items:center;gap:8px;padding:7px 6px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.layers{list-style:none;margin:6px 0 10px;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.lrow{display:flex;align-items:center;gap:4px;padding:7px 4px 7px 6px;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff}
 .lrow.off .lmeta,.lrow.off .lsw{opacity:.45}
 .lrow.vide{background:#fafbfe;color:var(--muted)}
 .lsw{width:12px;height:30px;border-radius:5px;flex:none}
@@ -343,6 +343,76 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
 .d-mapfull{margin-top:8px}
 .d-scale{position:absolute;right:8px;top:8px;z-index:800;padding:3px 9px;background:rgba(255,255,255,.95);border:1px solid var(--navy);border-radius:6px;font-weight:700;color:var(--navy);font-size:9pt}
 
+/* ---------- Calques multiples, sélection, ordre de passage ---------- */
+.layer-head{display:flex;gap:8px;margin:0 0 10px}
+.layer-name{flex:1;min-width:0;font-weight:600;color:var(--navy)}
+.pin-wrap.sel .pin{box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold),0 3px 10px rgba(0,0,0,.55);transform:scale(1.18)}
+.pin-wrap.sel{z-index:2000!important}
+.wps li.sel{border-color:var(--navy);background:var(--gold-l);box-shadow:0 0 0 2px var(--gold)}
+.wps li{cursor:pointer}
+.wps li.dragging{opacity:.4}.wps li.drop{border-color:var(--navy);border-style:dashed;background:var(--navy-3)}
+.grip{cursor:grab;color:#9aa0b8;display:grid;place-items:center;width:18px;flex:none}.grip:active{cursor:grabbing}.grip .ic{width:16px;height:16px}
+.tbl tr.sel td{background:var(--gold-l)}
+.tbl tr[data-i]{cursor:pointer}
+.lrow.active{border-color:var(--navy);box-shadow:inset 3px 0 0 var(--gold)}
+.lname{cursor:text}
+.lname-in{width:100%;padding:3px 6px;font-weight:600;font-size:13.5px}
+.newlayers{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 12px}
+.newlayers .btn-ghost{padding:7px 4px;gap:5px}
+.layer-pick{display:grid;gap:4px;max-height:160px;overflow:auto;padding:8px;border:1px solid var(--line-2);border-radius:10px;background:#fafbfe}
+.layer-pick label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;margin:0;color:var(--ink)}
+.layer-pick label.dis{opacity:.45}
+.layer-pick .lsw{width:10px;height:18px}
+.layer-pick small{color:var(--muted)}
+.pick-actions{display:flex;gap:14px;margin-top:2px}
+.leaflet-container.tool-pan .stored-line.leaflet-interactive{cursor:pointer}
+.d-time{width:34mm}
+.d-tbl td.fill{height:9mm;background:#fff!important;border-left:1px solid #b9bdd0;border-bottom:1px solid #b9bdd0}
+.d-tbl th.fill{width:34mm}
+.sheet+.sheet{margin-top:24px}
+
+/* ---------- Panneau des calques sans défilement de page ---------- */
+.panel{display:flex;flex-direction:column}
+.panel>.pane{flex:none}
+.panel>.pane.pane-layers{flex:1;min-height:0;display:flex;flex-direction:column;padding-bottom:12px}
+.pane-layers[hidden]{display:none}
+.pane-layers .pane-title{margin-bottom:4px}
+.lnote{margin:0 0 8px}
+.pane-layers .layers{flex:1 1 auto;min-height:0;overflow-y:auto;margin:0 -4px 8px;padding:0 4px}
+.layers-foot{flex:none;display:grid;gap:8px;padding-top:8px;border-top:1px solid var(--line)}
+.layers-foot .newlayers{margin:0}
+.layers-foot .dropzone{padding:8px 10px;border-width:1px;gap:10px}
+.layers-foot .dropzone small{display:inline;margin-left:4px}
+.foot-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.foot-btns .btn-ghost{padding:7px 6px}
+.lrow{padding:5px 4px 5px 6px}
+.lsw{height:26px}
+.lmeta small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mb-ic{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:8px;background:rgba(255,255,255,.1);color:#fff}
+.mb-ic:hover:not(:disabled){background:rgba(255,255,255,.22)}
+.mb-ic:disabled{opacity:.35;cursor:default}
+
+/* ---------- Simulation du parcours ---------- */
+.simbar{position:absolute;left:14px;right:14px;bottom:10px;z-index:1200;display:flex;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-l)}
+.sim-btn{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:var(--navy-3);color:var(--navy);flex:none}
+.sim-btn.main{width:42px;height:42px;background:var(--navy);color:#fff}
+.sim-btn:hover{filter:brightness(1.15)}
+.sim-mid{flex:1;min-width:0}
+.sim-top{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#4d5069;white-space:nowrap;overflow:hidden}
+.sim-top b:first-child{color:var(--navy);overflow:hidden;text-overflow:ellipsis}
+.sim-top span b{color:var(--navy)}
+#sim-slider{width:100%;accent-color:var(--navy);margin:2px 0 0}
+#sim-speed{padding:5px 6px;font-size:12.5px}
+.sim-follow{display:flex;align-items:center;gap:5px;font-size:12px;color:#4d5069;white-space:nowrap}
+.sim-wrap{background:none;border:0}
+.sim-dot{width:22px;height:22px;border-radius:50%;background:var(--gold);border:4px solid #fff;box-shadow:0 0 0 2px var(--navy),0 2px 8px rgba(0,0,0,.5);animation:simpulse 1.4s ease-out infinite}
+@keyframes simpulse{0%{box-shadow:0 0 0 2px var(--navy),0 0 0 0 rgba(198,162,78,.7)}100%{box-shadow:0 0 0 2px var(--navy),0 0 0 16px rgba(198,162,78,0)}}
+@media (max-width:860px){.simbar{bottom:8px}.sim-follow{display:none}}
+.mapwrap.simon .bl{bottom:96px}
+.mapwrap.simon .coordbox{bottom:90px}
+.mapwrap.simon .layer-pop{bottom:176px}
+.mapwrap.simon .scale-pop{bottom:96px}
+
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
@@ -372,6 +442,8 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
   .doc-bar{display:none!important}
   .doc-scroll{overflow:visible!important;padding:0!important}
   #doc-pages{width:auto!important}
-  .sheet{width:auto!important;min-height:0!important;padding:0!important;box-shadow:none!important}
+  .sheet{width:auto!important;min-height:0!important;padding:0!important;box-shadow:none!important;break-after:page}
+  .sheet:last-child{break-after:auto}
+  .sheet+.sheet{margin-top:0}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
