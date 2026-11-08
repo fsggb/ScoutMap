@@ -3,137 +3,323 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="ScoutMap : cartes IGN, itinéraires, azimuts, profils d'altitude et export GPX pour l'orientation et les raids scouts.">
+  <meta name="description" content="ScoutMap : cartes IGN, itinéraires à pied, azimuts, profils d'altitude et export PDF/GPX pour l'orientation et les raids scouts.">
   <title>ScoutMap</title>
   <link rel="icon" type="image/png" href="assets/fsggb.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header class="topbar">
-  <a class="brand" href="./"><img class="brand-logo" src="assets/fsggb.png" alt="FSGGB" width="36" height="36"><strong>ScoutMap</strong></a>
-  <div class="search" role="search">
-    <input id="q" type="search" placeholder="Rechercher un lieu, une adresse, un sommet…" autocomplete="off" aria-label="Rechercher un lieu">
-    <ul id="suggest" class="suggest" hidden></ul>
-  </div>
-  <nav class="actions" aria-label="Actions">
-    <button class="nav-btn" id="btn-import" title="Importer un fichier GPX">Importer GPX</button>
-    <input id="file-gpx" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden>
-    <button class="nav-btn" id="btn-export" title="Exporter en GPX">Exporter GPX</button>
-    <button class="nav-btn" id="btn-print" title="Imprimer la carte, le tableau et le profil">Imprimer</button>
+
+<!-- Icônes -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-pan" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 17l9 5 9-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></symbol>
+  <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></symbol>
+  <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M3 20l6-11 4 6 3-4 5 9z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-contour" viewBox="0 0 24 24"><path d="M3 16c3-6 6-6 9-2s6 3 9-4M3 21c3-5 6-5 9-2s6 2 9-3M3 11c3-6 6-6 9-3s6 2 9-3"/></symbol>
+  <symbol id="i-shade" viewBox="0 0 24 24"><path d="M2 20L10 5l5 9 3-4 4 10z"/><path d="M10 5l-3 15"/></symbol>
+  <symbol id="i-slope" viewBox="0 0 24 24"><path d="M3 20h18L6 8z"/><path d="M9 20a5 5 0 0 0-3-4"/></symbol>
+  <symbol id="i-parcel" viewBox="0 0 24 24"><path d="M3 4h8v7H3zM13 4h8v4h-8zM13 10h8v10h-8zM3 13h8v7H3z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V6a1.5 1.5 0 0 1 3 0v6M16 9a1.5 1.5 0 0 1 3 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a1.6 1.6 0 0 1 2.6-1.8L7 14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+</defs></svg>
+
+<header class="menubar">
+  <a class="brand" href="./" title="ScoutMap"><img class="brand-logo" src="assets/fsggb.png" alt="FSGGB" width="30" height="30"><span class="brand-name">ScoutMap</span></a>
+  <nav class="menus" id="menus" aria-label="Menu principal">
+    <button class="menu-btn" data-menu="file" aria-haspopup="true">Fichier</button>
+    <button class="menu-btn" data-menu="edit" aria-haspopup="true">Édition</button>
+    <button class="menu-btn" data-menu="create" aria-haspopup="true">Créer</button>
+    <button class="menu-btn" data-menu="view" aria-haspopup="true">Affichage</button>
+    <button class="menu-btn" data-menu="help" aria-haspopup="true">Aide</button>
   </nav>
+  <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
+  <div class="mb-right">
+    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
+  </div>
 </header>
+<div class="dropdown" id="dropdown" hidden role="menu"></div>
 
-<div class="app">
+<div class="app" id="app">
+  <nav class="rail" id="rail" aria-label="Outils">
+    <button class="rail-btn" data-rail="explore" title="Explorer"><svg class="ic"><use href="#i-hand"/></svg><span>Explorer</span></button>
+    <button class="rail-btn" data-rail="route" title="Itinéraire (I)"><svg class="ic"><use href="#i-route"/></svg><span>Itinéraire</span></button>
+    <button class="rail-btn" data-rail="az" title="Azimuts (A)"><svg class="ic"><use href="#i-compass"/></svg><span>Azimuts</span></button>
+    <button class="rail-btn" data-rail="meas" title="Mesure (M)"><svg class="ic"><use href="#i-ruler"/></svg><span>Mesure</span></button>
+    <button class="rail-btn" data-rail="layers" title="Calques (L)"><svg class="ic"><use href="#i-layers"/></svg><span>Calques</span></button>
+    <span class="rail-sp"></span>
+    <button class="rail-btn" id="rail-toggle" title="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg><span>Panneau</span></button>
+  </nav>
+
   <aside class="panel" id="panel">
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-tab="route">Itinéraire</button>
-      <button class="tab" role="tab" data-tab="az">Azimuts</button>
-      <button class="tab" role="tab" data-tab="meas">Mesure</button>
-      <button class="tab" role="tab" data-tab="data">Traces</button>
-    </div>
-
-    <section class="pane" data-pane="route">
-      <p class="help">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Glissez un repère pour le déplacer, cliquez sur le tracé pour ajouter une étape.</p>
-      <div class="row">
-        <div class="seg" id="route-profile">
-          <button data-v="pedestrian">À pied</button><button data-v="car">Voiture</button>
-        </div>
-        <select id="route-opt" aria-label="Optimisation"><option value="fastest">Plus rapide</option><option value="shortest">Plus court</option></select>
+    <section class="pane" data-pane="explore">
+      <h2 class="pane-title">Bienvenue sur ScoutMap</h2>
+      <p class="lead">Les cartes IGN pour préparer vos raids, vos itinéraires et vos courses d’orientation.</p>
+      <div class="cards">
+        <button class="card" data-go="route"><span class="card-ic"><svg class="ic"><use href="#i-route"/></svg></span><span><b>Créer un itinéraire</b><small>À pied, aller simple ou en boucle, avec une distance maximale</small></span></button>
+        <button class="card" data-go="az"><span class="card-ic"><svg class="ic"><use href="#i-compass"/></svg></span><span><b>Tracer des azimuts</b><small>Azimut, contre-azimut et distance de chaque segment</small></span></button>
+        <button class="card" data-go="meas"><span class="card-ic"><svg class="ic"><use href="#i-ruler"/></svg></span><span><b>Mesurer</b><small>Une distance ou une surface sur la carte</small></span></button>
+        <button class="card" data-act="import"><span class="card-ic"><svg class="ic"><use href="#i-upload"/></svg></span><span><b>Importer un fichier GPX</b><small>Ou glissez-le directement sur la carte</small></span></button>
+        <button class="card" data-act="pdf"><span class="card-ic"><svg class="ic"><use href="#i-printer"/></svg></span><span><b>Imprimer / exporter en PDF</b><small>Feuille de route ou carte à l’échelle</small></span></button>
       </div>
-      <p class="note">Vélo/VTT : non proposé par la Géoplateforme (profils « à pied » et « voiture » uniquement).</p>
-      <ol class="wps" id="wps"></ol>
-      <div class="row">
-        <button class="ghost" id="route-reverse">Inverser</button>
-        <button class="ghost" id="route-undo">Retirer le dernier</button>
-        <button class="ghost danger" id="route-clear">Effacer</button>
-      </div>
-      <div class="stats" id="route-stats" hidden></div>
-      <label class="inline">Allure de marche <input id="speed" type="number" min="1" max="8" step="0.5" value="4"> km/h</label>
-      <details id="steps-box" hidden><summary>Feuille de route</summary><ol class="steps" id="steps"></ol></details>
-      <p class="status" id="route-status" role="status"></p>
+      <h3 class="sub">Bon à savoir</h3>
+      <ul class="tips">
+        <li>Glissez la carte pour vous déplacer ; la molette zoome et les échelles courantes (1 : 25 000, 1 : 50 000…) sont « aimantées ».</li>
+        <li>Clic droit sur la carte : départ, étape, arrivée, point d’azimut, coordonnées.</li>
+        <li>Le bouton <b>Fonds et couches</b> (en bas à gauche) change de fond de carte et ajoute les courbes de niveau, le relief, le cadastre.</li>
+        <li>Votre travail est mémorisé automatiquement dans ce navigateur.</li>
+      </ul>
     </section>
 
-    <section class="pane" data-pane="az">
-      <p class="help">Posez des points : chaque segment donne l'azimut, la distance et le cumul (course d'orientation). Vous pouvez aussi viser une étape par azimut et distance depuis le dernier point.</p>
-      <div class="row">
-        <label>Unité <select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
-        <label>Référence <select id="az-ref"><option value="true">Nord géographique</option><option value="mag">Nord magnétique</option></select></label>
+    <section class="pane" data-pane="route" hidden>
+      <h2 class="pane-title">Itinéraire à pied</h2>
+      <div class="seg full" id="route-mode"><button data-v="oneway">Aller simple</button><button data-v="loop">Boucle</button></div>
+      <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
+      <div class="group">
+        <div class="group-h">
+          <label class="switch"><input type="checkbox" id="max-on"><i></i><span>Distance maximale</span></label>
+          <span class="num"><input id="max-km" type="number" min="0.5" step="0.5" value="10" aria-label="Distance maximale en kilomètres"> km</span>
+        </div>
+        <div class="gauge" id="gauge" hidden><div class="gauge-bar"><i id="gauge-fill"></i></div><div class="gauge-txt" id="gauge-txt"></div></div>
       </div>
-      <label class="inline" id="decl-row" hidden>Déclinaison magnétique <input id="az-decl" type="number" step="0.1" value="0"> ° (Est +)</label>
+      <h3 class="sub">Points <span class="count" id="wp-count"></span></h3>
+      <ol class="wps" id="wps"></ol>
+      <p class="empty" id="wps-empty">Cliquez sur la carte pour poser le départ, puis les étapes.</p>
+      <div class="btnrow">
+        <button class="btn-ghost" id="route-reverse"><svg class="ic"><use href="#i-swap"/></svg>Inverser</button>
+        <button class="btn-ghost" id="route-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
+        <button class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
+      </div>
+      <div class="stats" id="route-stats" hidden></div>
+      <div class="alert warn" id="nat-warn" hidden></div>
+      <details class="opts">
+        <summary>Paramètres de l’itinéraire</summary>
+        <label class="check"><input type="checkbox" id="opt-motorway"> Éviter les autoroutes</label>
+        <label class="check"><input type="checkbox" id="opt-national"> Signaler les routes nationales <small>(indicatif)</small></label>
+        <label class="field row-inline"><span>Allure de marche</span><span class="num"><input id="speed" type="number" min="1" max="8" step="0.5" value="4"> km/h</span></label>
+        <p class="note">Le calcul d’itinéraire de la Géoplateforme exclut les autoroutes mais ne permet pas d’exclure les nationales : elles sont seulement signalées, quand le service en donne le numéro.</p>
+      </details>
+      <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
+      <p class="status" id="route-status" role="status"></p>
+      <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Feuille de route en PDF…</button>
+    </section>
+
+    <section class="pane" data-pane="az" hidden>
+      <h2 class="pane-title">Azimuts</h2>
+      <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
+      <div class="two">
+        <label class="field"><span>Unité</span><select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
+        <label class="field"><span>Référence</span><select id="az-ref"><option value="true">Nord géographique</option><option value="mag">Nord magnétique</option></select></label>
+      </div>
+      <label class="field row-inline" id="decl-row" hidden><span>Déclinaison magnétique</span><span class="num"><input id="az-decl" type="number" step="0.1" value="0"> ° (Est +)</span></label>
       <p class="note" id="decl-note" hidden>Azimut magnétique = azimut géographique − déclinaison. Relevez la valeur dans la marge de votre carte IGN ; la convergence des méridiens est ignorée.</p>
       <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
-      <fieldset class="aim"><legend>Ajouter une étape visée</legend>
-        <div class="row"><label>Azimut <input id="aim-az" type="number" step="any" placeholder="0"></label><label>Distance (m) <input id="aim-d" type="number" min="0" step="any" placeholder="500"></label><button class="ghost" id="aim-add">Placer</button></div>
+      <fieldset class="aim"><legend>Placer une étape par azimut et distance</legend>
+        <div class="two"><label class="field"><span>Azimut</span><input id="aim-az" type="number" step="any" placeholder="0"></label><label class="field"><span>Distance (m)</span><input id="aim-d" type="number" min="0" step="any" placeholder="500"></label></div>
+        <button class="btn-ghost block" id="aim-add"><svg class="ic"><use href="#i-target"/></svg>Placer depuis le dernier point</button>
       </fieldset>
-      <div class="row">
-        <button class="ghost" id="az-close">Fermer le circuit</button>
-        <button class="ghost" id="az-undo">Retirer le dernier</button>
-        <button class="ghost danger" id="az-clear">Effacer</button>
+      <div class="btnrow">
+        <button class="btn-ghost" id="az-close"><svg class="ic"><use href="#i-loop"/></svg>Fermer le circuit</button>
+        <button class="btn-ghost" id="az-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
+        <button class="btn-ghost danger" id="az-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
       </div>
       <div class="stats" id="az-stats" hidden></div>
     </section>
 
-    <section class="pane" data-pane="meas">
-      <p class="help">Cliquez pour poser les sommets de la ligne ou du polygone.</p>
-      <div class="row"><div class="seg" id="meas-mode"><button data-v="dist">Distance</button><button data-v="area">Surface</button></div></div>
+    <section class="pane" data-pane="meas" hidden>
+      <h2 class="pane-title">Mesure</h2>
+      <p class="help">Cliquez pour poser les sommets de la ligne ou du polygone. Glissez un sommet pour le déplacer.</p>
+      <div class="seg full" id="meas-mode"><button data-v="dist">Distance</button><button data-v="area">Surface</button></div>
       <div class="stats" id="meas-stats"></div>
-      <div class="row">
-        <button class="ghost" id="meas-undo">Retirer le dernier</button>
-        <button class="ghost danger" id="meas-clear">Effacer</button>
+      <div class="btnrow">
+        <button class="btn-ghost" id="meas-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
+        <button class="btn-ghost danger" id="meas-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
       </div>
     </section>
 
-    <section class="pane" data-pane="data">
-      <p class="help">Traces importées depuis un fichier GPX. Elles s'affichent sur la carte et peuvent alimenter le profil d'altitude.</p>
-      <ul class="tracks" id="tracks"></ul>
-      <p class="muted" id="tracks-empty">Aucune trace importée.</p>
-      <h3 class="sub">Fonds et couches</h3>
-      <div class="seg wrap" id="base-seg"><button data-v="plan">Plan IGN</button><button data-v="ortho">Photographies</button></div>
-      <div class="checks" id="overlays">
-        <label><input type="checkbox" data-ov="contour"> Courbes de niveau</label>
-        <label><input type="checkbox" data-ov="shade"> Ombrage du relief</label>
-        <label><input type="checkbox" data-ov="slope"> Pentes</label>
-        <label><input type="checkbox" data-ov="cadastre"> Parcelles cadastrales</label>
-      </div>
-      <h3 class="sub">Travail en cours</h3>
-      <p class="muted">Votre travail est mémorisé dans ce navigateur.</p>
-      <button class="ghost danger" id="reset-all">Tout effacer</button>
+    <section class="pane" data-pane="layers" hidden>
+      <h2 class="pane-title">Calques</h2>
+      <p class="help">Chaque élément que vous créez est un calque : affichez-le, masquez-le, centrez la carte dessus ou supprimez-le.</p>
+      <ul class="layers" id="layer-list"></ul>
+      <button class="dropzone" id="layers-import"><svg class="ic"><use href="#i-upload"/></svg><span>Importer une trace GPX<small>ou glissez le fichier sur la carte</small></span></button>
+      <h3 class="sub">Fond de carte</h3>
+      <button class="btn-ghost block" id="open-basemaps"><svg class="ic"><use href="#i-map"/></svg>Fonds de carte et couches IGN…</button>
+      <h3 class="sub">Projet</h3>
+      <button class="btn-ghost danger block" id="reset-all"><svg class="ic"><use href="#i-trash"/></svg>Tout effacer</button>
     </section>
   </aside>
 
   <main class="stage">
-    <div id="map" aria-label="Carte"></div>
-    <div class="mapbar">
-      <select id="coord-fmt" aria-label="Format des coordonnées">
-        <option value="wgs">WGS 84 (°)</option><option value="dms">WGS 84 (° ′ ″)</option><option value="l93">Lambert-93</option><option value="utm">UTM</option>
-      </select>
-      <button id="coords" class="coords" title="Copier les coordonnées">—</button>
-    </div>
-    <section class="profile-dock" id="profile-dock">
-      <div class="profile-head">
-        <strong>Profil d'altitude</strong>
-        <select id="profile-src" aria-label="Source du profil"></select>
-        <span class="pstats" id="pstats"></span>
-        <button class="text-btn" id="profile-toggle" aria-expanded="true">Réduire</button>
+    <div class="mapwrap" id="mapwrap">
+      <div id="map" aria-label="Carte"></div>
+
+      <div class="searchcard" id="searchcard" role="search">
+        <div class="search-row">
+          <svg class="ic s-ic"><use href="#i-search"/></svg>
+          <input id="q" type="text" placeholder="Rechercher un lieu, une adresse, un sommet…" autocomplete="off" spellcheck="false" aria-label="Rechercher un lieu" aria-autocomplete="list" aria-controls="suggest">
+          <button class="s-clear" id="q-clear" title="Effacer la recherche" aria-label="Effacer la recherche" hidden><svg class="ic"><use href="#i-x"/></svg></button>
+        </div>
+        <ul id="suggest" class="suggest" role="listbox" hidden></ul>
       </div>
-      <div class="profile-body" id="profile-body"><svg id="profile" role="img" aria-label="Profil d'altitude"></svg><div class="ptip" id="ptip" hidden></div><p class="muted pempty" id="pempty">Tracez un itinéraire, des azimuts ou importez une trace pour afficher le profil.</p></div>
+
+      <div class="toolhint" id="toolhint" hidden>
+        <svg class="ic" id="hint-ic"><use href="#i-route"/></svg>
+        <span id="hint-txt"></span>
+        <button class="hint-btn" id="hint-btn"></button>
+      </div>
+
+      <div class="zoomctl" aria-label="Zoom">
+        <button id="zoom-in" title="Zoom avant (échelle supérieure)" aria-label="Zoom avant"><svg class="ic"><use href="#i-plus"/></svg></button>
+        <button id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
+      </div>
+
+      <div class="bl">
+        <button class="layerbtn" id="layer-btn" title="Fonds de carte et couches" aria-haspopup="true">
+          <img id="layer-thumb" alt=""><span><svg class="ic"><use href="#i-layers"/></svg>Fonds et couches</span>
+        </button>
+        <button class="scalebtn" id="scale-btn" title="Échelle de la carte (cliquer pour la régler)"><small>Échelle</small><b id="scale-val">1 : 25 000</b></button>
+      </div>
+
+      <div class="pop layer-pop" id="layer-pop" hidden>
+        <div class="pop-h"><b>Fonds et couches</b><button class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <h4>Type de carte</h4>
+        <div class="base-grid" id="base-grid">
+          <button data-base="plan"><img id="th-plan" alt=""><span>Plan IGN</span></button>
+          <button data-base="ortho"><img id="th-ortho" alt=""><span>Photographies</span></button>
+        </div>
+        <h4>Détails de la carte</h4>
+        <div class="ov-grid" id="ov-grid">
+          <button data-ov="contour"><span class="ov-ic"><svg class="ic"><use href="#i-contour"/></svg></span><span>Courbes de niveau</span></button>
+          <button data-ov="shade"><span class="ov-ic"><svg class="ic"><use href="#i-shade"/></svg></span><span>Ombrage du relief</span></button>
+          <button data-ov="slope"><span class="ov-ic"><svg class="ic"><use href="#i-slope"/></svg></span><span>Pentes</span></button>
+          <button data-ov="cadastre"><span class="ov-ic"><svg class="ic"><use href="#i-parcel"/></svg></span><span>Cadastre</span></button>
+        </div>
+        <h4>Netteté du fond de carte</h4>
+        <div class="seg full" id="detail-seg"><button data-v="0">Standard</button><button data-v="1">Détaillée</button><button data-v="2">Très détaillée</button></div>
+        <p class="note">« Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée. Plus net à l’écran et à l’impression, au prix de plus de données.</p>
+      </div>
+
+      <div class="pop scale-pop" id="scale-pop" hidden>
+        <div class="pop-h"><b>Échelle</b><button class="ibtn" data-close="scale-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="scale-list" id="scale-list"></div>
+        <label class="field row-inline"><span>Échelle libre 1 :</span><span class="num"><input id="scale-custom" type="number" min="200" max="20000000" step="100" placeholder="25000"></span></label>
+        <label class="check"><input type="checkbox" id="snap-on"> Aimanter aux échelles courantes</label>
+        <p class="note">Échelle calculée pour un affichage à 96 ppp, identique à l’impression « carte à l’échelle » à 100 %.</p>
+      </div>
+
+      <button class="coordbox" id="coords" title="Coordonnées WGS 84 au curseur (cliquer pour copier)">—</button>
+    </div>
+
+    <section class="dock" id="dock">
+      <div class="dock-grip" id="dock-grip" title="Glisser pour redimensionner"></div>
+      <div class="dock-head" id="dock-head">
+        <button class="dock-toggle" id="dock-toggle" aria-expanded="true" title="Réduire ou afficher le profil"><svg class="ic"><use href="#i-chev-down"/></svg></button>
+        <svg class="ic dock-ic"><use href="#i-mountain"/></svg><strong>Profil d’altitude</strong>
+        <select id="profile-src" class="pill-select" aria-label="Source du profil"></select>
+        <div class="chips" id="pstats"></div>
+      </div>
+      <div class="dock-body" id="dock-body">
+        <svg id="profile" role="img" aria-label="Profil d'altitude"></svg>
+        <div class="ptip" id="ptip" hidden></div>
+        <p class="pempty" id="pempty">Tracez un itinéraire, des azimuts ou importez une trace pour afficher le profil.</p>
+      </div>
     </section>
   </main>
 </div>
 
-<section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+<input id="file-gpx" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden>
 <div id="toast" class="toast" role="status" hidden></div>
+
 <dialog id="dlg-export">
   <h2>Exporter en GPX</h2>
+  <p class="dlg-sub">Choisissez les éléments à inclure dans le fichier.</p>
   <div class="checks" id="export-opts"></div>
-  <div class="dlg-actions"><button class="ghost" id="export-cancel">Annuler</button><button class="primary" id="export-ok">Enregistrer</button></div>
+  <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
 </dialog>
+
+<dialog id="dlg-pdf">
+  <h2>Exporter en PDF / imprimer</h2>
+  <p class="dlg-sub">Vous pourrez modifier tous les textes avant d’imprimer.</p>
+  <div class="doc-types" id="doc-types">
+    <label class="doc-type"><input type="radio" name="dtype" value="simple"><span><b>Feuille de route simplifiée</b><small>Distance, dénivelé positif et étapes</small></span></label>
+    <label class="doc-type"><input type="radio" name="dtype" value="detail"><span><b>Feuille de route détaillée</b><small>Étapes, consignes de guidage, altitudes, durées</small></span></label>
+    <label class="doc-type"><input type="radio" name="dtype" value="map"><span><b>Carte à l’échelle</b><small>La vue actuelle, imprimée à l’échelle exacte</small></span></label>
+  </div>
+  <label class="field"><span>Titre du document</span><input type="text" id="pdf-title" maxlength="100" placeholder="Itinéraire"></label>
+  <div class="two">
+    <label class="field"><span>Papier</span><select id="pdf-paper"><option value="A4">A4</option><option value="A3">A3</option></select></label>
+    <label class="field"><span>Orientation</span><select id="pdf-orient"><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select></label>
+  </div>
+  <label class="field" id="pdf-scale-row"><span>Échelle de la carte</span><select id="pdf-scale"></select></label>
+  <div class="checks" id="pdf-opts">
+    <label id="pdf-overview-row"><input type="checkbox" id="pdf-overview" checked> Vue d’ensemble de l’itinéraire (carte)</label>
+    <label id="pdf-profile-row"><input type="checkbox" id="pdf-profile" checked> Profil d’altitude (coupe du dénivelé)</label>
+    <label id="pdf-az-row"><input type="checkbox" id="pdf-az" checked> Tableau des azimuts</label>
+    <label id="pdf-notes-row"><input type="checkbox" id="pdf-notes" checked> Cadre de notes</label>
+  </div>
+  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok">Aperçu et modification</button></div>
+</dialog>
+
+<dialog id="dlg-help">
+  <h2>Raccourcis clavier</h2>
+  <dl class="kbd-list">
+    <dt><kbd>I</kbd></dt><dd>Outil itinéraire</dd>
+    <dt><kbd>A</kbd></dt><dd>Outil azimuts</dd>
+    <dt><kbd>M</kbd></dt><dd>Outil de mesure</dd>
+    <dt><kbd>L</kbd></dt><dd>Calques</dd>
+    <dt><kbd>Échap</kbd></dt><dd>Revenir au déplacement de la carte</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Retirer le dernier point</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>O</kbd></dt><dd>Importer un GPX</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Exporter en GPX</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>P</kbd></dt><dd>Exporter en PDF / imprimer</dd>
+    <dt>Clic droit</dt><dd>Menu du point : départ, étape, arrivée, azimut, coordonnées</dd>
+    <dt>Clic sur A</dt><dd>Ferme la boucle (itinéraire ou azimuts)</dd>
+  </dl>
+  <div class="dlg-actions"><button class="btn-primary" data-close-dlg>Fermer</button></div>
+</dialog>
+
+<div id="doc" class="doc" hidden>
+  <div class="doc-bar">
+    <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small>Cliquez dans le document pour modifier n’importe quel texte.</small></div>
+    <button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer / Enregistrer en PDF</button>
+  </div>
+  <div class="doc-scroll"><div id="doc-pages"></div></div>
+</div>
+<style id="page-style"></style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/app.js"></script>
+<script src="js/doc.js"></script>
 <script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
 </body>
 </html>
