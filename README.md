@@ -30,7 +30,9 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 ## Annuler / rétablir et simulation
 
 - **Annuler / rétablir** (`Ctrl+Z`, `Ctrl+Y`, boutons de la barre du haut) : points posés, supprimés, déplacés, réordonnés, itinéraire inversé, calques créés ou supprimés. Les modifications rapprochées (frappe, glissement) forment une seule étape.
-- **Simulation du parcours** (menu *Créer ▸ Simulation du parcours…*, sans bouton dédié) : un curseur parcourt le tracé affiché dans le profil d'altitude. Il suit le relief (ralentit dans les montées, d'après l'allure réglée), son altitude et la pente s'affichent, le curseur est répercuté sur le profil et la carte suit le mouvement. Vitesses ×30 à ×300, curseur de position pour avancer ou reculer.
+- **Simulation du parcours** (menu *Créer ▸ Simulation du parcours…*, sans bouton dédié) : un curseur parcourt le tracé affiché dans le profil d'altitude, en suivant le relief (il ralentit dans les montées d'après l'allure réglée). Les commandes sont dans le panneau latéral : lecture/pause, position, **durée de la simulation de 3 à 10 secondes**, option « la carte suit le curseur ». Altitude, pente et temps de marche s'affichent en direct et le curseur est répercuté sur le profil.
+- **Export vidéo** : *Exporter en vidéo…* recadre d'abord la carte sur tout le parcours, attend les tuiles, enregistre la simulation (carte, tracé parcouru, curseur, profil d'altitude facultatif), puis propose d'**enregistrer ou non** le fichier (WebM, ou MP4 selon le navigateur). Tout se fait dans le navigateur, sans envoi.
+- **Menus contextuels (clic droit)** : sur un point (renommer, supprimer, en faire le départ ou l'arrivée, fermer la boucle, copier, centrer), sur le tracé (ajouter une étape, inverser, simulation, PDF), sur la carte (départ/étape/arrivée, azimut, mesure, copier, annuler/rétablir), sur le diagramme d'altitude (centrer, ajouter une étape, simulation depuis ce point, copier) et sur une ligne de calque.
 
 ## Azimuts et mesures
 
