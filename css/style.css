@@ -392,27 +392,26 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
 .mb-ic:hover:not(:disabled){background:rgba(255,255,255,.22)}
 .mb-ic:disabled{opacity:.35;cursor:default}
 
-/* ---------- Simulation du parcours ---------- */
-.simbar{position:absolute;left:14px;right:14px;bottom:10px;z-index:1200;display:flex;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-l)}
-.sim-btn{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:var(--navy-3);color:var(--navy);flex:none}
-.sim-btn.main{width:42px;height:42px;background:var(--navy);color:#fff}
+/* ---------- Simulation du parcours (panneau latéral) ---------- */
+.sim-src{margin:0 0 10px;font-size:14px;color:var(--navy)}
+.sim-ctl{display:flex;justify-content:center;align-items:center;gap:14px;margin:6px 0 10px}
+.sim-btn{display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--navy-3);color:var(--navy);flex:none}
+.sim-btn.main{width:60px;height:60px;background:var(--navy);color:#fff}
+.sim-btn.main .ic{width:26px;height:26px}
 .sim-btn:hover{filter:brightness(1.15)}
-.sim-mid{flex:1;min-width:0}
-.sim-top{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#4d5069;white-space:nowrap;overflow:hidden}
-.sim-top b:first-child{color:var(--navy);overflow:hidden;text-overflow:ellipsis}
-.sim-top span b{color:var(--navy)}
-#sim-slider{width:100%;accent-color:var(--navy);margin:2px 0 0}
-#sim-speed{padding:5px 6px;font-size:12.5px}
-.sim-follow{display:flex;align-items:center;gap:5px;font-size:12px;color:#4d5069;white-space:nowrap}
+#sim-slider,#sim-dur{width:100%;accent-color:var(--navy);margin:2px 0}
 .sim-wrap{background:none;border:0}
-.sim-dot{width:22px;height:22px;border-radius:50%;background:var(--gold);border:4px solid #fff;box-shadow:0 0 0 2px var(--navy),0 2px 8px rgba(0,0,0,.5);animation:simpulse 1.4s ease-out infinite}
+.sim-dot{width:24px;height:24px;border-radius:50%;background:var(--gold);border:4px solid #fff;box-shadow:0 0 0 2px var(--navy),0 2px 8px rgba(0,0,0,.5);animation:simpulse 1.2s ease-out infinite}
 @keyframes simpulse{0%{box-shadow:0 0 0 2px var(--navy),0 0 0 0 rgba(198,162,78,.7)}100%{box-shadow:0 0 0 2px var(--navy),0 0 0 16px rgba(198,162,78,0)}}
-@media (max-width:860px){.simbar{bottom:8px}.sim-follow{display:none}}
-.mapwrap.simon .bl{bottom:96px}
-.mapwrap.simon .coordbox{bottom:90px}
-.mapwrap.simon .layer-pop{bottom:176px}
-.mapwrap.simon .scale-pop{bottom:96px}
+.recbar{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:1300;display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;background:#b4232c;color:#fff;border-radius:999px;box-shadow:var(--shadow-l);font-size:13px;font-weight:600}
+.rec-dot{width:10px;height:10px;border-radius:50%;background:#fff;animation:recblink 1s infinite}
+@keyframes recblink{50%{opacity:.25}}
+#vid-preview{width:100%;max-height:50vh;border-radius:10px;background:#000;display:block}
 
+
+.dropdown.ctx{min-width:230px;z-index:2600}
+.mi.danger,.mi.danger .ic{color:var(--danger)}
+.mi.danger:hover:not(:disabled){background:var(--danger-l)}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

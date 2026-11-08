@@ -175,6 +175,25 @@
       </div>
     </section>
 
+    <section class="pane" data-pane="sim" hidden>
+      <h2 class="pane-title">Simulation du parcours</h2>
+      <p class="sim-src"><b id="sim-src">Parcours</b></p>
+      <div class="sim-ctl">
+        <button class="sim-btn" id="sim-restart" title="Revenir au départ" aria-label="Revenir au départ"><svg class="ic"><use href="#i-restart"/></svg></button>
+        <button class="sim-btn main" id="sim-play" title="Lecture" aria-label="Lecture"><svg class="ic"><use href="#i-play"/></svg></button>
+      </div>
+      <input type="range" id="sim-slider" min="0" max="1000" value="0" aria-label="Position sur le parcours">
+      <div class="stats" id="sim-stats">
+        <div><span>Distance</span><b id="ss-d">–</b></div><div><span>Altitude</span><b id="ss-z">–</b></div>
+        <div><span>Pente</span><b id="ss-s">–</b></div><div><span>Temps de marche</span><b id="ss-t">–</b></div>
+      </div>
+      <label class="field"><span>Durée de la simulation : <b id="sim-dur-v">6 s</b></span><input type="range" id="sim-dur" min="3" max="10" step="1" value="6" aria-label="Durée de la simulation en secondes"></label>
+      <label class="check"><input type="checkbox" id="sim-follow" checked> La carte suit le curseur</label>
+      <button class="btn-primary block" id="sim-video"><svg class="ic"><use href="#i-download"/></svg>Exporter en vidéo…</button>
+      <p class="note">La vidéo recadre d’abord la carte sur tout le parcours, puis enregistre la simulation. Vous choisissez ensuite de l’enregistrer ou non.</p>
+      <button class="btn-ghost block" id="sim-close">Fermer la simulation</button>
+    </section>
+
     <section class="pane pane-layers" data-pane="layers" hidden>
       <h2 class="pane-title">Calques</h2>
       <p class="note lnote">Double-clic sur un nom pour le renommer · clic sur un tracé de la carte pour le modifier.</p>
@@ -244,14 +263,7 @@
         <p class="note">Le zoom reste libre. Échelle calculée pour un affichage à 96 ppp, identique à l’impression « carte à l’échelle » à 100 %.</p>
       </div>
 
-      <div class="simbar" id="simbar" hidden>
-        <button class="sim-btn" id="sim-restart" title="Revenir au départ" aria-label="Revenir au départ"><svg class="ic"><use href="#i-restart"/></svg></button>
-        <button class="sim-btn main" id="sim-play" title="Lecture" aria-label="Lecture"><svg class="ic"><use href="#i-play"/></svg></button>
-        <div class="sim-mid"><div class="sim-top"><b id="sim-src">Parcours</b><span id="sim-info"></span></div><input type="range" id="sim-slider" min="0" max="1000" value="0" aria-label="Position sur le parcours"></div>
-        <select id="sim-speed" aria-label="Vitesse de lecture" title="1 seconde de simulation = autant de secondes de marche"><option value="30">×30</option><option value="60" selected>×60</option><option value="120">×120</option><option value="300">×300</option></select>
-        <label class="sim-follow" title="La carte suit le curseur"><input type="checkbox" id="sim-follow" checked> Suivre</label>
-        <button class="ibtn" id="sim-close" title="Fermer la simulation" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
-      </div>
+      <div class="recbar" id="recbar" hidden><i class="rec-dot"></i><span id="rec-txt">Enregistrement…</span><button class="hint-btn" id="rec-cancel">Annuler</button></div>
 
       <button class="coordbox" id="coords" title="Coordonnées WGS 84 au curseur (cliquer pour copier)">—</button>
     </div>
@@ -305,6 +317,20 @@
     <label id="pdf-notes-row"><input type="checkbox" id="pdf-notes" checked> Cadre de notes</label>
   </div>
   <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok">Aperçu et modification</button></div>
+</dialog>
+
+<dialog id="dlg-video">
+  <h2>Exporter la simulation en vidéo</h2>
+  <p class="dlg-sub">La carte est d’abord recadrée sur l’ensemble du parcours, puis la simulation est enregistrée (<b id="vid-dur">6 s</b>). Rien n’est enregistré sur votre ordinateur sans votre accord.</p>
+  <div class="checks"><label><input type="checkbox" id="vid-profile" checked> Afficher le profil d’altitude dans la vidéo</label></div>
+  <div class="dlg-actions"><button class="btn-ghost" id="vid-cancel">Annuler</button><button class="btn-primary" id="vid-go">Lancer l’enregistrement</button></div>
+</dialog>
+
+<dialog id="dlg-video-done">
+  <h2>Vidéo prête</h2>
+  <video id="vid-preview" controls loop muted playsinline></video>
+  <p class="dlg-sub" id="vid-info"></p>
+  <div class="dlg-actions"><button class="btn-ghost" id="vid-discard">Ne pas enregistrer</button><button class="btn-primary" id="vid-save"><svg class="ic"><use href="#i-download"/></svg>Enregistrer la vidéo</button></div>
 </dialog>
 
 <dialog id="dlg-help">
