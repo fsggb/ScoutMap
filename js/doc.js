@@ -56,7 +56,7 @@
     var list = pickables(), sheetOk = list.some(sheetCapable);
     var radios = $$('input[name=dtype]');
     radios.forEach(function (r) { r.closest('.doc-type').classList.toggle('dis', r.value !== 'map' && !sheetOk); });
-    var t = type || (list.some(function (p) { return p.type === 'route'; }) ? 'detail' : sheetOk ? 'simple' : 'map');
+    var t = type || (sheetOk ? 'simple' : 'map');
     if (t !== 'map' && !sheetOk) t = 'map';
     radios.forEach(function (r) { r.checked = r.value === t; });
     $('#pdf-title').dataset.touched = ''; $('#pdf-orient').dataset.user = '';

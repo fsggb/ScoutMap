@@ -49,6 +49,10 @@
   <symbol id="i-parcel" viewBox="0 0 24 24"><path d="M3 4h8v7H3zM13 4h8v4h-8zM13 10h8v10h-8zM3 13h8v7H3z"/></symbol>
   <symbol id="i-hand" viewBox="0 0 24 24"><path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V6a1.5 1.5 0 0 1 3 0v6M16 9a1.5 1.5 0 0 1 3 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a1.6 1.6 0 0 1 2.6-1.8L7 14"/></symbol>
   <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 4v16M16 4v16"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M6 4v16M20 4L9 12l11 8z"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
 </defs></svg>
 
@@ -63,6 +67,8 @@
   </nav>
   <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
   <div class="mb-right">
+    <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
     <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
   </div>
 </header>
@@ -169,16 +175,15 @@
       </div>
     </section>
 
-    <section class="pane" data-pane="layers" hidden>
+    <section class="pane pane-layers" data-pane="layers" hidden>
       <h2 class="pane-title">Calques</h2>
-      <p class="help">Chaque tracé est un calque indépendant : affichez-le, masquez-le, renommez-le (double-clic), inversez son sens, centrez la carte dessus ou supprimez-le. Cliquez sur un tracé de la carte pour le modifier.</p>
+      <p class="note lnote">Double-clic sur un nom pour le renommer · clic sur un tracé de la carte pour le modifier.</p>
       <ul class="layers" id="layer-list"></ul>
-      <div class="newlayers"><button class="btn-ghost" data-newlayer="route"><svg class="ic"><use href="#i-route"/></svg>Itinéraire</button><button class="btn-ghost" data-newlayer="az"><svg class="ic"><use href="#i-compass"/></svg>Azimuts</button><button class="btn-ghost" data-newlayer="meas"><svg class="ic"><use href="#i-ruler"/></svg>Mesure</button></div>
-      <button class="dropzone" id="layers-import"><svg class="ic"><use href="#i-upload"/></svg><span>Importer une trace GPX<small>ou glissez le fichier sur la carte</small></span></button>
-      <h3 class="sub">Fond de carte</h3>
-      <button class="btn-ghost block" id="open-basemaps"><svg class="ic"><use href="#i-map"/></svg>Fonds de carte et couches IGN…</button>
-      <h3 class="sub">Projet</h3>
-      <button class="btn-ghost danger block" id="reset-all"><svg class="ic"><use href="#i-trash"/></svg>Tout effacer</button>
+      <div class="layers-foot">
+        <div class="newlayers"><button class="btn-ghost" data-newlayer="route" title="Nouvel itinéraire"><svg class="ic"><use href="#i-route"/></svg>Itinéraire</button><button class="btn-ghost" data-newlayer="az" title="Nouveaux azimuts"><svg class="ic"><use href="#i-compass"/></svg>Azimuts</button><button class="btn-ghost" data-newlayer="meas" title="Nouvelle mesure"><svg class="ic"><use href="#i-ruler"/></svg>Mesure</button></div>
+        <button class="dropzone" id="layers-import"><svg class="ic"><use href="#i-upload"/></svg><span>Importer une trace GPX <small>ou glisser-déposer sur la carte</small></span></button>
+        <div class="foot-btns"><button class="btn-ghost" id="open-basemaps"><svg class="ic"><use href="#i-map"/></svg>Fonds et couches</button><button class="btn-ghost danger" id="reset-all"><svg class="ic"><use href="#i-trash"/></svg>Tout effacer</button></div>
+      </div>
     </section>
   </aside>
 
@@ -237,6 +242,15 @@
         <div class="scale-list" id="scale-list"></div>
         <label class="field row-inline"><span>Échelle libre 1 :</span><span class="num"><input id="scale-custom" type="number" min="200" max="20000000" step="100" placeholder="25000"></span></label>
         <p class="note">Le zoom reste libre. Échelle calculée pour un affichage à 96 ppp, identique à l’impression « carte à l’échelle » à 100 %.</p>
+      </div>
+
+      <div class="simbar" id="simbar" hidden>
+        <button class="sim-btn" id="sim-restart" title="Revenir au départ" aria-label="Revenir au départ"><svg class="ic"><use href="#i-restart"/></svg></button>
+        <button class="sim-btn main" id="sim-play" title="Lecture" aria-label="Lecture"><svg class="ic"><use href="#i-play"/></svg></button>
+        <div class="sim-mid"><div class="sim-top"><b id="sim-src">Parcours</b><span id="sim-info"></span></div><input type="range" id="sim-slider" min="0" max="1000" value="0" aria-label="Position sur le parcours"></div>
+        <select id="sim-speed" aria-label="Vitesse de lecture" title="1 seconde de simulation = autant de secondes de marche"><option value="30">×30</option><option value="60" selected>×60</option><option value="120">×120</option><option value="300">×300</option></select>
+        <label class="sim-follow" title="La carte suit le curseur"><input type="checkbox" id="sim-follow" checked> Suivre</label>
+        <button class="ibtn" id="sim-close" title="Fermer la simulation" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
       </div>
 
       <button class="coordbox" id="coords" title="Coordonnées WGS 84 au curseur (cliquer pour copier)">—</button>
@@ -301,8 +315,9 @@
     <dt><kbd>M</kbd></dt><dd>Outil de mesure</dd>
     <dt><kbd>L</kbd></dt><dd>Calques</dd>
     <dt><kbd>Suppr</kbd> ou <kbd>⌫</kbd></dt><dd>Retirer le point sélectionné</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>Y</kbd></dt><dd>Rétablir (Ctrl + Maj + Z aussi)</dd>
     <dt><kbd>Échap</kbd></dt><dd>Désélectionner, puis revenir au déplacement de la carte</dd>
-    <dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Retirer le dernier point</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Annuler la dernière modification</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>O</kbd></dt><dd>Importer un GPX</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Exporter en GPX</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>P</kbd></dt><dd>Exporter en PDF / imprimer</dd>
