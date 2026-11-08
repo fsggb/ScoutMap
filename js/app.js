@@ -54,9 +54,28 @@
   } catch (e) { /* stockage indisponible */ }
   ['route', 'az', 'meas'].forEach(function (k) { if (!S[k].id) S[k].id = nid(); });
   S.layers.forEach(function (l) { if (!l.data.id) l.data.id = nid(); });
+  // ---------- Historique (annuler / rétablir) ----------
+  var H = { undo: [], redo: [], lastKey: null, lastSnap: null, lastT: 0, ready: false };
+  function hKey() {
+    return JSON.stringify([S.route, S.az, S.meas, S.layers.map(function (l) { return { t: l.type, v: l.vis, d: l.data }; }), S.vis, S.tracks],
+      function (k, v) { return k === 'place' ? undefined : v; });
+  }
+  function hSnap() { return JSON.stringify({ route: S.route, az: S.az, meas: S.meas, layers: S.layers, vis: S.vis, tracks: S.tracks, res: RT.route }); }
+  function hButtons() {
+    var u = document.getElementById('btn-undo'), r = document.getElementById('btn-redo');
+    if (u) u.disabled = !H.undo.length; if (r) r.disabled = !H.redo.length;
+  }
+  // Appelée après chaque modification : les modifications rapprochées (frappe, glissement) forment une seule étape.
+  function hTrack() {
+    if (!H.ready) return;
+    var k = hKey(); if (k === H.lastKey) return;
+    var now = Date.now();
+    if (H.lastSnap && now - H.lastT > 500) { H.undo.push(H.lastSnap); if (H.undo.length > 60) H.undo.shift(); }
+    H.redo = []; H.lastT = now; H.lastKey = k; H.lastSnap = hSnap(); hButtons();
+  }
   var saveTimer;
   function persist() {
-    updateHint();
+    updateHint(); hTrack();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* quota */ }
@@ -186,6 +205,8 @@
   var routeMarkers = [], azMarkers = [], measMarkers = [];
   function select(k, i, scrollRow) {
     SEL = k ? { k: k, i: i } : null;
+    // Sélection depuis la carte : on quitte tout champ de saisie, pour que Suppr retire le point et non du texte.
+    if (k && scrollRow) { var a = document.activeElement; if (a && /^(input|select|textarea)$/i.test(a.tagName)) a.blur(); }
     applySel(scrollRow);
   }
   function applySel(scrollRow) {
@@ -431,13 +452,13 @@
     var cur = src.filter(function (s) { return s.id === S.profileSrc; })[0] || src[0];
     $('#pempty').hidden = !!cur; $('#profile').style.display = cur ? '' : 'none';
     sel.style.display = src.length > 1 ? '' : 'none';
-    if (!cur) { currentProfile = null; $('#pstats').innerHTML = ''; return; }
+    if (!cur) { currentProfile = null; $('#pstats').innerHTML = ''; simSync(); return; }
     sel.value = cur.id;
     var tok = ++profToken;
     $('#pstats').innerHTML = chip('', 'Calcul du profil…');
     profileFor(cur.line, cur.ele).then(function (p) {
       if (tok !== profToken) return;
-      currentProfile = p; currentProfile.src = cur.id;
+      currentProfile = p; currentProfile.src = cur.id; simSync();
       var over = cur.id === 'route' && overMax();
       $('#pstats').innerHTML = chip('Distance', G.fmtDist(p.pts[p.pts.length - 1].d), over ? 'bad' : '') + chip('D+', Math.round(p.asc) + ' m') + chip('D−', Math.round(p.desc) + ' m') +
         chip('Altitude', Math.round(p.min) + ' – ' + Math.round(p.max) + ' m');
@@ -627,8 +648,8 @@
     $('#wps-empty').hidden = w.length > 0;
     $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
-      return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || '') + '" placeholder="' + esc(p.place || titleOf(d, i)) + '" aria-label="Nom du point">' +
-        '<small>' + esc(titleOf(d, i)) + (p.place && p.name ? ' · près de ' + esc(p.place) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
+      return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || p.place || '') + '" placeholder="' + esc(titleOf(d, i)) + '" aria-label="Nom du point (village ou hameau par défaut)">' +
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
     applySel();
   }
@@ -643,7 +664,7 @@
     ul.addEventListener('input', function (e) {
       var inp = e.target.closest('.wp-name'); if (!inp) return;
       var o = S.route.wps[+inp.dataset.i]; if (!o) return;
-      if (inp.value.trim()) o.name = inp.value.trim(); else delete o.name;
+      if (inp.value.trim() && inp.value.trim() !== o.place) o.name = inp.value.trim(); else delete o.name;
       persist();
     });
     ul.addEventListener('focusin', function (e) { var li = e.target.closest('li[data-i]'); if (li && e.target.matches('.wp-name')) select('route', +li.dataset.i); });
@@ -688,7 +709,7 @@
   $('#opt-national').addEventListener('change', function () { S.route.flagNat = this.checked; renderNatWarn(); persist(); });
   $('#max-on').addEventListener('change', function () { S.route.maxOn = this.checked; syncRouteUi(); onMaxChange(); persist(); });
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
-  $('#route-pdf').addEventListener('click', function () { openPdf('detail'); });
+  $('#route-pdf').addEventListener('click', function () { openPdf('simple'); });
   function onMaxChange() { restyleRoute(); renderRouteStats(); renderGauge(); refreshProfile(); }
   function syncRouteUi() {
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
@@ -1274,9 +1295,98 @@
   $('#q-clear').addEventListener('click', function () { $('#q').value = ''; this.hidden = true; closeSuggest(); qItems = []; gSearch.clearLayers(); map.closePopup(); $('#q').focus(); });
   document.addEventListener('mousedown', function (e) { if (!e.target.closest('.searchcard')) closeSuggest(); });
 
+
+  // ---------- Simulation du parcours : un curseur parcourt le tracé en suivant le relief ----------
+  var SIM = { open: false, prof: null, t: [], tot: 0, pos: 0, playing: false, mult: 60, follow: true, raf: 0, last: 0, marker: null, trail: null };
+  function simPrepare(p) {
+    var z = p.pts.map(function (q) { return q.z; }), s = z.map(function (v, i) { return (z[Math.max(0, i - 1)] + v + z[Math.min(z.length - 1, i + 1)]) / 3; });
+    var asc = 0, t = [0];
+    for (var i = 1; i < p.pts.length; i++) { var dz = s[i] - s[i - 1]; if (dz > 0) asc += dz; t.push(p.pts[i].d / 1000 / S.speed * 3600 + asc / 400 * 3600); }
+    SIM.prof = p; SIM.t = t; SIM.tot = t[t.length - 1] || 1;
+  }
+  function simAt(tt) {
+    var p = SIM.prof.pts, t = SIM.t, i = 0; tt = Math.max(0, Math.min(SIM.tot, tt));
+    while (i < p.length - 2 && t[i + 1] < tt) i++;
+    var a = p[i], b = p[i + 1] || a, f = t[i + 1] > t[i] ? (tt - t[i]) / (t[i + 1] - t[i]) : 0;
+    return { i: i, d: a.d + (b.d - a.d) * f, lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f, z: a.z + (b.z - a.z) * f,
+      slope: b.d > a.d ? (b.z - a.z) / (b.d - a.d) * 100 : 0 };
+  }
+  function simRender() {
+    var r = simAt(SIM.pos), ll0 = L.latLng(r.lat, r.lon), p = SIM.prof.pts;
+    if (!SIM.marker) SIM.marker = L.marker(ll0, { interactive: false, zIndexOffset: 3000, icon: L.divIcon({ className: 'sim-wrap', html: '<div class="sim-dot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(gCursor);
+    SIM.marker.setLatLng(ll0);
+    var trail = p.slice(0, r.i + 1).map(function (q) { return [q.lat, q.lon]; }).concat([[r.lat, r.lon]]);
+    if (!SIM.trail) SIM.trail = L.polyline(trail, { color: '#c6a24e', weight: 6, opacity: 0.95, interactive: false, lineCap: 'round' }).addTo(gCursor); else SIM.trail.setLatLngs(trail);
+    // curseur du profil d'altitude
+    var svg = $('#profile'), g = svg._geom;
+    if (g && S.dockOpen) {
+      var c = svg.querySelector('.cur');
+      if (c) { c.setAttribute('visibility', 'visible'); c.querySelector('line').setAttribute('x1', g.X(r.d)); c.querySelector('line').setAttribute('x2', g.X(r.d)); c.querySelector('circle').setAttribute('cx', g.X(r.d)); c.querySelector('circle').setAttribute('cy', g.Y(r.z)); }
+    }
+    $('#sim-slider').value = Math.round(SIM.pos / SIM.tot * 1000);
+    $('#sim-info').innerHTML = '<b>' + G.fmtDist(r.d) + '</b> · alt. <b>' + Math.round(r.z) + ' m</b> · pente <b>' + (r.slope >= 0 ? '+' : '') + r.slope.toFixed(0) + ' %</b> · <b>' + G.fmtDur(SIM.pos) + '</b>';
+    if (SIM.follow && SIM.playing && !map.getBounds().pad(-0.25).contains(ll0)) map.panTo(ll0, { animate: true, duration: 0.5, easeLinearity: 0.5 });
+  }
+  function simFrame(ts) {
+    if (!SIM.playing) return;
+    var dt = Math.min(0.1, (ts - SIM.last) / 1000); SIM.last = ts;
+    SIM.pos = Math.min(SIM.tot, SIM.pos + dt * SIM.mult); simRender();
+    if (SIM.pos >= SIM.tot) { SIM.playing = false; simBtn(); return; }
+    SIM.raf = requestAnimationFrame(simFrame);
+  }
+  function simBtn() { $('#sim-play').innerHTML = ic(SIM.playing ? 'pause' : 'play'); $('#sim-play').title = SIM.playing ? 'Pause' : 'Lecture'; }
+  function simPlay() {
+    if (SIM.playing) { SIM.playing = false; cancelAnimationFrame(SIM.raf); simBtn(); return; }
+    if (SIM.pos >= SIM.tot) SIM.pos = 0;
+    SIM.playing = true; SIM.last = performance.now(); simBtn(); SIM.raf = requestAnimationFrame(simFrame);
+  }
+  function simOpen() {
+    if (!currentProfile) { toast('Tracez d’abord un itinéraire (ou des azimuts) pour lancer la simulation.'); return; }
+    SIM.open = true; simPrepare(currentProfile); SIM.pos = 0; SIM.playing = false; simBtn();
+    $('#simbar').hidden = false; $('#mapwrap').classList.add('simon'); $('#sim-src').textContent = $('#profile-src').selectedOptions[0] ? $('#profile-src').selectedOptions[0].textContent : 'Parcours';
+    var b = L.latLngBounds(currentProfile.pts.map(function (q) { return [q.lat, q.lon]; })); if (!map.getBounds().contains(b)) fit(b, { padding: [90, 90], maxZoom: 16 });
+    simRender();
+  }
+  function simClose() {
+    SIM.open = false; SIM.playing = false; cancelAnimationFrame(SIM.raf);
+    if (SIM.marker) { gCursor.removeLayer(SIM.marker); SIM.marker = null; } if (SIM.trail) { gCursor.removeLayer(SIM.trail); SIM.trail = null; }
+    $('#simbar').hidden = true; $('#mapwrap').classList.remove('simon');
+    var c = $('#profile').querySelector('.cur'); if (c) c.setAttribute('visibility', 'hidden');
+  }
+  // Le tracé affiché dans le profil a changé : on repart du début (ou on ferme s'il n'y a plus de tracé).
+  function simSync() {
+    if (!SIM.open) return;
+    if (!currentProfile) { simClose(); return; }
+    if (currentProfile !== SIM.prof) { var was = SIM.playing; SIM.playing = false; cancelAnimationFrame(SIM.raf); simPrepare(currentProfile); SIM.pos = 0; simBtn(); simRender(); if (was) toast('Le parcours a changé : simulation remise au début.'); }
+  }
+  $('#sim-play').addEventListener('click', simPlay);
+  $('#sim-restart').addEventListener('click', function () { SIM.pos = 0; simRender(); });
+  $('#sim-close').addEventListener('click', simClose);
+  $('#sim-slider').addEventListener('input', function () { SIM.pos = this.value / 1000 * SIM.tot; simRender(); });
+  $('#sim-speed').addEventListener('change', function () { SIM.mult = +this.value; });
+  $('#sim-follow').addEventListener('change', function () { SIM.follow = this.checked; });
+
+  // ---------- Annuler / rétablir ----------
+  function hRestore(json) {
+    var o = JSON.parse(json);
+    S.route = o.route; S.az = o.az; S.meas = o.meas; S.layers = o.layers; S.vis = o.vis; S.tracks = o.tracks; RT.route = o.res || null;
+    select(null); applyVis(); syncRouteUi(); refreshRouteView(); renderAz(); renderMeas(); renderTracks(); renderStored(); renderLayerList();
+    H.lastKey = hKey(); H.lastSnap = json; H.lastT = Date.now() - 1000; persist(); hButtons();
+  }
+  function undoAction() {
+    if (!H.undo.length) { toast('Rien à annuler.'); return; }
+    H.redo.push(hSnap()); hRestore(H.undo.pop()); hButtons(); toast('Annulé.');
+  }
+  function redoAction() {
+    if (!H.redo.length) { toast('Rien à rétablir.'); return; }
+    H.undo.push(hSnap()); hRestore(H.redo.pop()); hButtons(); toast('Rétabli.');
+  }
+  $('#btn-undo').addEventListener('click', undoAction);
+  $('#btn-redo').addEventListener('click', redoAction);
+
   // ---------- Menus ----------
   function canUndo() { return S.rail === 'route' ? S.route.wps.length > 0 : S.rail === 'az' ? S.az.pts.length > 0 : S.rail === 'meas' ? S.meas.pts.length > 0 : false; }
-  function undo() {
+  function removeLast() {
     if (S.rail === 'route') $('#route-undo').click(); else if (S.rail === 'az') $('#az-undo').click(); else if (S.rail === 'meas') $('#meas-undo').click();
   }
   var MENUS = {
@@ -1288,8 +1398,11 @@
       { t: 'Exporter en PDF / imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
     ],
     edit: [
+      { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
+      { t: 'Rétablir', i: 'redo', k: 'Ctrl+Y', a: redoAction, dis: function () { return !H.redo.length; } },
+      '-',
       { t: 'Supprimer le point sélectionné', i: 'trash', k: 'Suppr', a: deleteSelected, dis: function () { return !SEL; } },
-      { t: 'Retirer le dernier point', i: 'undo', k: 'Ctrl+Z', a: undo, dis: function () { return !canUndo(); } },
+      { t: 'Retirer le dernier point posé', i: 'undo', a: removeLast, dis: function () { return !canUndo(); } },
       '-',
       { t: 'Inverser le sens de l’itinéraire', i: 'swap', a: reverseRoute, dis: function () { return S.route.wps.length < 2; } },
       { t: 'Effacer l’itinéraire en cours', i: 'trash', a: function () { $('#route-clear').click(); }, dis: function () { return !S.route.wps.length; } },
@@ -1303,7 +1416,9 @@
       { t: 'Nouvel itinéraire en boucle', i: 'loop', a: function () { newLayer('route', { loop: true }); } },
       { t: 'Nouveaux azimuts', i: 'compass', k: 'A', a: function () { newLayer('az'); } },
       { t: 'Nouvelle mesure de distance', i: 'ruler', k: 'M', a: function () { newLayer('meas'); S.meas.mode = 'dist'; renderMeas(); } },
-      { t: 'Nouvelle mesure de surface', i: 'ruler', a: function () { newLayer('meas'); S.meas.mode = 'area'; renderMeas(); } }
+      { t: 'Nouvelle mesure de surface', i: 'ruler', a: function () { newLayer('meas'); S.meas.mode = 'area'; renderMeas(); } },
+      '-',
+      { t: 'Simulation du parcours…', i: 'play', a: simOpen }
     ],
     view: [
       { t: 'Panneau latéral', chk: function () { return S.panelOpen; }, a: togglePanel },
@@ -1351,7 +1466,8 @@
     if (mod && e.key.toLowerCase() === 'p') { e.preventDefault(); openPdf(); return; }
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); openExport(); return; }
     if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#file-gpx').click(); return; }
-    if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+    if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redoAction(); else undoAction(); return; }
+    if (mod && e.key.toLowerCase() === 'y' && !typing) { e.preventDefault(); redoAction(); return; }
     if (typing || mod || e.altKey) return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && SEL) { e.preventDefault(); deleteSelected(); return; }
     var k = e.key.toLowerCase();
@@ -1369,6 +1485,7 @@
   setTool('pan');
   if (S.route.wps.length > 1) computeRoute(); else refreshProfile();
   fillPlaces(S.route);
+  H.ready = true; H.lastKey = hKey(); H.lastSnap = hSnap(); hButtons();
 
   // API interne pour doc.js
   window.SM = {

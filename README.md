@@ -27,13 +27,18 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 - Points nommables (utilisés dans la feuille de route), glisser pour déplacer, clic droit pour retirer, clic sur le tracé pour ajouter une étape.
 - Éviter les autoroutes (contrainte appliquée par le service). Les routes nationales ne peuvent pas être exclues par la Géoplateforme : elles sont seulement **signalées** quand le service en donne le numéro (indicatif).
 
+## Annuler / rétablir et simulation
+
+- **Annuler / rétablir** (`Ctrl+Z`, `Ctrl+Y`, boutons de la barre du haut) : points posés, supprimés, déplacés, réordonnés, itinéraire inversé, calques créés ou supprimés. Les modifications rapprochées (frappe, glissement) forment une seule étape.
+- **Simulation du parcours** (menu *Créer ▸ Simulation du parcours…*, sans bouton dédié) : un curseur parcourt le tracé affiché dans le profil d'altitude. Il suit le relief (ralentit dans les montées, d'après l'allure réglée), son altitude et la pente s'affichent, le curseur est répercuté sur le profil et la carte suit le mouvement. Vitesses ×30 à ×300, curseur de position pour avancer ou reculer.
+
 ## Azimuts et mesures
 
 Azimut, contre-azimut, distance et cumul par segment (degrés, grades ou millièmes ; nord géographique ou magnétique), fermeture du circuit par clic sur le point 1, placement d'une étape par azimut et distance. Mesure de distance et de surface.
 
 ## Export PDF et impression
 
-*Fichier ▸ Exporter en PDF* (ou `Ctrl+P`) ouvre un aperçu **dont tous les textes sont modifiables** avant impression :
+*Fichier ▸ Exporter en PDF* (ou `Ctrl+P`) ouvre un aperçu **dont tous les textes sont modifiables** avant impression. Le type par défaut est la feuille de route simplifiée, titrée du nom du calque :
 
 - **Feuille de route simplifiée** : distance, dénivelé positif, étapes.
 - **Feuille de route détaillée** : durées, dénivelés, altitudes, consignes de guidage, avertissements.
