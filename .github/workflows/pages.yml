@@ -48,6 +48,8 @@ jobs:
         run: |
           mkdir -p build
           cp -a index.html assets css js build/
+          # Versionne le CSS et le JS : un navigateur ne peut plus mélanger ancien cache et nouvelle page
+          sed -i "s/__V__/${GITHUB_SHA::8}/g" build/index.html
           touch build/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
