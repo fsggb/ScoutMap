@@ -267,21 +267,33 @@
 
       <div class="bl">
         <button class="layerbtn" id="layer-btn" title="Fonds de carte et couches" aria-haspopup="true">
-          <img id="layer-thumb" alt=""><span><svg class="ic"><use href="#i-layers"/></svg>Fonds et couches</span>
+          <img id="layer-thumb" alt=""><span><svg class="ic"><use href="#i-layers"/></svg>Fonds et infos</span><i class="lb-badge" id="lb-badge" hidden></i>
         </button>
         <button class="scalebtn" id="scale-btn" title="Échelle de la carte (cliquer pour la régler)"><small>Échelle</small><b id="scale-val">1 : 25 000</b></button>
       </div>
 
       <div class="pop layer-pop" id="layer-pop" hidden>
-        <div class="pop-h"><b>Fonds et couches</b><button class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
-        <h4>Type de carte</h4>
-        <div class="base-grid" id="base-grid"></div>
-        <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
-        <h4>Détails de la carte</h4>
-        <div class="ov-grid" id="ov-grid"></div>
-        <h4>Netteté du fond de carte</h4>
-        <div class="seg full" id="detail-seg"><button data-v="auto">Auto</button><button data-v="0">Standard</button><button data-v="1">Détaillée</button><button data-v="2">Très détaillée</button></div>
-        <p class="note"><b>Auto</b> (recommandé) : fond standard quand vous voyez une grande étendue (toute la France), fond détaillé dès que vous vous approchez. « Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée.</p>
+        <div class="pop-h"><b>Fonds et informations</b><button class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="seg full pop-tabs" id="pop-tabs" role="tablist">
+          <button data-tab="base" class="on" role="tab">Fond de carte</button>
+          <button data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
+          <button data-tab="sharp" role="tab">Netteté</button>
+        </div>
+        <section class="pop-sec" data-tab="base">
+          <p class="note first">Le dessin de la carte (un seul à la fois).</p>
+          <div class="base-grid" id="base-grid"></div>
+          <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
+        </section>
+        <section class="pop-sec" data-tab="info" hidden>
+          <p class="note first">Informations ajoutées par-dessus le fond, à combiner comme vous voulez.</p>
+          <div class="ov-grid" id="ov-grid"></div>
+          <button class="text-btn" id="ov-none">Tout retirer</button>
+        </section>
+        <section class="pop-sec" data-tab="sharp" hidden>
+          <p class="note first">Précision du fond de carte à l’écran et à l’impression.</p>
+          <div class="seg full" id="detail-seg"><button data-v="auto">Auto</button><button data-v="0">Standard</button><button data-v="1">Détaillée</button><button data-v="2">Très détaillée</button></div>
+          <p class="note"><b>Auto</b> (recommandé) : fond standard quand vous voyez une grande étendue (toute la France), fond détaillé dès que vous vous approchez. « Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée.</p>
+        </section>
       </div>
 
       <div class="pop scale-pop" id="scale-pop" hidden>
@@ -367,6 +379,7 @@
       <label class="field"><span>Chevauchement</span><span class="num"><input type="number" id="pdf-overlap" value="10" min="4" max="40" step="1"> mm</span></label>
     </div>
     <label class="field"><span>Netteté de la carte</span><select id="pdf-sharp"><option value="auto">Automatique (recommandé)</option><option value="1">Haute</option><option value="2">Maximale (plus lent)</option></select></label>
+    <label class="check" id="pdf-mix-row"><input type="checkbox" id="pdf-mix" checked> Mélanger portrait et paysage (moins de feuilles)</label>
     <label class="check"><input type="checkbox" id="pdf-index" checked> Feuille d’assemblage en première page</label>
     <p class="alert ok" id="pdf-tiles-sum"></p>
     <p class="note" id="pdf-tiles-note"></p>
