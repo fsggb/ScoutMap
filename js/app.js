@@ -770,8 +770,8 @@
   }
   function snapToChurch(w) {
     if (!w || S.route.snapChurch === false) return Promise.resolve();
-    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom()), R = Math.min(1250, 24 * mpp);
-    if (mpp < 5) return Promise.resolve();
+    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom()), R = Math.min(1250, Math.max(45, 24 * mpp));
+    if (mpp < 0.55) return Promise.resolve();  // jusqu'au zoom ≈ 17 ; au-delà, on vise précisément
     return villageCenter(w.lat, w.lon, R).then(function (res) {
       var i = S.route.wps.indexOf(w); if (i < 0 || !res) return;
       var c = res.p; if (w.lat === c.lat && w.lon === c.lon) return;
