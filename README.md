@@ -5,6 +5,18 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 
 **Site : https://fsggb.github.io/ScoutMap/**
 
+## Types de travail et accueil
+
+L'**écran d'accueil** (bouton *Accueil*, touche `H`, ou clic sur le logo) propose quatre types de travail : **Itinéraire à pied**, **Azimuts**, **Mesures** et **Grand jeu**. Chaque type a ses propres outils et ses propres calques : quand on change de type, on ne voit plus les autres (la carte, la liste des calques, les exports et le profil d'altitude ne concernent que le type en cours). Le travail de chaque type est conservé et retrouvé en y revenant ; l'accueil indique ce qui existe déjà.
+
+## Grand jeu (zones, formes, flèches, croix, textes)
+
+Pour préparer des cartes de grand jeu : **zone** (polygone), **rectangle**, **cercle**, **ligne**, **flèche**, **croix** et **zone de texte**. Pour chaque élément : couleur de remplissage, **transparence réglable (0 à 100 %)**, couleur et épaisseur du contour, pointillés, et pour les textes la taille et la couleur du texte. Sélection d'un élément (poignées blanches = sommets, poignées rondes = ajout de sommet, poignée dorée = déplacement), duplication, premier plan / arrière-plan, suppression (`Suppr`), annulation (`Ctrl+Z`), clic droit pour les actions. Plusieurs calques de grand jeu possibles ; impression sur une carte à l'échelle (PDF).
+
+## Téléphone
+
+Sur petit écran, l'interface passe en mode téléphone : barre d'outils en bas, panneau en feuille qui se replie (croix de fermeture), indications en haut avec bouton « Terminer » pour finir une zone ou une ligne au toucher, grandes poignées tactiles, profil d'altitude replié, bouton **Ma position** (localisation de l'appareil), appui long pour le menu contextuel.
+
 ## Interface
 
 - **Barre de menus** : Fichier (nouveau, import/export GPX, export PDF), Édition (annuler, inverser, effacer), Créer (itinéraire, boucle, azimuts, mesures), Affichage (panneau, profil, calques, échelle), Aide (raccourcis).
