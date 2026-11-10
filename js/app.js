@@ -36,7 +36,7 @@
   var MODE_INFO = { route: { label: 'Itinéraire', icon: 'route' }, az: { label: 'Azimuts', icon: 'compass' }, meas: { label: 'Mesure', icon: 'ruler' }, game: { label: 'Grand jeu', icon: 'flag' } };
   var S = {
     name: '', mode: null, rail: 'route', panelOpen: true,
-    base: 'plan', ov: { contour: false, shade: false, slope: false, cadastre: false },
+    base: 'plan', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: false, lidar: false },
     detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
@@ -58,6 +58,7 @@
     }
   } catch (e) { /* stockage indisponible */ }
   if (TYPES.indexOf(S.mode) < 0) S.mode = null;
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0) S.base = 'plan';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -97,26 +98,51 @@
 
   // ---------- Fonds et couches ----------
   var ATTR = '© <a href="https://geoservices.ign.fr/" target="_blank" rel="noopener">IGN</a> – Géoplateforme';
+  var OSMA = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+  /* Fonds (base:true) et couches. ign:true = données ouvertes de la Géoplateforme (impression multi-feuilles autorisée) ;
+     les autres sont des serveurs de tuiles libres (OpenStreetMap…) réservés à la consultation. */
   var LAYERS = {
-    plan: { l: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', f: 'png', n: 19 },
-    ortho: { l: 'ORTHOIMAGERY.ORTHOPHOTOS', f: 'jpeg', n: 19 },
-    contour: { l: 'ELEVATION.CONTOUR.LINE', f: 'png', n: 18, o: { minZoom: 12, opacity: 0.9 } },
-    shade: { l: 'ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', f: 'png', n: 15, o: { opacity: 0.55 } },
-    slope: { l: 'ELEVATION.SLOPES', f: 'jpeg', n: 14, o: { minZoom: 6, opacity: 0.5 } },
-    cadastre: { l: 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS', f: 'png', n: 19, o: { minZoom: 12, opacity: 0.85 } }
+    plan: { base: true, ign: true, label: 'Plan IGN', l: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', f: 'png', n: 19 },
+    ortho: { base: true, ign: true, label: 'Photographies', l: 'ORTHOIMAGERY.ORTHOPHOTOS', f: 'jpeg', n: 19 },
+    otm: { base: true, label: 'Topo (OpenTopoMap)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', n: 17,
+      attr: OSMA + ' contributors · © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA)' },
+    osm: { base: true, label: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', n: 19, attr: OSMA + ' contributors' },
+    osmfr: { base: true, label: 'OSM France', url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', n: 20, attr: OSMA + ' contributors · © OpenStreetMap France' },
+    cyclosm: { base: true, label: 'CyclOSM', url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', n: 20,
+      attr: OSMA + ' contributors · © <a href="https://www.cyclosm.org" target="_blank" rel="noopener">CyclOSM</a>' },
+    etat: { base: true, ign: true, label: 'État-major (1820-66)', l: 'GEOGRAPHICALGRIDSYSTEMS.ETATMAJOR40', f: 'jpeg', n: 15 },
+    contour: { ign: true, label: 'Courbes de niveau', icon: 'contour', l: 'ELEVATION.CONTOUR.LINE', f: 'png', n: 18, o: { minZoom: 12, opacity: 0.9 } },
+    shade: { ign: true, label: 'Ombrage du relief', icon: 'shade', l: 'ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', f: 'png', n: 15, o: { opacity: 0.55 } },
+    lidar: { ign: true, label: 'Relief LiDAR HD', icon: 'mountain', l: 'IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', f: 'png', n: 18, o: { opacity: 0.55 } },
+    slope: { ign: true, label: 'Pentes', icon: 'slope', l: 'ELEVATION.SLOPES', f: 'jpeg', n: 14, o: { minZoom: 6, opacity: 0.5 } },
+    cadastre: { ign: true, label: 'Cadastre', icon: 'parcel', l: 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS', f: 'png', n: 19, o: { minZoom: 12, opacity: 0.85 } },
+    hiking: { label: 'Sentiers balisés (GR…)', icon: 'route', url: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', n: 18,
+      attr: '© <a href="https://hiking.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a> / ' + OSMA + ' contributors', o: { opacity: 0.9 } }
   };
-  function wmtsUrl(key, z, x, y) {
+  var BASES = Object.keys(LAYERS).filter(function (k) { return LAYERS[k].base; });
+  var OVERS = Object.keys(LAYERS).filter(function (k) { return !LAYERS[k].base; });
+  function srcUrl(key, z, x, y) {
     var d = LAYERS[key];
+    if (d.url) return d.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
     return GP + '/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=' + d.l + '&STYLE=normal&FORMAT=image/' + d.f +
       '&TILEMATRIXSET=PM&TILEMATRIX=' + z + '&TILEROW=' + y + '&TILECOL=' + x;
   }
+  var wmtsUrl = srcUrl;
   /* « Netteté » : on demande des tuiles du niveau (z + off), affichées 2^off fois plus petites.
-     Le fond affiché à une échelle donnée est donc celui du niveau juste au-dessus, au lieu d'un niveau dézoomé. */
+     Le fond affiché à une échelle donnée est donc celui du niveau juste au-dessus, au lieu d'un niveau dézoomé.
+     Les serveurs libres (hors IGN) sont limités à un niveau de plus, pour rester raisonnables. */
   function tile(key, off, extra) {
-    var d = LAYERS[key];
-    return L.tileLayer(wmtsUrl(key, '{z}', '{x}', '{y}'), Object.assign({
-      maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: ATTR, keepBuffer: 2, crossOrigin: 'anonymous'
+    var d = LAYERS[key]; off = d.ign ? off : Math.min(off, 1);
+    var layer = L.tileLayer(srcUrl(key, '{z}', '{x}', '{y}'), Object.assign({
+      maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: d.attr || ATTR, keepBuffer: 2, crossOrigin: 'anonymous',
+      subdomains: 'abc'
     }, d.o || {}, extra || {}));
+    // Une tuile en erreur (panne ponctuelle du serveur) est redemandée jusqu'à 3 fois : pas de trou sur une carte imprimée.
+    layer.on('tileerror', function (e) {
+      var t = e.tile; t._retry = (t._retry || 0) + 1;
+      if (t._retry <= 3) setTimeout(function () { var u = t.src; t.src = ''; t.src = u; }, 500 * t._retry);
+    });
+    return layer;
   }
   var tiles = {}, curOff = 1;
 
@@ -140,7 +166,7 @@
   }
   function applyLayers() {
     Object.keys(LAYERS).forEach(function (k) {
-      var on = (k === 'plan' || k === 'ortho') ? k === S.base : !!S.ov[k];
+      var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
       if (on) { if (!map.hasLayer(tiles[k])) tiles[k].addTo(map); } else if (map.hasLayer(tiles[k])) map.removeLayer(tiles[k]);
     });
     tiles[S.base].bringToBack();
@@ -148,10 +174,11 @@
     $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', !!S.ov[b.dataset.ov]); });
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
+    $('#base-note').hidden = !!LAYERS[S.base].ign;
   }
   function thumbUrl(key) {
     var z = 10, n = 1 << z, lon = 5.72, lat = 45.19, r = lat * Math.PI / 180;
-    return wmtsUrl(key, z, Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n));
+    return srcUrl(key, z, Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)).replace('{s}', 'a');
   }
   // Un seul type de travail est visible à la fois : les autres calques sont masqués.
   function applyVis() {
@@ -776,6 +803,7 @@
   $('#max-on').addEventListener('change', function () { S.route.maxOn = this.checked; syncRouteUi(); onMaxChange(); persist(); });
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
   $('#route-pdf').addEventListener('click', function () { openPdf('simple'); });
+  $('#route-tiles').addEventListener('click', function () { openPdf('tiles'); });
   function onMaxChange() { restyleRoute(); renderRouteStats(); renderGauge(); refreshProfile(); }
   function syncRouteUi() {
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
@@ -1183,7 +1211,10 @@
   $('#proj-name').addEventListener('input', function () { S.name = this.value; persist(); });
 
   // ---------- Fonds, couches, netteté (fenêtres flottantes) ----------
+  // Les vignettes des fonds ne sont chargées qu'à la première ouverture du panneau.
+  function loadThumbs() { $$('#base-grid img[data-src]').forEach(function (i) { if (i.dataset.src) { i.src = i.dataset.src; i.dataset.src = ''; } }); }
   function togglePop(id, force) {
+    if (id === 'layer-pop') loadThumbs();
     ['layer-pop', 'scale-pop'].forEach(function (p) { $('#' + p).hidden = p !== id ? true : (force ? false : !$('#' + p).hidden); });
   }
   function closePops() { $('#layer-pop').hidden = true; $('#scale-pop').hidden = true; }
@@ -1199,7 +1230,8 @@
     var b = e.target.closest('button'); if (!b) return;
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
-  $('#th-plan').src = thumbUrl('plan'); $('#th-ortho').src = thumbUrl('ortho');
+  $('#base-grid').innerHTML = BASES.map(function (k) { return '<button data-base="' + k + '" title="' + esc(LAYERS[k].label) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(LAYERS[k].label) + '</span></button>'; }).join('');
+  $('#ov-grid').innerHTML = OVERS.map(function (k) { return '<button data-ov="' + k + '" title="' + esc(LAYERS[k].label) + '"><span class="ov-ic">' + ic(LAYERS[k].icon) + '</span><span>' + esc(LAYERS[k].label) + '</span></button>'; }).join('');
 
   // ---------- Export GPX ----------
   function gpxParts() {
@@ -1733,7 +1765,8 @@
       { t: 'Importer un fichier GPX…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
       { t: 'Exporter en GPX…', i: 'download', k: 'Ctrl+S', a: openExport },
       '-',
-      { t: 'Exporter en PDF / imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
+      { t: 'Exporter en PDF / imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
+      { t: 'Imprimer la carte du parcours (A4 / A3, plusieurs feuilles)…', i: 'map', a: function () { openPdf('tiles'); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
@@ -1856,7 +1889,7 @@
     wantOff: wantOff, openPdf: null,
     persist: persist, gGame: gGame, select: select, renderStored: renderStored, renderLayerList: renderLayerList, showCtx: showCtx, hideCtx: hideCtx,
     copyCoords: copyCoords, openDlg: openDlg, fit: fit, undoAction: undoAction, redoAction: redoAction, nid: nid, setMode: setMode, setRail: setRail, activate: activate,
-    removeLayer: removeLayer, layerBounds: layerBounds, showHome: showHome, ensureVisible: ensureVisible, applyVis: applyVis
+    removeLayer: removeLayer, layerBounds: layerBounds, showHome: showHome, ensureVisible: ensureVisible, applyVis: applyVis, BASES: BASES
   };
   if (SM.game && SM.game.render) SM.game.render();
 })();
