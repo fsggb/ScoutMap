@@ -5,6 +5,22 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 
 **Site : https://fsggb.github.io/ScoutMap/**
 
+## Fonds de carte (« filtres ») et conditions d'usage
+
+Bouton *Fonds et couches* : **Plan IGN**, **Photographies**, **État-major (1820-66)** (IGN, données ouvertes de la Géoplateforme) ; **OpenTopoMap**, **OpenStreetMap**, **OSM France**, **CyclOSM** (serveurs libres) ; couches : courbes de niveau, ombrage, **relief LiDAR HD**, pentes, cadastre, **sentiers balisés (Waymarked Trails : GR…)**. Toutes les sources sont chargées en CORS, avec attribution affichée.
+
+Les serveurs de tuiles OpenStreetMap (politique d'usage des tuiles) n'autorisent que la **consultation interactive** : pas de téléchargement préventif ni hors ligne. ScoutMap ne les charge donc que pour ce que l'utilisateur regarde (vignettes chargées à la première ouverture du panneau, netteté limitée à un niveau de plus), et l'**impression multi-feuilles utilise toujours le Plan IGN**.
+
+## Carte du parcours sur plusieurs feuilles (A4 / A3)
+
+*Fichier ▸ Imprimer la carte du parcours…* (ou bouton du panneau Itinéraire) : le tracé est découpé en **feuilles A4 ou A3 avec le moins de feuilles possible**.
+
+- **Orientation automatique** (portrait ou paysage, le moins de feuilles), marges de feuille, **chevauchement minimal** entre feuilles (10 mm par défaut) et marge autour du tracé réglables ; échelle 1 : 10 000, 1 : 25 000 ou 1 : 50 000.
+- **Seules les feuilles traversées par le tracé** sont imprimées : pour une boucle, pas de feuilles « du centre ». Les feuilles redondantes sont supprimées, la grille est testée à plusieurs positions.
+- Les feuilles sont **numérotées dans l'ordre du parcours** et portent les renvois vers leurs voisines (↑ → ↓ ←, y compris les diagonales), l'échelle, une barre d'échelle ; une **planche d'assemblage** (vue d'ensemble numérotée) est ajoutée en première page.
+- Le nombre de feuilles est annoncé en direct dans la boîte de dialogue (« 9 feuilles A4 en paysage — portrait : 11 »).
+- Netteté : en mode automatique, tuiles IGN à 2 niveaux de plus en A4 (≈ 384 ppp) et 1 niveau en A3, avec relance automatique des tuiles en échec, pour éviter le flou d'une simple impression de capture d'écran. Imprimer à 100 %.
+
 ## Types de travail et accueil
 
 L'**écran d'accueil** (bouton *Accueil*, touche `H`, ou clic sur le logo) propose quatre types de travail : **Itinéraire à pied**, **Azimuts**, **Mesures** et **Grand jeu**. Chaque type a ses propres outils et ses propres calques : quand on change de type, on ne voit plus les autres (la carte, la liste des calques, les exports et le profil d'altitude ne concernent que le type en cours). Le travail de chaque type est conservé et retrouvé en y revenant ; l'accueil indique ce qui existe déjà.

@@ -23,7 +23,7 @@
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
   function curType() { var r = $('input[name=dtype]:checked'); return r ? r.value : 'detail'; }
   function renderPick() {
-    var t = curType(), list = pickables(), sheets = t !== 'map';
+    var t = curType(), list = pickables(), sheets = t === 'simple' || t === 'detail';
     var hasActiveRoute = list.some(function (p) { return p.type === 'route' && p.active; });
     $('#pdf-layers').innerHTML = list.length ? list.map(function (p) {
       var ok = !sheets || sheetCapable(p);
@@ -36,15 +36,17 @@
     return pickables().filter(function (p) { return keys.indexOf(p.key) >= 0; });
   }
   function syncDialog() {
-    var t = curType(), map = t === 'map', list = pickables();
-    $('#pdf-scale-row').hidden = !map;
+    var t = curType(), map = t === 'map', tiles = t === 'tiles', sheet = !map && !tiles, list = pickables();
+    $('#pdf-scale-row').hidden = !map; $('#pdf-tiles-opts').hidden = !tiles;
     $('#pdf-az-row').hidden = true;
-    $('#pdf-overview-row').hidden = map; $('#pdf-profile-row').hidden = map; $('#pdf-notes-row').hidden = map;
+    $('#pdf-overview-row').hidden = !sheet; $('#pdf-profile-row').hidden = !sheet; $('#pdf-notes-row').hidden = !sheet;
     renderPick();
     if (!$('#pdf-title').dataset.touched) $('#pdf-title').value = '';
-    if (map && !$('#pdf-orient').dataset.user) $('#pdf-orient').value = 'landscape';
-    if (!map && !$('#pdf-orient').dataset.user) $('#pdf-orient').value = 'portrait';
+    var or = $('#pdf-orient');
+    $$('option', or).forEach(function (o) { if (o.value === 'auto') o.disabled = !tiles; });
+    if (!or.dataset.user) or.value = tiles ? 'auto' : (map ? 'landscape' : 'portrait'); else if (!tiles && or.value === 'auto') or.value = 'portrait';
     $('#pdf-ok').disabled = !list.length;
+    updateTilesSummary();
   }
   function fillScales() {
     var cur = SM.niceScale(SM.curScale());
@@ -55,9 +57,9 @@
   function openPdf(type) {
     var list = pickables(), sheetOk = list.some(sheetCapable);
     var radios = $$('input[name=dtype]');
-    radios.forEach(function (r) { r.closest('.doc-type').classList.toggle('dis', r.value !== 'map' && !sheetOk); });
+    radios.forEach(function (r) { r.closest('.doc-type').classList.toggle('dis', (r.value === 'simple' || r.value === 'detail') && !sheetOk); });
     var t = type || (sheetOk ? 'simple' : 'map');
-    if (t !== 'map' && !sheetOk) t = 'map';
+    if ((t === 'simple' || t === 'detail') && !sheetOk) t = 'map';
     radios.forEach(function (r) { r.checked = r.value === t; });
     $('#pdf-title').dataset.touched = ''; $('#pdf-orient').dataset.user = '';
     fillScales(); if (S.mode === 'game' && $('#pdf-scale option[value=fit]')) $('#pdf-scale').value = 'fit';
@@ -74,29 +76,85 @@
     var items = chosen();
     if (!items.length) { SM.toast('Cochez au moins un calque à imprimer.'); return; }
     var c = {
-      type: curType(), title: $('#pdf-title').value.trim(), paper: $('#pdf-paper').value, orient: $('#pdf-orient').value,
+      tiles: tilesParams(), type: curType(), title: $('#pdf-title').value.trim(), paper: $('#pdf-paper').value, orient: $('#pdf-orient').value,
       scale: $('#pdf-scale').value, overview: $('#pdf-overview').checked, profile: $('#pdf-profile').checked, notes: $('#pdf-notes').checked, items: items
     };
     $('#dlg-pdf').close();
     buildDoc(c);
   });
 
+  // ---------- Carte du parcours sur plusieurs feuilles ----------
+  // Lignes à couvrir : le tracé de chaque calque (et, pour un grand jeu, toute l'emprise du dessin).
+  function geomLines(items) {
+    var out = [];
+    items.forEach(function (it) {
+      var d = it.data;
+      if (it.type === 'route') out.push(it.res ? it.res.line : d.wps.map(function (w) { return [w.lat, w.lon]; }));
+      else if (it.type === 'track') out.push(d.coords);
+      else if (it.type === 'az' || it.type === 'meas') out.push(d.pts);
+      else if (it.type === 'game' && SM.game) {
+        var pts = SM.game.points(d); if (!pts.length) return;
+        var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
+        pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+        for (var la = la0; la <= la1 + 0.0009; la += 0.0018) out.push([[la, lo0], [la, lo1]]);   // balayage : tout le dessin est couvert
+      }
+    });
+    return out.filter(function (l) { return l && l.length; });
+  }
+  function tilesParams() {
+    function num(id, d) { var v = parseFloat($(id).value); return isFinite(v) ? v : d; }
+    return { scale: +$('#pdf-tscale').value || 25000, corridor: num('#pdf-corridor', 6), margin: num('#pdf-margin', 8), overlap: num('#pdf-overlap', 10),
+      sharp: $('#pdf-sharp').value, index: $('#pdf-index').checked, paper: $('#pdf-paper').value, orient: $('#pdf-orient').value === 'auto' ? 'auto' : $('#pdf-orient').value };
+  }
+  function tilesPlan(items, prm) {
+    if (!window.Paginate) return null;
+    return Paginate.plan({ lines: geomLines(items), scale: prm.scale, paper: PAPER[prm.paper], orient: prm.orient, margin: prm.margin, overlap: prm.overlap, corridor: prm.corridor });
+  }
+  function updateTilesSummary() {
+    if (curType() !== 'tiles') return;
+    var box = $('#pdf-tiles-sum'), note = $('#pdf-tiles-note'), items = chosen(), prm = tilesParams();
+    if (!items.length) { box.textContent = 'Cochez un calque contenant un tracé.'; box.className = 'alert warn'; note.textContent = ''; return; }
+    var pl = tilesPlan(items, prm);
+    if (!pl) { box.textContent = 'Aucun tracé dans les calques choisis.'; box.className = 'alert warn'; note.textContent = ''; return; }
+    var n = pl.pages.length, other = pl.orient === 'landscape' ? 'portrait' : 'paysage', alt = pl.counts[pl.orient === 'landscape' ? 'portrait' : 'landscape'];
+    box.className = 'alert ' + (n > 40 ? 'bad' : 'ok');
+    box.innerHTML = '<b>' + n + ' feuille' + (n > 1 ? 's' : '') + ' ' + prm.paper + ' en ' + (pl.orient === 'landscape' ? 'paysage' : 'portrait') + '</b>' +
+      (prm.orient === 'auto' && alt != null ? ' <span>(' + other + ' : ' + alt + ')</span>' : '') + (prm.index ? ' + 1 feuille d’assemblage' : '') +
+      (n > 40 ? '<br>Beaucoup de feuilles : choisissez une échelle plus petite.' : '');
+    var km = function (mmv) { return (mmv * prm.scale / 1e6).toFixed(1).replace('.', ','); };
+    note.textContent = 'Une feuille couvre ' + km(pl.widthMm) + ' × ' + km(pl.heightMm) + ' km à cette échelle. Le centre d’une boucle n’est pas imprimé.' +
+      (SM.LAYERS[S.base].ign ? '' : ' Le fond « ' + SM.LAYERS[S.base].label + ' » est remplacé par le Plan IGN pour cette impression (les serveurs OpenStreetMap interdisent le téléchargement en masse).');
+  }
+  ['#pdf-tscale', '#pdf-corridor', '#pdf-margin', '#pdf-overlap', '#pdf-paper', '#pdf-orient', '#pdf-index', '#pdf-sharp'].forEach(function (id) {
+    $(id).addEventListener('input', updateTilesSummary); $(id).addEventListener('change', updateTilesSummary);
+  });
+  $('#pdf-layers').addEventListener('change', updateTilesSummary);
+
   // ---------- Cartes statiques (aperçu et impression) ----------
   function closeMaps() { docMaps.forEach(function (m) { try { m.remove(); } catch (e) { /* déjà retirée */ } }); docMaps = []; }
-  function makeMap(el, wpx, hpx, off) {
+  function makeMap(el, wpx, hpx, off, o) {
+    o = o || {};
     el.style.width = wpx + 'px'; el.style.height = hpx + 'px';
     var m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
       keyboard: false, touchZoom: false, tap: false, zoomSnap: 0, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, maxZoom: 19, minZoom: 3 });
     m._ready = new Promise(function (res) {
-      var base = SM.tile(S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
+      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
       function fin() { if (!done) { done = true; res(); } }
-      base.once('load', fin); setTimeout(fin, 12000);
-      ['contour', 'shade', 'slope', 'cadastre'].forEach(function (k) { if (S.ov[k]) SM.tile(k, off).addTo(m); });
+      // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
+      var t0 = Date.now();
+      base.once('load', function () {
+        (function chk() {
+          var pending = el.querySelectorAll('img.leaflet-tile:not(.leaflet-tile-loaded)').length;
+          if (!pending || Date.now() - t0 > 25000) setTimeout(fin, 300); else setTimeout(chk, 200);
+        })();
+      });
+      setTimeout(fin, 30000);
+      Object.keys(SM.LAYERS).forEach(function (k) { var d = SM.LAYERS[k]; if (!d.base && S.ov[k] && (!o.ignOnly || d.ign)) SM.tile(k, off).addTo(m); });
     });
     docMaps.push(m); return m;
   }
-  function drawItems(m, items) {
-    var pts = [];
+  function drawItems(m, items, o) {
+    o = o || {}; var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
       if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
@@ -108,14 +166,14 @@
         d.coords.forEach(function (c) { pts.push(c); });
       } else if (it.type === 'az' && d.pts.length) {
         if (d.pts.length > 1) L.polyline(d.pts, { color: col, weight: 4, dashArray: '10 6' }).addTo(m);
-        d.pts.forEach(function (p, i) { L.marker(p, { icon: SM.pin(String(i + 1), 'az'), interactive: false }).addTo(m); pts.push(p); });
+        d.pts.forEach(function (p, i) { if (!o.noMarkers) L.marker(p, { icon: SM.pin(String(i + 1), 'az'), interactive: false }).addTo(m); pts.push(p); });
       } else if (it.type === 'route') {
         if (it.res) {
           L.polyline(it.res.line, { color: '#fff', weight: 9, opacity: .9, lineCap: 'round', lineJoin: 'round' }).addTo(m);
           L.polyline(it.res.line, { color: col, weight: 5, lineCap: 'round', lineJoin: 'round' }).addTo(m);
           it.res.line.forEach(function (p) { pts.push(p); });
         }
-        d.wps.forEach(function (p, i) { L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
+        d.wps.forEach(function (p, i) { if (!o.noMarkers) L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
       }
     });
     return pts;
@@ -167,6 +225,7 @@
   }
 
   function buildDoc(c) {
+    if (c.type === 'tiles') { buildTilesDoc(c); return; }
     closeMaps();
     var P = PAPER[c.paper], pw = c.orient === 'landscape' ? P[1] : P[0], ph = c.orient === 'landscape' ? P[0] : P[1], pm = 10;
     var cw = pw - 2 * pm, chh = ph - 2 * pm;
@@ -190,11 +249,72 @@
       return Promise.all(docMaps.map(function (m) { return m._ready; }));
     }).then(function () { setBusy(false); }).catch(function (e) { setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
-  function setBusy(b) {
+  function setBusy(b, msg) {
     var btn = $('#doc-print'); btn.disabled = b;
-    btn.innerHTML = b ? 'Chargement des cartes…' : ic('printer') + 'Imprimer / Enregistrer en PDF';
+    btn.innerHTML = b ? (msg || 'Chargement des cartes…') : ic('printer') + 'Imprimer / Enregistrer en PDF';
   }
   function titleFor(c, it, n) { return c.title ? (n > 1 ? c.title + ' – ' + it.name : c.title) : it.name; }
+
+  var ARROW = { N: '↑', NE: '↗', E: '→', SE: '↘', S: '↓', SW: '↙', W: '←', NW: '↖' };
+  function newTileSheet(pw, ph, pm, idx) {
+    var el = document.createElement('article');
+    el.className = 'sheet tile' + (idx ? ' idx' : ''); el.spellcheck = false;
+    el.style.cssText = '--pw:' + pw + 'mm;--ph:' + ph + 'mm;--pm:' + pm + 'mm';
+    $('#doc-pages').appendChild(el); return el;
+  }
+  function pageSheet(pl, pg, items, o) {
+    var sh = newTileSheet(o.pw, o.ph, o.pm, false);
+    var box = document.createElement('div'); box.className = 'd-mapbox tile-box'; box.contentEditable = 'false'; sh.appendChild(box);
+    var m = makeMap(box, o.wpx, o.hpx, o.off, { base: o.base, ignOnly: true });
+    drawItems(m, items);
+    m.setView(L.latLng(pg.center[0], pg.center[1]), o.z0, { animate: false });
+    L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(m);
+    L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
+    var head = document.createElement('div'); head.className = 'pg-head';
+    head.innerHTML = '<b>Feuille ' + pg.n + ' / ' + o.total + '</b><span>' + esc(o.title) + ' · 1 : ' + SM.sp(o.scale) + '</span>'; box.appendChild(head);
+    Object.keys(pg.nb).forEach(function (d) { var e = document.createElement('div'); e.className = 'pg-edge pg-' + d; e.textContent = ARROW[d] + ' ' + pg.nb[d]; box.appendChild(e); });
+    return m._ready;
+  }
+  function indexSheet(pl, items, o) {
+    var sh = newTileSheet(o.pw, o.ph, o.pm, true); sh.contentEditable = 'true';
+    var land = pl.orient === 'landscape', n = pl.pages.length;
+    sh.innerHTML = head(o.title, 'Planche d’assemblage · ' + n + ' feuille' + (n > 1 ? 's' : '') + ' ' + o.paper + ' ' + (land ? 'paysage' : 'portrait') + ' · 1 : ' + SM.sp(o.scale) + ' · ' + today()) +
+      '<div class="d-mapbox" id="didx" contenteditable="false"></div>' +
+      '<section class="d-sec"><h2>Feuilles</h2><div class="idx-chips">' + pl.pages.map(function (pg) {
+        return '<span class="idx-chip"><b>' + pg.n + '</b>' + esc(G.formatCoord('wgs', pg.center[0], pg.center[1])) + '</span>'; }).join('') + '</div></section>' +
+      '<p class="d-note">Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement entre feuilles : ' + pl.overlapMm + ' mm. Seules les feuilles traversées par le tracé sont imprimées.</p>' + foot();
+    var el = sh.querySelector('#didx'), cwmm = o.pw - 2 * o.pm, hmm = Math.round((o.ph - 2 * o.pm) * (land ? 0.55 : 0.58));
+    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base, ignOnly: true });
+    drawItems(m, items, { noMarkers: true });
+    var all = L.latLngBounds([]);
+    pl.pages.forEach(function (pg) {
+      var r = L.rectangle([pg.sw, pg.ne], { color: '#000761', weight: 2, fillColor: '#c6a24e', fillOpacity: 0.12, interactive: false }).addTo(m); all.extend(r.getBounds());
+      L.marker(pg.center, { interactive: false, icon: L.divIcon({ className: 'pg-num', html: '<span>' + pg.n + '</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(m);
+    });
+    m.fitBounds(all, { animate: false, padding: [16, 16] });
+    L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
+    return m._ready;
+  }
+  function buildTilesDoc(c) {
+    var items = c.items, prm = c.tiles, pl = tilesPlan(items, prm);
+    if (!pl) { SM.toast('Aucun tracé à imprimer : choisissez un calque qui contient un tracé.'); return; }
+    if (pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
+    closeMaps();
+    var P = PAPER[prm.paper], land = pl.orient === 'landscape', pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
+    $('#page-style').textContent = '@page{size:' + prm.paper + ' ' + pl.orient + ';margin:0}';
+    $('#doc-pages').innerHTML = '';
+    $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
+    origTitle = origTitle || document.title;
+    var o = { pw: pw, ph: ph, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length,
+      base: SM.LAYERS[S.base].ign ? S.base : 'plan', off: prm.sharp === 'auto' ? (prm.paper === 'A4' ? 2 : 1) : +prm.sharp,
+      z0: SM.zoomFor(prm.scale, pl.lat0), wpx: Math.round(pl.widthMm * MM), hpx: Math.round(pl.heightMm * MM),
+      title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
+    setBusy(true, 'Préparation des feuilles…');
+    var chain = Promise.resolve();
+    if (prm.index) chain = chain.then(function () { return indexSheet(pl, items, o); });
+    pl.pages.forEach(function (pg) { chain = chain.then(function () { setBusy(true, 'Chargement de la feuille ' + pg.n + ' / ' + o.total + '…'); return pageSheet(pl, pg, items, o); }); });
+    chain.then(function () { setBusy(false); }).catch(function (e) { setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
+  }
 
   function buildMapDoc(c, sheet, cw, chh) {
     var off = Math.max(2, SM.wantOff()), mapH = Math.floor(chh - 34), id = 'dmap';
