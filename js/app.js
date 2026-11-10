@@ -20,7 +20,7 @@
   var uidc = 0;
   function nid() { return Date.now() * 100 + (uidc++ % 100); }
   function freshRoute(prev, n) {
-    return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: prev ? prev.opt : 'fastest', loop: false,
+    return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: prev ? prev.opt : 'fastest', loop: true, freeOrder: prev ? prev.freeOrder : true,
       maxOn: false, maxKm: prev ? prev.maxKm : 10, avoidMotorway: prev ? prev.avoidMotorway : true, noBack: prev ? prev.noBack : true, snapChurch: prev ? prev.snapChurch : true, flagNat: prev ? prev.flagNat : true, wps: [] };
   }
   function freshAz(prev, n) {
@@ -721,26 +721,103 @@
     renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
     fillPlaces(S.route);
   }
-  // Quand le pointeur est à peu près de la taille d'un village (carte assez dézoomée), le point se place sur l'église.
+  // Quand le pointeur est à peu près de la taille d'un village (carte assez dézoomée), le point se place au centre du village :
+  // l'église la plus importante ; à défaut la mairie ; dans une ville (beaucoup d'églises), l'édifice le plus important, vers le centre.
+  function poiAround(cat, lat, lon, R) {
+    var centers = [[lat, lon, Math.min(500, R)]];
+    if (R > 500) for (var k = 0; k < 6; k++) {
+      var a = k * Math.PI / 3, dd = R - 500;
+      centers.push([lat + Math.cos(a) * dd / 110540, lon + Math.sin(a) * dd / (111320 * Math.cos(lat * Math.PI / 180)), 500]);
+    }
+    return Promise.all(centers.map(function (c) {
+      var circle = JSON.stringify({ type: 'Circle', coordinates: [+c[1].toFixed(6), +c[0].toFixed(6)], radius: Math.round(c[2]) });
+      return fetch(GP + '/geocodage/reverse?index=poi&limit=15&category=' + encodeURIComponent(cat) + '&lon=' + c[1].toFixed(6) + '&lat=' + c[0].toFixed(6) + '&searchgeom=' + encodeURIComponent(circle))
+        .then(function (x) { return x.ok ? x.json() : { features: [] }; }).then(function (j) { return j.features || []; }).catch(function () { return []; });
+    })).then(function (all) {
+      var seen = {}, out = [];
+      all.forEach(function (fs) { fs.forEach(function (f) {
+        var g = f.geometry && f.geometry.coordinates; if (!g) return;
+        var key = g[0].toFixed(5) + ',' + g[1].toFixed(5); if (seen[key]) return; seen[key] = 1;
+        var d = L.latLng(lat, lon).distanceTo(L.latLng(g[1], g[0])); if (d > R) return;
+        out.push({ lat: g[1], lon: g[0], d: d, name: arr(f.properties.toponym || f.properties.name)[0] || '', imp: +f.properties.importance || 0 });
+      }); });
+      return out;
+    });
+  }
+  function churchScore(c) {
+    var n = c.name || '', s = c.imp;
+    if (/cath[ée]drale|basilique|coll[ée]giale|abbatiale|abbaye|prieur/i.test(n)) s += 0.3;
+    if (/chapelle|oratoire|calvaire|croix|temple|synagogue|mosqu|lourdes|grotte/i.test(n)) s -= 0.3;
+    if (/[ée]glise/i.test(n)) s += 0.1;
+    return s;
+  }
+  function villageCenter(lat, lon, R) {
+    return poiAround('culte chrétien', lat, lon, R).then(function (ch) {
+      ch = ch.filter(function (c) { return !/clocher/i.test(c.name); });
+      if (ch.length) {
+        var cx = ch.reduce(function (s, c) { return s + c.lat; }, 0) / ch.length, cy = ch.reduce(function (s, c) { return s + c.lon; }, 0) / ch.length;
+        var town = ch.length >= 4;
+        ch.forEach(function (c) { c.sc = churchScore(c); c.dc = L.latLng(cx, cy).distanceTo(L.latLng(c.lat, c.lon)); });
+        // village : la plus importante, à égalité la plus proche du clic ; ville : la plus importante, à égalité la plus centrale.
+        ch.sort(function (a, b) { return (b.sc - a.sc) || (town ? a.dc - b.dc : a.d - b.d); });
+        return { p: ch[0], what: town ? 'l’édifice le plus important de la ville' : 'l’église du village' };
+      }
+      return poiAround('mairie', lat, lon, R).then(function (m) {
+        m = m.filter(function (c) { return !/annexe/i.test(c.name); }).sort(function (a, b) { return a.d - b.d; });
+        return m.length ? { p: m[0], what: 'la mairie' } : null;
+      });
+    });
+  }
   function snapToChurch(w) {
-    if (!w || S.route.snapChurch === false) return;
-    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom()), r = Math.min(1000, 24 * mpp);
-    if (mpp < 5) return;
-    var circle = JSON.stringify({ type: 'Circle', coordinates: [+w.lon.toFixed(6), +w.lat.toFixed(6)], radius: Math.round(r) });
-    fetch(GP + '/geocodage/reverse?index=poi&limit=3&category=' + encodeURIComponent('culte chrétien') + '&lon=' + w.lon.toFixed(6) + '&lat=' + w.lat.toFixed(6) + '&searchgeom=' + encodeURIComponent(circle))
-      .then(function (x) { return x.ok ? x.json() : { features: [] }; })
-      .then(function (j) {
-        var i = S.route.wps.indexOf(w); if (i < 0) return;
-        var best = null, bd = Infinity;
-        (j.features || []).forEach(function (f) {
-          var c = f.geometry && f.geometry.coordinates; if (!c) return;
-          var d = L.latLng(w.lat, w.lon).distanceTo(L.latLng(c[1], c[0])); if (d < bd && d <= r) { bd = d; best = c; }
-        });
-        if (!best || (w.lat === best[1] && w.lon === best[0])) return;
-        w.lat = best[1]; w.lon = best[0]; w.place = undefined; w.church = true;
-        renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
-        toast('Point posé sur l’église du village.');
-      }).catch(function () {});
+    if (!w || S.route.snapChurch === false) return Promise.resolve();
+    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom()), R = Math.min(1250, 24 * mpp);
+    if (mpp < 5) return Promise.resolve();
+    return villageCenter(w.lat, w.lon, R).then(function (res) {
+      var i = S.route.wps.indexOf(w); if (i < 0 || !res) return;
+      var c = res.p; if (w.lat === c.lat && w.lon === c.lon) return;
+      w.lat = c.lat; w.lon = c.lon; w.place = undefined; w.church = true;
+      renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
+      toast('Point posé sur ' + res.what + '.');
+    }).catch(function () {});
+  }
+  // ----- Ordre de passage libre : pour une boucle, on cherche l'ordre le plus court (distance à vol d'oiseau) en gardant le départ.
+  function bestOrder(w, loop) {
+    var n = w.length, kx = Math.cos(w[0].lat * Math.PI / 180);
+    function D(a, b) { return Math.hypot((w[a].lat - w[b].lat) * 110540, (w[a].lon - w[b].lon) * 111320 * kx); }
+    function len(o) { var s = 0; for (var i = 0; i + 1 < o.length; i++) s += D(o[i], o[i + 1]); if (loop) s += D(o[o.length - 1], o[0]); return s; }
+    var mid = []; for (var i = 1; i < (loop ? n : n - 1); i++) mid.push(i);
+    var mk = function (m) { return loop ? [0].concat(m) : [0].concat(m, [n - 1]); };
+    var cur = len(mk(mid)), best = mid.slice(), bl = cur;
+    if (mid.length <= 8) {
+      (function perm(a, k) {
+        if (k === a.length) { var l = len(mk(a)); if (l < bl - 1e-6) { bl = l; best = a.slice(); } return; }
+        for (var j = k; j < a.length; j++) { var x = a[k]; a[k] = a[j]; a[j] = x; perm(a, k + 1); x = a[k]; a[k] = a[j]; a[j] = x; }
+      })(mid.slice(), 0);
+    } else {
+      // plus proche voisin puis 2-opt jusqu'à stabilisation
+      var left = mid.slice(), o = [], last = 0;
+      while (left.length) { var bi = 0, bd = Infinity; left.forEach(function (c, k) { var d = D(last, c); if (d < bd) { bd = d; bi = k; } }); last = left.splice(bi, 1)[0]; o.push(last); }
+      var imp = true, it = 0;
+      while (imp && it++ < 50) {
+        imp = false;
+        for (var a = 0; a < o.length - 1; a++) for (var b = a + 1; b < o.length; b++) {
+          var t2 = o.slice(0, a).concat(o.slice(a, b + 1).reverse(), o.slice(b + 1));
+          if (len(mk(t2)) < len(mk(o)) - 1e-6) { o = t2; imp = true; }
+        }
+      }
+      if (len(mk(o)) < bl) { bl = len(mk(o)); best = o; }
+    }
+    return { order: mk(best), gain: cur > 0 ? 1 - bl / cur : 0 };
+  }
+  function reorderFree(focus) {
+    var d = S.route;
+    if (d.freeOrder === false || d.wps.length < 4) return;
+    var r = bestOrder(d.wps, !!d.loop);
+    if (r.gain < 0.03) return;
+    var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
+    renderRouteMarkers(); renderWpList(); computeRoute(); persist();
+    var at = focus ? d.wps.indexOf(focus) : -1; if (at >= 0) select('route', at, true);
+    toast('Ordre de passage optimisé : boucle la plus courte par les points choisis.');
   }
   function closeLoop() {
     if (S.route.wps.length < 2 || S.route.loop) return;
@@ -756,7 +833,7 @@
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
         var q = m.getLatLng(); S.route.wps[i] = { lat: q.lat, lon: q.lng, name: S.route.wps[i].name };
-        renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
+        renderWpList(); computeRoute(); persist(); fillPlaces(S.route); reorderFree(S.route.wps[i]);
       });
       m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
       m.on('contextmenu', function (e) { L.DomEvent.stop(e); select('route', i, true); showCtx(e.originalEvent.clientX, e.originalEvent.clientY, routePtMenu(i)); });
@@ -827,6 +904,7 @@
   $('#route-opt').addEventListener('change', function () { S.route.opt = this.value; computeRoute(); persist(); });
   $('#speed').addEventListener('input', function () { S.speed = Math.max(1, +this.value || 5); renderRouteStats(); persist(); });
   $('#opt-motorway').addEventListener('change', function () { S.route.avoidMotorway = this.checked; computeRoute(); persist(); });
+  $('#opt-free').addEventListener('change', function () { S.route.freeOrder = this.checked; if (this.checked) reorderFree(null); persist(); });
   $('#opt-church').addEventListener('change', function () { S.route.snapChurch = this.checked; persist(); });
   $('#opt-noback').addEventListener('change', function () { S.route.noBack = this.checked; computeRoute(); persist(); });
   $('#opt-national').addEventListener('change', function () { S.route.flagNat = this.checked; renderNatWarn(); persist(); });
@@ -838,7 +916,7 @@
   function syncRouteUi() {
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
     $('#route-opt').value = S.route.opt; $('#speed').value = S.speed;
-    $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat; $('#opt-noback').checked = S.route.noBack !== false; $('#opt-church').checked = S.route.snapChurch !== false;
+    $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat; $('#opt-noback').checked = S.route.noBack !== false; $('#opt-church').checked = S.route.snapChurch !== false; $('#opt-free').checked = S.route.freeOrder !== false;
     $('#max-on').checked = !!S.route.maxOn; $('#max-km').value = S.route.maxKm; $('#max-km').disabled = !S.route.maxOn;
     syncNames();
   }
@@ -1475,7 +1553,7 @@
     closePops();
     if (RT.tool === 'route') {
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
-      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else { addWp(p); snapToChurch(S.route.wps[S.route.wps.length - 1]); }
+      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
     else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }
