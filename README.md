@@ -45,6 +45,8 @@ Sur petit écran, l'interface passe en mode téléphone : barre d'outils en bas,
 - **Feuilles mélangées portrait/paysage** : l'option « Mélanger » (Chrome/Edge) choisit l'orientation de chaque feuille pour réduire encore leur nombre (ex. boucle de 105 km : 14 feuilles au lieu de 16). Les feuilles sont numérotées **F1, F2…** (carrés dorés), distinctes des numéros d'étapes (pastilles rondes) ; chaque bord indique la feuille voisine (ex. « ↗ F1 »).
 - **Panneau « Fonds et informations » à onglets** : *Fond de carte* (un seul), *Informations* (relief, sentiers, cadastre… combinables, pastille « +n » sur le bouton) et *Netteté*.
 - En netteté auto, le fond passe au niveau « Haute » au-delà de 6 feuilles A4 pour que la génération reste rapide ; « Très détaillée » reste disponible.
+- **Pas de limite d'étapes** : l'itinéraire est calculé tronçon par tronçon (repère à repère), on peut donc poser autant de points secondaires qu'on veut ; déplacer un point ne recalcule que les tronçons concernés.
+- **Éviter de repasser par le même chemin** (réglage activé par défaut, dans « Paramètres de l'itinéraire ») : les passages repris sont signalés en pointillés orange, et le tracé essaie automatiquement un passage décalé (jusqu'à ≈ 1,8 km sur le côté) quand une alternative proche existe ; sinon, un avertissement indique la longueur reprise.
 - **Netteté du fond** : en mode « Auto » (par défaut), fond standard quand on voit une grande étendue et fond détaillé en s'approchant : à 1 : 25 000, on voit le contenu du niveau juste au-dessus au lieu d'un fond dézoomé. « Standard », « Détaillée » et « Très détaillée » (impression) sont aussi disponibles.
 - **Profil d'altitude** repliable et redimensionnable, avec lecture de la pente au survol.
 
