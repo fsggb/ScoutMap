@@ -2128,6 +2128,49 @@
     });
   })();
 
+  // ---------- Liens d'action : la carte se prépare depuis l'adresse (utilisé par ChatGDB et par n'importe quel lien) ----------
+  // ?lieu=Lyon | ?centre=45.76,4.83&zoom=12 | ?fond=ortho | ?couches=contour,hiking
+  // ?itineraire=Lyon|Villeurbanne|45.7,4.9&boucle=1&titre=Sortie
+  (function urlActions() {
+    var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
+    if (!['lieu', 'centre', 'fond', 'couches', 'itineraire'].some(function (k) { return P.has(k); })) return;
+    var num = function (x) { var n = parseFloat(x); return isFinite(n) ? n : null; };
+    var coordOf = function (t) { var m = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*[, ;]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(t || ''); if (!m) return null; var a = +m[1], b = +m[2]; return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? [a, b] : null; };
+    var geocode = function (q) {
+      var c = coordOf(q); if (c) return Promise.resolve({ lat: c[0], lon: c[1], name: '' });
+      return fetch(GP + '/geocodage/search?q=' + encodeURIComponent(q.slice(0, 120)) + '&index=poi,address&limit=1').then(function (r) { return r.json(); }).then(function (j) {
+        var f = (j.features || [])[0]; if (!f || !f.geometry || !f.geometry.coordinates) return null;
+        var pr = f.properties || {}; return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], name: String(pr.toponym || pr.name || pr.label || q).slice(0, 80) };
+      }).catch(function () { return null; });
+    };
+    var base = P.get('fond'); if (base && BASES && BASES.indexOf && BASES.indexOf(base) >= 0) S.base = base;
+    else if (base && ['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(base) >= 0) S.base = base;
+    if (P.has('couches')) { var on = P.get('couches').split(','); OVERS.forEach(function (k) { S.ov[k] = on.indexOf(k) >= 0; }); }
+    applyLayers();
+    var z = num(P.get('zoom')), c0 = coordOf(P.get('centre'));
+    if (c0) map.setView(c0, Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z == null ? 12 : z)), { animate: false });
+    var lieu = (P.get('lieu') || '').trim();
+    if (lieu) geocode(lieu).then(function (g) {
+      if (!g) { toast('Lieu introuvable : ' + lieu); return; }
+      showHome(false);
+      map.setView([g.lat, g.lon], Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z == null ? 14 : z)), { animate: false });
+      gSearch.clearLayers(); L.marker([g.lat, g.lon], { icon: pin('⌖', 'search') }).addTo(gSearch);
+      actionPopup(L.latLng(g.lat, g.lon), g.name || lieu, g.name ? g.name : undefined);
+    });
+    var it = (P.get('itineraire') || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 12);
+    if (it.length >= 2) Promise.all(it.map(geocode)).then(function (gs) {
+      var ok = gs.map(function (g, i) { return g ? { lat: g.lat, lon: g.lon, name: coordOf(it[i]) ? undefined : it[i].slice(0, 80) } : null; }).filter(Boolean);
+      if (ok.length < 2) { toast('Itinéraire impossible : lieux introuvables.'); return; }
+      startType('route');
+      S.route.wps = ok.map(function (o) { if (!o.name) delete o.name; return o; });
+      S.route.loop = P.get('boucle') === '1';
+      var t = (P.get('titre') || '').trim().slice(0, 80); if (t) { S.name = t; $('#proj-name').value = t; }
+      syncRouteUi(); renderRouteMarkers(); computeRoute(); fillPlaces(S.route); persist();
+      fit(L.latLngBounds(ok.map(function (o) { return [o.lat, o.lon]; })), { padding: [70, 70], maxZoom: 15 });
+    });
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+  })();
+
   // API interne pour doc.js
   window.SM = {
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,

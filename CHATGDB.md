@@ -24,3 +24,13 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 - La déclinaison magnétique est à saisir à la main ; la convergence des méridiens est ignorée.
 - Le dénivelé est une estimation lissée (échantillons d'environ 40 m).
 
+
+## Liens d'action (ChatGDB peut préparer la carte pour l'utilisateur)
+Base : `https://fsggb.github.io/ScoutMap/` suivi de paramètres. Tout est optionnel ; les valeurs sont encodées pour une URL (espace = %20).
+- `lieu=Lyon` : cherche le lieu (IGN) et centre la carte dessus. `zoom=14` règle le niveau (2 à 19).
+- `centre=45.76,4.83` : centre la carte sur des coordonnées (latitude,longitude).
+- `fond=plan|ortho|otm|osm|osmfr|cyclosm|etat` : fond de carte (plan IGN, photo aérienne, topographique…).
+- `couches=contour,shade,slope,cadastre,hiking,lidar` : couches affichées en plus (courbes de niveau, ombrage, pentes, cadastre, sentiers, relief LiDAR).
+- `itineraire=Lyon|Villeurbanne|45.7,4.9` : crée un itinéraire (de 2 à 12 étapes séparées par `|`, noms de lieux ou coordonnées). `boucle=1` ramène au départ. `titre=Sortie%20du%20samedi` nomme le projet.
+Exemple : `https://fsggb.github.io/ScoutMap/?itineraire=Annecy|Talloires|Menthon-Saint-Bernard&boucle=1&titre=Sortie%20du%20lac&fond=plan`
+Les liens sont expérimentaux : si un lieu est introuvable, la carte l'indique et l'utilisateur peut corriger à la main.
