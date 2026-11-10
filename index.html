@@ -53,6 +53,18 @@
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 4v16M16 4v16"/></symbol>
   <symbol id="i-restart" viewBox="0 0 24 24"><path d="M6 4v16M20 4L9 12l11 8z"/></symbol>
   <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></symbol>
+  <symbol id="i-g-polygon" viewBox="0 0 24 24"><path d="M12 3l8 6-3 11H7L4 9z"/></symbol>
+  <symbol id="i-g-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
+  <symbol id="i-g-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></symbol>
+  <symbol id="i-g-line" viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/></symbol>
+  <symbol id="i-g-arrow" viewBox="0 0 24 24"><path d="M4 20L19 5M19 5h-8M19 5v8"/></symbol>
+  <symbol id="i-g-cross" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+  <symbol id="i-g-text" viewBox="0 0 24 24"><path d="M5 7V4h14v3M12 4v16M9 20h6"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
 </defs></svg>
 
@@ -76,33 +88,54 @@
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Outils">
-    <button class="rail-btn" data-rail="explore" title="Explorer"><svg class="ic"><use href="#i-hand"/></svg><span>Explorer</span></button>
-    <button class="rail-btn" data-rail="route" title="Itinéraire (I)"><svg class="ic"><use href="#i-route"/></svg><span>Itinéraire</span></button>
-    <button class="rail-btn" data-rail="az" title="Azimuts (A)"><svg class="ic"><use href="#i-compass"/></svg><span>Azimuts</span></button>
-    <button class="rail-btn" data-rail="meas" title="Mesure (M)"><svg class="ic"><use href="#i-ruler"/></svg><span>Mesure</span></button>
-    <button class="rail-btn" data-rail="layers" title="Calques (L)"><svg class="ic"><use href="#i-layers"/></svg><span>Calques</span></button>
+    <button class="rail-btn" data-rail="home" title="Accueil : choisir un type de travail (H)"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
+    <button class="rail-btn" id="rail-mode" data-rail="mode" title="Outils du type de travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
+    <button class="rail-btn" data-rail="layers" title="Calques du type en cours (L)"><svg class="ic"><use href="#i-layers"/></svg><span>Calques</span></button>
     <span class="rail-sp"></span>
     <button class="rail-btn" id="rail-toggle" title="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg><span>Panneau</span></button>
   </nav>
 
   <aside class="panel" id="panel">
-    <section class="pane" data-pane="explore">
-      <h2 class="pane-title">Bienvenue sur ScoutMap</h2>
-      <p class="lead">Les cartes IGN pour préparer vos raids, vos itinéraires et vos courses d’orientation.</p>
-      <div class="cards">
-        <button class="card" data-go="route"><span class="card-ic"><svg class="ic"><use href="#i-route"/></svg></span><span><b>Créer un itinéraire</b><small>À pied, aller simple ou en boucle, avec une distance maximale</small></span></button>
-        <button class="card" data-go="az"><span class="card-ic"><svg class="ic"><use href="#i-compass"/></svg></span><span><b>Tracer des azimuts</b><small>Azimut, contre-azimut et distance de chaque segment</small></span></button>
-        <button class="card" data-go="meas"><span class="card-ic"><svg class="ic"><use href="#i-ruler"/></svg></span><span><b>Mesurer</b><small>Une distance ou une surface sur la carte</small></span></button>
-        <button class="card" data-act="import"><span class="card-ic"><svg class="ic"><use href="#i-upload"/></svg></span><span><b>Importer un fichier GPX</b><small>Ou glissez-le directement sur la carte</small></span></button>
-        <button class="card" data-act="pdf"><span class="card-ic"><svg class="ic"><use href="#i-printer"/></svg></span><span><b>Imprimer / exporter en PDF</b><small>Feuille de route ou carte à l’échelle</small></span></button>
+    <button class="panel-close" id="panel-close" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-x"/></svg></button>
+    <section class="pane" data-pane="game" hidden>
+      <h2 class="pane-title">Grand jeu</h2>
+      <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"><button class="btn-ghost" id="game-new" title="Garde ce dessin comme calque et en commence un nouveau"><svg class="ic"><use href="#i-plus"/></svg>Nouveau</button></div>
+      <h3 class="sub">Outils de dessin</h3>
+      <div class="gtools" id="gtools">
+        <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
+        <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
+        <button data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
+        <button data-gt="circle" title="Cercle : centre puis rayon"><svg class="ic"><use href="#i-g-circle"/></svg><span>Cercle</span></button>
+        <button data-gt="line" title="Ligne : cliquez les points, double-clic pour finir"><svg class="ic"><use href="#i-g-line"/></svg><span>Ligne</span></button>
+        <button data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
+        <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
+        <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
       </div>
-      <h3 class="sub">Bon à savoir</h3>
-      <ul class="tips">
-        <li>Glissez la carte pour vous déplacer ; la molette zoome librement. Les échelles 1 : 25 000 et 1 : 50 000 sont accessibles d’un clic sur l’indicateur d’échelle.</li>
-        <li>Clic droit sur la carte : départ, étape, arrivée, point d’azimut, coordonnées.</li>
-        <li>Le bouton <b>Fonds et couches</b> (en bas à gauche) change de fond de carte et ajoute les courbes de niveau, le relief, le cadastre.</li>
-        <li>Votre travail est mémorisé automatiquement dans ce navigateur.</li>
-      </ul>
+      <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
+
+      <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
+      <div class="gstyle" id="gstyle">
+        <div class="grow" data-for="fill"><span class="gl">Remplissage</span><div class="swatches" id="sw-fill"></div><input type="color" id="gs-fill" aria-label="Couleur de remplissage"></div>
+        <div class="grow" data-for="alpha"><span class="gl">Transparence <b id="gs-alpha-v">65 %</b></span><input type="range" id="gs-alpha" min="0" max="100" step="5" aria-label="Opacité du remplissage"><small class="gh">0 % = transparent · 100 % = plein</small></div>
+        <div class="grow" data-for="stroke"><span class="gl">Contour</span><div class="swatches" id="sw-stroke"></div><input type="color" id="gs-stroke" aria-label="Couleur du contour"></div>
+        <div class="grow" data-for="weight"><span class="gl">Épaisseur <b id="gs-weight-v">3 px</b></span><input type="range" id="gs-weight" min="1" max="12" step="1" aria-label="Épaisseur du trait"></div>
+        <label class="check" data-for="dash"><input type="checkbox" id="gs-dash"> Trait en pointillés</label>
+        <div class="grow" data-for="text"><span class="gl">Texte</span><textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte (Entrée pour un retour à la ligne)"></textarea></div>
+        <div class="grow" data-for="size"><span class="gl">Taille du texte <b id="gs-size-v">18 px</b></span><input type="range" id="gs-size" min="10" max="60" step="1" aria-label="Taille du texte"></div>
+        <div class="grow" data-for="fontcolor"><span class="gl">Couleur du texte</span><input type="color" id="gs-fontcolor" aria-label="Couleur du texte"></div>
+      </div>
+      <div class="btnrow" id="gs-actions">
+        <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
+        <button class="btn-ghost" id="gs-front" title="Mettre au premier plan"><svg class="ic"><use href="#i-up"/></svg></button>
+        <button class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan"><svg class="ic"><use href="#i-down"/></svg></button>
+        <button class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
+      </div>
+
+      <h3 class="sub">Éléments <span class="count" id="gs-count"></span></h3>
+      <ul class="glist" id="gs-list"></ul>
+      <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
+      <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne.</p>
+      <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Carte en PDF…</button>
     </section>
 
     <section class="pane" data-pane="route" hidden>
@@ -228,6 +261,7 @@
       <div class="zoomctl" aria-label="Zoom">
         <button id="zoom-in" title="Zoom avant (échelle supérieure)" aria-label="Zoom avant"><svg class="ic"><use href="#i-plus"/></svg></button>
         <button id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
+        <button id="locate" title="Ma position" aria-label="Ma position"><svg class="ic"><use href="#i-locate"/></svg></button>
       </div>
 
       <div class="bl">
@@ -287,6 +321,24 @@
 
 <input id="file-gpx" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden>
 <div id="toast" class="toast" role="status" hidden></div>
+
+<div class="home" id="home" hidden>
+  <div class="home-in">
+    <img class="home-logo" src="assets/fsggb.png" alt="" width="64" height="64">
+    <h1>Que voulez-vous faire ?</h1>
+    <p class="home-sub">Choisissez un type de travail. Chacun a ses propres outils et ses propres calques : vous ne voyez que ce qui concerne votre travail du moment.</p>
+    <div class="home-grid">
+      <button class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Itinéraire à pied</b><small>Parcours ou boucle, distance maximale, profil d’altitude, feuille de route, simulation.</small><em class="hc-badge" data-badge="route" hidden></em></button>
+      <button class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Azimuts</b><small>Course d’orientation : azimut, contre-azimut, distances, étapes visées.</small><em class="hc-badge" data-badge="az" hidden></em></button>
+      <button class="home-card" data-start="meas"><span class="hc-ic"><svg class="ic"><use href="#i-ruler"/></svg></span><b>Mesures</b><small>Distances et surfaces sur la carte.</small><em class="hc-badge" data-badge="meas" hidden></em></button>
+      <button class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Grand jeu</b><small>Zones, formes, flèches, croix et textes de couleur, transparence réglable.</small><em class="hc-badge" data-badge="game" hidden></em></button>
+    </div>
+    <div class="home-foot">
+      <button class="btn-ghost" id="home-import"><svg class="ic"><use href="#i-upload"/></svg>Importer un fichier GPX</button>
+      <button class="btn-primary" id="home-continue" hidden>Reprendre mon travail</button>
+    </div>
+  </div>
+</div>
 
 <dialog id="dlg-export">
   <h2>Exporter en GPX</h2>
@@ -367,6 +419,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
 <script src="js/geo.js?v=__V__"></script>
 <script src="js/app.js?v=__V__"></script>
+<script src="js/game.js?v=__V__"></script>
 <script src="js/doc.js?v=__V__"></script>
 <script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
 </body>

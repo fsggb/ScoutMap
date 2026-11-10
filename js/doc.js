@@ -12,12 +12,12 @@
   function today() { return new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' }); }
 
   // ---------- Calques imprimables ----------
-  var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure', track: 'Trace GPX' };
+  var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure', game: 'Grand jeu', track: 'Trace GPX' };
   function pickables() {
     var out = SM.layersList().filter(function (l) { return !l.empty; }).map(function (l) {
       return { key: l.key, type: l.type, name: l.name, color: l.color, vis: l.vis, active: l.active, data: l.data, res: l.res };
     });
-    S.tracks.forEach(function (t) { out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: t.show !== false, active: false, data: t, res: null }); });
+    if (S.mode === 'route') S.tracks.forEach(function (t) { out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: t.show !== false, active: false, data: t, res: null }); });
     return out;
   }
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
@@ -60,7 +60,8 @@
     if (t !== 'map' && !sheetOk) t = 'map';
     radios.forEach(function (r) { r.checked = r.value === t; });
     $('#pdf-title').dataset.touched = ''; $('#pdf-orient').dataset.user = '';
-    fillScales(); syncDialog();
+    fillScales(); if (S.mode === 'game' && $('#pdf-scale option[value=fit]')) $('#pdf-scale').value = 'fit';
+    syncDialog();
     var d = $('#dlg-pdf'); if (!d.open) d.showModal();
   }
   $$('input[name=dtype]').forEach(function (r) { r.addEventListener('change', syncDialog); });
@@ -98,7 +99,8 @@
     var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
-      if (it.type === 'meas' && d.pts.length > 1) {
+      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
+      else if (it.type === 'meas' && d.pts.length > 1) {
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });
       } else if (it.type === 'track') {
