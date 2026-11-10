@@ -175,6 +175,13 @@
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
     $('#base-note').hidden = !!LAYERS[S.base].ign;
+    var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
+    [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
+  }
+  // Panneau « Fonds et informations » : trois onglets (fond de carte / informations affichées / netteté).
+  function popTab(tab) {
+    $$('#pop-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
+    $$('#layer-pop .pop-sec').forEach(function (sec) { sec.hidden = sec.dataset.tab !== tab; });
   }
   function thumbUrl(key) {
     var z = 10, n = 1 << z, lon = 5.72, lat = 45.19, r = lat * Math.PI / 180;
@@ -1199,6 +1206,8 @@
     inp.addEventListener('blur', function () { commit(true); });
   });
   $('#open-basemaps').addEventListener('click', function () { togglePop('layer-pop', true); });
+  $('#pop-tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-tab]'); if (b) popTab(b.dataset.tab); });
+  $('#ov-none').addEventListener('click', function () { OVERS.forEach(function (k) { S.ov[k] = false; }); applyLayers(); persist(); });
   function resetAll(ask) {
     if (ask && !confirm('Effacer tout le travail en cours (tous les calques, traces importées comprises) ?')) return;
     S.route = freshRoute(null, 1); S.az = freshAz(null, 1); S.meas = freshMeas(null, 1); S.game = freshGame(null, 1); S.layers = []; S.tracks = []; S.name = '';
@@ -1797,7 +1806,8 @@
       { t: 'Panneau latéral', chk: function () { return S.panelOpen; }, a: togglePanel },
       { t: 'Profil d’altitude', chk: function () { return S.dockOpen; }, a: toggleDock },
       { t: 'Calques', i: 'layers', k: 'L', a: function () { setRail('layers'); } },
-      { t: 'Fonds de carte et couches…', i: 'map', a: function () { togglePop('layer-pop', true); } },
+      { t: 'Fond de carte…', i: 'map', a: function () { togglePop('layer-pop', true); popTab('base'); } },
+      { t: 'Informations affichées (relief, sentiers, cadastre…)', i: 'layers', a: function () { togglePop('layer-pop', true); popTab('info'); } },
       '-',
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
