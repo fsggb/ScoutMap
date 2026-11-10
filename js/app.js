@@ -21,7 +21,7 @@
   function nid() { return Date.now() * 100 + (uidc++ % 100); }
   function freshRoute(prev, n) {
     return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: prev ? prev.opt : 'fastest', loop: false,
-      maxOn: false, maxKm: prev ? prev.maxKm : 10, avoidMotorway: prev ? prev.avoidMotorway : true, flagNat: prev ? prev.flagNat : true, wps: [] };
+      maxOn: false, maxKm: prev ? prev.maxKm : 10, avoidMotorway: prev ? prev.avoidMotorway : true, noBack: prev ? prev.noBack : true, flagNat: prev ? prev.flagNat : true, wps: [] };
   }
   function freshAz(prev, n) {
     return { id: nid(), name: 'Azimuts ' + n, color: AZ_PAL[(n - 1) % AZ_PAL.length], pts: [], unit: prev ? prev.unit : 'deg', ref: prev ? prev.ref : 'true', decl: prev ? prev.decl : 0 };
@@ -806,6 +806,7 @@
   $('#route-opt').addEventListener('change', function () { S.route.opt = this.value; computeRoute(); persist(); });
   $('#speed').addEventListener('input', function () { S.speed = Math.max(1, +this.value || 5); renderRouteStats(); persist(); });
   $('#opt-motorway').addEventListener('change', function () { S.route.avoidMotorway = this.checked; computeRoute(); persist(); });
+  $('#opt-noback').addEventListener('change', function () { S.route.noBack = this.checked; computeRoute(); persist(); });
   $('#opt-national').addEventListener('change', function () { S.route.flagNat = this.checked; renderNatWarn(); persist(); });
   $('#max-on').addEventListener('change', function () { S.route.maxOn = this.checked; syncRouteUi(); onMaxChange(); persist(); });
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
@@ -815,7 +816,7 @@
   function syncRouteUi() {
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
     $('#route-opt').value = S.route.opt; $('#speed').value = S.speed;
-    $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat;
+    $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat; $('#opt-noback').checked = S.route.noBack !== false;
     $('#max-on').checked = !!S.route.maxOn; $('#max-km').value = S.route.maxKm; $('#max-km').disabled = !S.route.maxOn;
     syncNames();
   }
@@ -825,6 +826,7 @@
   function clearRouteLines() {
     if (routeLine) { gRoute.removeLayer(routeLine); routeLine = null; }
     if (routeCasing) { gRoute.removeLayer(routeCasing); routeCasing = null; }
+    if (backLine) { gRoute.removeLayer(backLine); backLine = null; }
   }
   // Redessine le calque itinéraire en cours d'édition (après activation d'un calque, par exemple).
   function refreshRouteView() {
@@ -835,7 +837,7 @@
     fillPlaces(S.route);
   }
 
-  var routeTimer;
+  var routeTimer, backLine = null, legCache = {}, legQueue = [], legBusy = 0;
   function computeRoute() {
     clearTimeout(routeTimer);
     clearRouteLines();
@@ -846,39 +848,170 @@
       setRouteStatus(S.route.wps.length === 1 ? (S.route.loop ? 'Posez au moins un point de passage pour former la boucle.' : 'Posez l’arrivée sur la carte.') : '');
       refreshProfile(); return;
     }
-    if (w.length > 17) { setRouteStatus('Maximum : 15 étapes intermédiaires.', true); return; }
     setRouteStatus('Calcul de l’itinéraire…');
-    var tag = S.route.id;
+    var tag = S.route.id, tok = RT.rtTok = (RT.rtTok || 0) + 1;
     routeTimer = setTimeout(function () {
-      var c = RT.routeCtl = new AbortController();
-      var f = function (p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); };
-      var url = GP + '/navigation/itineraire?resource=bdtopo-valhalla&profile=pedestrian&optimization=' + S.route.opt +
-        '&start=' + f(w[0]) + '&end=' + f(w[w.length - 1]) +
-        (w.length > 2 ? '&intermediates=' + encodeURIComponent(w.slice(1, -1).map(f).join('|')) : '') +
-        (S.route.avoidMotorway ? '&constraints=' + encodeURIComponent('{"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}') : '') +
-        '&geometryFormat=geojson&getSteps=true&getBbox=false&crs=EPSG:4326&timeUnit=second&distanceUnit=meter&waysAttributes=name';
-      fetch(url, { signal: c.signal }).then(function (r) {
-        return r.json().then(function (j) { if (!r.ok || j.error) throw new Error((j.error && j.error.message) || (j.message) || 'Erreur ' + r.status); return j; });
-      }).then(function (j) {
-        if (tag !== S.route.id) return;
-        var line = j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; });
-        var nat = {};
-        (j.portions || []).forEach(function (p) { (p.steps || []).forEach(function (s) { var k = natOf(stepMeta(s)); if (k) nat[k] = (nat[k] || 0) + (s.distance || 0); }); });
-        var wasOver = overMax();
-        RT.route = { line: line, dist: j.distance, dur: j.duration, portions: j.portions || [],
-          nat: Object.keys(nat).map(function (k) { return { label: k, dist: nat[k] }; }) };
-        drawRoute(); setRouteStatus('');
-        renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderLayerList();
-        if (overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(RT.route.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
-        var b = L.latLngBounds(line.map(ll));
-        if (!map.getBounds().contains(b)) fit(b, { padding: [90, 90], maxZoom: 16 });
-        S.profileSrc = 'route'; refreshProfile(); persist();
+      var jobs = []; for (var i = 0; i + 1 < w.length; i++) jobs.push(fetchLeg(w[i], w[i + 1], null));
+      Promise.all(jobs).then(function (legs) {
+        if (tag !== S.route.id || tok !== RT.rtTok) return;
+        var first = !RT.route;
+        showRoute(assemble(legs), first);
+        if (S.route.noBack) improveBack(legs, w, tok, tag);
       }).catch(function (e) {
-        if (e.name === 'AbortError') return;
+        if (tok !== RT.rtTok) return;
         setRouteStatus('Itinéraire impossible : ' + (e.message || 'service indisponible') + '. Rapprochez les points d’une route ou d’un chemin.', true);
         refreshProfile();
       });
     }, 250);
+  }
+  // ----- Calcul par tronçons (un appel par couple de repères) : aucun nombre maximal d'étapes, et un seul tronçon à recalculer quand on déplace un point.
+  function pf(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }
+  function runLeg(task) {
+    legQueue.push(task); pumpLegs();
+  }
+  function pumpLegs() {
+    while (legBusy < 4 && legQueue.length) {
+      (function (task) {
+        legBusy++;
+        task().then(function () { legBusy--; pumpLegs(); }, function () { legBusy--; pumpLegs(); });
+      })(legQueue.shift());
+    }
+  }
+  function fetchLeg(a, b, via) {
+    var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, pf(a), via ? pf(via) : '', pf(b)].join('|');
+    if (legCache[key]) return legCache[key];
+    var url = GP + '/navigation/itineraire?resource=bdtopo-valhalla&profile=pedestrian&optimization=' + S.route.opt +
+      '&start=' + pf(a) + '&end=' + pf(b) + (via ? '&intermediates=' + encodeURIComponent(pf(via)) : '') +
+      (S.route.avoidMotorway ? '&constraints=' + encodeURIComponent('{"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}') : '') +
+      '&geometryFormat=geojson&getSteps=true&getBbox=false&crs=EPSG:4326&timeUnit=second&distanceUnit=meter&waysAttributes=name';
+    var pr = new Promise(function (resolve, reject) {
+      runLeg(function () {
+        var tries = 0;
+        function go() {
+          return fetch(url).then(function (r) {
+            return r.json().then(function (j) { if (!r.ok || j.error) throw new Error((j.error && j.error.message) || j.message || 'Erreur ' + r.status); return j; });
+          }).then(function (j) {
+            var ps = j.portions || [], m = ps.length < 2 ? ps[0] : { start: ps[0].start, end: ps[ps.length - 1].end, distance: 0, duration: 0, steps: [] };
+            if (ps.length >= 2) ps.forEach(function (q) { m.distance += q.distance || 0; m.duration += q.duration || 0; m.steps = m.steps.concat(q.steps || []); });
+            if (!m) m = { start: pf(a), end: pf(b), distance: j.distance, duration: j.duration, steps: [] };
+            resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m });
+          }).catch(function (e) { if (++tries < 3 && !/Erreur 4|introuvable|impossible/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 400 * tries); }).then(go); throw e; });
+        }
+        return go().catch(function (e) { delete legCache[key]; reject(e); });
+      });
+    });
+    legCache[key] = pr; return pr;
+  }
+  function assemble(legs) {
+    var line = [], bounds = [0], dist = 0, dur = 0, portions = [];
+    legs.forEach(function (l, i) {
+      var ln = l.line, st = 0;
+      if (line.length && ln.length && line[line.length - 1][0] === ln[0][0] && line[line.length - 1][1] === ln[0][1]) st = 1;
+      for (var k = st; k < ln.length; k++) line.push(ln[k]);
+      bounds.push(line.length - 1); dist += l.dist; dur += l.dur; portions.push(l.portion);
+    });
+    return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds };
+  }
+  function showRoute(res, first) {
+    var nat = {};
+    res.portions.forEach(function (p) { (p.steps || []).forEach(function (s) { var k = natOf(stepMeta(s)); if (k) nat[k] = (nat[k] || 0) + (s.distance || 0); }); });
+    var wasOver = overMax();
+    res.nat = Object.keys(nat).map(function (k) { return { label: k, dist: nat[k] }; });
+    res.back = S.route.noBack ? retrace(res.line) : { runs: [], total: 0 };
+    clearRouteLines(); RT.route = res;
+    drawRoute(); setRouteStatus('');
+    renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList();
+    if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
+    var bb = L.latLngBounds(res.line.map(ll));
+    if (first && !map.getBounds().contains(bb)) fit(bb, { padding: [90, 90], maxZoom: 16 });
+    S.profileSrc = 'route'; refreshProfile(); persist();
+  }
+  // Repère les passages repris (même chemin parcouru deux fois) : échantillons tous les ~10 m, voisins à moins de 15 m, séparés par au moins 120 m de parcours.
+  function retrace(line) {
+    var out = { runs: [], total: 0 };
+    if (line.length < 3) return out;
+    var kx = 111320 * Math.cos(line[0][0] * Math.PI / 180), ky = 110540, S10 = [], i, j;
+    for (i = 0; i + 1 < line.length; i++) {
+      var ax = line[i][1] * kx, ay = line[i][0] * ky, bx = line[i + 1][1] * kx, by = line[i + 1][0] * ky, L0 = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(L0 / 10));
+      for (j = 0; j < n; j++) S10.push({ x: ax + (bx - ax) * j / n, y: ay + (by - ay) * j / n, v: i, la: line[i][0] + (line[i + 1][0] - line[i][0]) * j / n, lo: line[i][1] + (line[i + 1][1] - line[i][1]) * j / n });
+    }
+    var grid = {}, hit = new Array(S10.length), c = 20;
+    S10.forEach(function (s, k) {
+      var cx = Math.floor(s.x / c), cy = Math.floor(s.y / c), h = false, dx, dy, arr, m;
+      for (dx = -1; dx <= 1 && !h; dx++) for (dy = -1; dy <= 1 && !h; dy++) {
+        arr = grid[(cx + dx) + ',' + (cy + dy)]; if (!arr) continue;
+        for (m = 0; m < arr.length; m++) if (k - arr[m] > 12 && Math.hypot(S10[arr[m]].x - s.x, S10[arr[m]].y - s.y) <= 15) { h = true; break; }
+      }
+      hit[k] = h; (grid[cx + ',' + cy] = grid[cx + ',' + cy] || []).push(k);
+    });
+    var k = 0;
+    while (k < S10.length) {
+      if (!hit[k]) { k++; continue; }
+      var e = k, gap = 0, last = k;
+      while (e + 1 < S10.length && gap <= 3) { e++; if (hit[e]) { last = e; gap = 0; } else gap++; }
+      if (last - k + 1 >= 15) {
+        out.runs.push({ s: k, e: last, len: (last - k + 1) * 10, v0: S10[k].v, v1: S10[last].v, pts: S10.slice(k, last + 1).map(function (q) { return [q.la, q.lo]; }) });
+        out.total += (last - k + 1) * 10;
+      }
+      k = last + 1;
+    }
+    return out;
+  }
+  function renderBackWarn() {
+    var r = RT.route, el = $('#back-warn');
+    if (backLine) { gRoute.removeLayer(backLine); backLine = null; }
+    if (!r || !S.route.noBack || !r.back || !r.back.runs.length) { el.hidden = true; return; }
+    backLine = L.layerGroup(r.back.runs.map(function (u) { return L.polyline(u.pts, { color: '#e07b00', weight: 7, opacity: 0.85, dashArray: '2 9', lineCap: 'round', interactive: false }); })).addTo(gRoute);
+    el.hidden = false;
+    el.innerHTML = ic('alert') + '<span>Le tracé repasse par le même chemin sur ≈ ' + G.fmtDist(r.back.total) + ' (pointillés orange)' + (r.backTried ? ', faute d’alternative proche.' : '.') + ' Déplacez un repère pour changer de chemin.</span>';
+  }
+  // Cherche, pour les tronçons qui reprennent un chemin déjà parcouru, un passage décalé qui évite l'aller-retour.
+  function improveBack(legs0, w, tok, tag) {
+    var res = RT.route; if (!res || !res.back.runs.length) return;
+    var legs = legs0.slice(), runs = res.back.runs.slice().sort(function (a, b) { return b.len - a.len; }).slice(0, 4), improved = 0, extra = 0;
+    var todo = runs.filter(function (u) { return u.len >= 150; });
+    if (!todo.length) return;
+    setRouteStatus('Recherche d’un chemin de retour différent…');
+    var seen = {};
+    function step(idx) {
+      if (tok !== RT.rtTok || tag !== S.route.id) return;
+      if (idx >= todo.length) { finish(); return; }
+      var u = todo[idx], cur = assemble(legs), leg = 0;
+      // les indices ont pu changer après un remplacement : on retrouve le tronçon par le milieu de la zone reprise.
+      var mid = u.pts[Math.floor(u.pts.length / 2)], best = Infinity, bi = 0;
+      cur.line.forEach(function (q, k) { var d = Math.pow(q[0] - mid[0], 2) + Math.pow((q[1] - mid[1]) * Math.cos(mid[0] * Math.PI / 180), 2); if (d < best) { best = d; bi = k; } });
+      for (leg = 0; leg < legs.length - 1 && cur.bounds[leg + 1] < bi; leg++);
+      var lk = leg + ':' + legs[leg].dist.toFixed(0); if (seen[lk]) { step(idx + 1); return; } seen[lk] = 1;
+      var a = w[leg], b = w[leg + 1], p0 = u.pts[0], p1 = u.pts[u.pts.length - 1], kx = Math.cos(mid[0] * Math.PI / 180);
+      var dx = (p1[1] - p0[1]) * kx * 111320, dy = (p1[0] - p0[0]) * 110540, nrm = Math.hypot(dx, dy) || 1, ux = -dy / nrm, uy = dx / nrm;
+      var offs = [400, 900, 1800], cands = [];
+      offs.forEach(function (o) { [1, -1].forEach(function (sd) {
+        cands.push({ lat: mid[0] + uy * o * sd / 110540, lon: mid[1] + ux * o * sd / (111320 * kx) });
+      }); });
+      var oldTot = retrace(cur.line).total, oldDist = legs[leg].dist;
+      Promise.all(cands.map(function (cd) { return fetchLeg(a, b, cd).then(function (r) { return r; }, function () { return null; }); })).then(function (rs) {
+        if (tok !== RT.rtTok || tag !== S.route.id) return;
+        var pick = null, score = oldTot - 0.5 * u.len;
+        rs.forEach(function (r) {
+          if (!r || r.dist > oldDist * 2 + 800) return;
+          var test = legs.slice(); test[leg] = r;
+          var tot = retrace(assemble(test).line).total, sc = tot + 0.5 * (r.dist - oldDist);
+          if (tot <= oldTot - 0.5 * u.len && sc < (pick ? pick.sc : Infinity)) pick = { r: r, sc: sc };
+        });
+        if (pick) { extra += pick.r.dist - oldDist; legs[leg] = pick.r; improved++; }
+        step(idx + 1);
+      });
+    }
+    function finish() {
+      if (tok !== RT.rtTok || tag !== S.route.id) return;
+      if (improved) {
+        var out = assemble(legs), before = res.dist;
+        showRoute(out, false);
+        toast('Tracé modifié pour éviter de repasser par le même chemin (' + (extra >= 0 ? '+' : '') + G.fmtDist(Math.abs(extra)) + ').');
+      } else { setRouteStatus(''); RT.route.backTried = true; renderBackWarn(); }
+      setRouteStatus('');
+    }
+    step(0);
   }
   function drawRoute() {
     var r = RT.route; if (!r) return;
@@ -921,6 +1054,7 @@
   // Indice du tronçon (entre deux repères) qui contient le sommet idx.
   function legOf(idx) {
     var r = RT.route, from = 0, leg = 0;
+    if (r.bounds) { for (var q = 0; q < r.bounds.length - 2; q++) if (idx <= r.bounds[q + 1]) return q; return Math.max(0, r.bounds.length - 2); }
     for (var i = 0; i < r.portions.length - 1; i++) {
       var en = r.portions[i].end.split(',').map(Number), k = nearestIndex(r.line, [en[1], en[0]], from);
       if (idx <= k) return i; from = k; leg = i + 1;
