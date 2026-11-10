@@ -170,6 +170,7 @@
       </details>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
       <p class="status" id="route-status" role="status"></p>
+      <button class="btn-ghost block" id="route-tiles" title="Imprimer la carte du parcours sur plusieurs feuilles A4 ou A3"><svg class="ic"><use href="#i-map"/></svg>Carte du parcours en A4 / A3…</button>
       <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Feuille de route en PDF…</button>
     </section>
 
@@ -274,17 +275,10 @@
       <div class="pop layer-pop" id="layer-pop" hidden>
         <div class="pop-h"><b>Fonds et couches</b><button class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
         <h4>Type de carte</h4>
-        <div class="base-grid" id="base-grid">
-          <button data-base="plan"><img id="th-plan" alt=""><span>Plan IGN</span></button>
-          <button data-base="ortho"><img id="th-ortho" alt=""><span>Photographies</span></button>
-        </div>
+        <div class="base-grid" id="base-grid"></div>
+        <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
         <h4>Détails de la carte</h4>
-        <div class="ov-grid" id="ov-grid">
-          <button data-ov="contour"><span class="ov-ic"><svg class="ic"><use href="#i-contour"/></svg></span><span>Courbes de niveau</span></button>
-          <button data-ov="shade"><span class="ov-ic"><svg class="ic"><use href="#i-shade"/></svg></span><span>Ombrage du relief</span></button>
-          <button data-ov="slope"><span class="ov-ic"><svg class="ic"><use href="#i-slope"/></svg></span><span>Pentes</span></button>
-          <button data-ov="cadastre"><span class="ov-ic"><svg class="ic"><use href="#i-parcel"/></svg></span><span>Cadastre</span></button>
-        </div>
+        <div class="ov-grid" id="ov-grid"></div>
         <h4>Netteté du fond de carte</h4>
         <div class="seg full" id="detail-seg"><button data-v="auto">Auto</button><button data-v="0">Standard</button><button data-v="1">Détaillée</button><button data-v="2">Très détaillée</button></div>
         <p class="note"><b>Auto</b> (recommandé) : fond standard quand vous voyez une grande étendue (toute la France), fond détaillé dès que vous vous approchez. « Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée.</p>
@@ -353,15 +347,30 @@
   <div class="doc-types" id="doc-types">
     <label class="doc-type"><input type="radio" name="dtype" value="simple"><span><b>Feuille de route simplifiée</b><small>Distance, dénivelé positif et étapes</small></span></label>
     <label class="doc-type"><input type="radio" name="dtype" value="detail"><span><b>Feuille de route détaillée</b><small>Étapes, consignes de guidage, altitudes, durées</small></span></label>
-    <label class="doc-type"><input type="radio" name="dtype" value="map"><span><b>Carte à l’échelle</b><small>La vue actuelle, imprimée à l’échelle exacte</small></span></label>
+    <label class="doc-type"><input type="radio" name="dtype" value="map"><span><b>Carte à l’échelle</b><small>La vue actuelle, imprimée à l’échelle exacte sur une feuille</small></span></label>
+    <label class="doc-type"><input type="radio" name="dtype" value="tiles"><span><b>Carte du parcours sur plusieurs feuilles</b><small>A4 ou A3, le moins de feuilles possible : seules les feuilles traversées par le tracé sont imprimées</small></span></label>
   </div>
   <div class="field"><span>Calques à imprimer</span><div class="layer-pick" id="pdf-layers"></div><div class="pick-actions"><button type="button" class="text-btn" id="pdf-all">Tout sélectionner</button><button type="button" class="text-btn" id="pdf-none">Aucun</button></div></div>
   <label class="field"><span>Titre du document <small>(vide : nom du calque)</small></span><input type="text" id="pdf-title" maxlength="100" placeholder="Nom du calque"></label>
   <div class="two">
     <label class="field"><span>Papier</span><select id="pdf-paper"><option value="A4">A4</option><option value="A3">A3</option></select></label>
-    <label class="field"><span>Orientation</span><select id="pdf-orient"><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select></label>
+    <label class="field"><span>Orientation</span><select id="pdf-orient"><option value="auto">Automatique (le moins de feuilles)</option><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select></label>
   </div>
   <label class="field" id="pdf-scale-row"><span>Échelle de la carte</span><select id="pdf-scale"></select></label>
+  <div id="pdf-tiles-opts" hidden>
+    <div class="two">
+      <label class="field"><span>Échelle</span><select id="pdf-tscale"><option value="10000">1 : 10 000</option><option value="25000" selected>1 : 25 000</option><option value="50000">1 : 50 000</option></select></label>
+      <label class="field"><span>Marge autour du tracé</span><span class="num"><input type="number" id="pdf-corridor" value="6" min="2" max="40" step="1"> mm</span></label>
+    </div>
+    <div class="two">
+      <label class="field"><span>Marges de la feuille</span><span class="num"><input type="number" id="pdf-margin" value="8" min="4" max="25" step="1"> mm</span></label>
+      <label class="field"><span>Chevauchement</span><span class="num"><input type="number" id="pdf-overlap" value="10" min="4" max="40" step="1"> mm</span></label>
+    </div>
+    <label class="field"><span>Netteté de la carte</span><select id="pdf-sharp"><option value="auto">Automatique (recommandé)</option><option value="1">Haute</option><option value="2">Maximale (plus lent)</option></select></label>
+    <label class="check"><input type="checkbox" id="pdf-index" checked> Feuille d’assemblage en première page</label>
+    <p class="alert ok" id="pdf-tiles-sum"></p>
+    <p class="note" id="pdf-tiles-note"></p>
+  </div>
   <div class="checks" id="pdf-opts">
     <label id="pdf-overview-row"><input type="checkbox" id="pdf-overview" checked> Vue d’ensemble de l’itinéraire (carte)</label>
     <label id="pdf-profile-row"><input type="checkbox" id="pdf-profile" checked> Profil d’altitude (coupe du dénivelé)</label>
@@ -420,6 +429,7 @@
 <script src="js/geo.js?v=__V__"></script>
 <script src="js/app.js?v=__V__"></script>
 <script src="js/game.js?v=__V__"></script>
+<script src="js/paginate.js?v=__V__"></script>
 <script src="js/doc.js?v=__V__"></script>
 <script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
 </body>
