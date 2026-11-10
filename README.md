@@ -42,6 +42,9 @@ Sur petit écran, l'interface passe en mode téléphone : barre d'outils en bas,
 - **Fonds et couches** (bouton en bas à gauche, comme dans Google Maps) : Plan IGN, photographies aériennes ; courbes de niveau, ombrage du relief, pentes, cadastre.
 - **Calques** : chaque itinéraire, chaque tracé d'azimuts, chaque mesure et chaque trace GPX est un calque indépendant (afficher/masquer, renommer par double-clic, inverser le sens, centrer, modifier, supprimer). Un clic sur un tracé de la carte le rouvre en édition.
 - **Échelle** : affichée en permanence ; zoom libre, avec deux échelles prédéfinies (1 : 25 000 et 1 : 50 000) ou une valeur libre. Toute la France reste visible en dézoomant.
+- **Feuilles mélangées portrait/paysage** : l'option « Mélanger » (Chrome/Edge) choisit l'orientation de chaque feuille pour réduire encore leur nombre (ex. boucle de 105 km : 14 feuilles au lieu de 16). Les feuilles sont numérotées **F1, F2…** (carrés dorés), distinctes des numéros d'étapes (pastilles rondes) ; chaque bord indique la feuille voisine (ex. « ↗ F1 »).
+- **Panneau « Fonds et informations » à onglets** : *Fond de carte* (un seul), *Informations* (relief, sentiers, cadastre… combinables, pastille « +n » sur le bouton) et *Netteté*.
+- En netteté auto, le fond passe au niveau « Haute » au-delà de 6 feuilles A4 pour que la génération reste rapide ; « Très détaillée » reste disponible.
 - **Netteté du fond** : en mode « Auto » (par défaut), fond standard quand on voit une grande étendue et fond détaillé en s'approchant : à 1 : 25 000, on voit le contenu du niveau juste au-dessus au lieu d'un fond dézoomé. « Standard », « Détaillée » et « Très détaillée » (impression) sont aussi disponibles.
 - **Profil d'altitude** repliable et redimensionnable, avec lecture de la pente au survol.
 
