@@ -161,9 +161,11 @@
       </div>
       <div class="stats" id="route-stats" hidden></div>
       <div class="alert warn" id="nat-warn" hidden></div>
+      <div class="alert warn" id="back-warn" hidden></div>
       <details class="opts">
         <summary>Paramètres de l’itinéraire</summary>
         <label class="check"><input type="checkbox" id="opt-motorway"> Éviter les autoroutes</label>
+        <label class="check"><input type="checkbox" id="opt-noback"> Éviter de repasser par le même chemin <small>(pas d’aller-retour)</small></label>
         <label class="check"><input type="checkbox" id="opt-national"> Signaler les routes nationales <small>(indicatif)</small></label>
         <label class="field row-inline"><span>Allure de marche</span><span class="num"><input id="speed" type="number" min="1" max="8" step="0.5" value="5"> km/h</span></label>
         <p class="note">Le calcul d’itinéraire de la Géoplateforme exclut les autoroutes mais ne permet pas d’exclure les nationales : elles sont seulement signalées, quand le service en donne le numéro.</p>
