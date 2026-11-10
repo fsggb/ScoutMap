@@ -811,9 +811,9 @@
   }
   function reorderFree(focus) {
     var d = S.route;
-    if (d.freeOrder === false || d.wps.length < 4) return;
+    if (d.freeOrder === false || d.wps.length < 3) return;
     var r = bestOrder(d.wps, !!d.loop);
-    if (r.gain < 0.03) return;
+    if (r.gain < 0.002) return;
     var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
     renderRouteMarkers(); renderWpList(); computeRoute(); persist();
     var at = focus ? d.wps.indexOf(focus) : -1; if (at >= 0) select('route', at, true);
@@ -1022,8 +1022,6 @@
     drawRoute(); setRouteStatus('');
     renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList();
     if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
-    var bb = L.latLngBounds(res.line.map(ll));
-    if (first && !map.getBounds().contains(bb)) fit(bb, { padding: [90, 90], maxZoom: 16 });
     S.profileSrc = 'route'; refreshProfile(); persist();
   }
   // Repère les passages repris (même chemin parcouru deux fois) : échantillons tous les ~10 m, voisins à moins de 15 m, séparés par au moins 120 m de parcours.
@@ -2110,6 +2108,12 @@
   // ---------- Ma position (utile sur téléphone) ----------
   (function locate() {
     var gLoc = L.layerGroup().addTo(map);
+    // Recadrer : la carte ne bouge jamais d'elle-même quand on pose un point ; ce bouton ajuste la vue sur le tracé.
+    $('#fit-all').addEventListener('click', function () {
+      var b = null;
+      layersList().forEach(function (l) { var x = layerBounds(l.key); if (x && x.isValid()) b = b ? b.extend(x) : L.latLngBounds(x.getSouthWest(), x.getNorthEast()); });
+      if (b) fit(b, b.getNorthEast().equals(b.getSouthWest()) ? { maxZoom: 16 } : { padding: [70, 70], maxZoom: 17 }); else toast('Rien à cadrer : posez d’abord des points.');
+    });
     $('#locate').addEventListener('click', function () {
       if (!navigator.geolocation) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
       toast('Recherche de votre position…');
