@@ -222,7 +222,8 @@
     return '<header class="d-head"><img src="assets/fsggb.png" alt=""><div><h1>' + esc(title) + '</h1><p class="d-sub">' + sub + '</p></div>' +
       '<div class="d-tag">ScoutMap<br>FSGGB</div></header>';
   }
-  function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>Fonds © IGN – Géoplateforme</span></footer>'; }
+  function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>Fonds © IGN – Géoplateforme' + footDate() + '</span></footer>'; }
+  function footDate() { var i = SM.layerDate && SM.layerDate(SM.S.base); return i && i.iso ? ' (données mises à jour le ' + new Date(i.iso + 'T12:00:00').toLocaleDateString('fr-FR') + ')' : ''; }
   function newSheet(c, pw, ph, pm) {
     var el = document.createElement('article');
     el.className = 'sheet'; el.contentEditable = 'true'; el.spellcheck = false;
