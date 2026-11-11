@@ -2,7 +2,7 @@
 # Fiche de connaissances ChatGDB (format : ScoutHub/docs/projet-chatgdb.md, §5).
 # ChatGDB lit ce fichier pour répondre aux questions sur les applications de ce dépôt.
 depot: fsggb/ScoutMap
-maj: 2026-11-10
+maj: 2026-11-11
 ---
 
 # ScoutMap : Cartes IGN (orientation et raids)
@@ -17,6 +17,7 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 - Mesure de distance et de surface ; profil d'altitude avec pente.
 - Import et export GPX ; impression A4 paysage (carte, profil, feuille de route, tableau d'azimuts).
 - Coordonnées au curseur : WGS 84, Lambert-93, UTM. Le travail est mémorisé dans le navigateur.
+- Mise à jour des cartes : le bouton « Fonds et infos » (en bas à gauche de la carte) affiche, pour le fond et chaque information active, la date de mise à jour des données IGN (« il y a 34 j », en rouge au-delà de 13 mois) ; la date du fond figure aussi dans la ligne de crédits de la carte et au pied des documents imprimés. Les fonds OpenStreetMap sont mis à jour en continu ; l'État-major est une carte historique (1820-1866). Pour les photographies, la date de prise de vue varie selon le département (lien vers la liste IGN dans le panneau).
 
 ## Limites
 - Itinéraires : à pied ou en voiture seulement (pas de vélo/VTT).

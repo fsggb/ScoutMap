@@ -149,7 +149,7 @@
   // ---------- Carte ----------
   var map = L.map('map', { zoomControl: false, zoomSnap: 0, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 19, minZoom: 4,
     doubleClickZoom: false, attributionControl: false }).setView(S.view.c, S.view.z);
-  L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
+  var attrCtl = L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
   L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
   var gStored = L.layerGroup().addTo(map), gSearch = L.layerGroup().addTo(map), gTracks = L.layerGroup().addTo(map), gMeas = L.layerGroup().addTo(map),
     gAz = L.layerGroup().addTo(map), gRoute = L.layerGroup().addTo(map), gCursor = L.layerGroup().addTo(map);
@@ -164,6 +164,59 @@
     Object.keys(LAYERS).forEach(function (k) { tiles[k] = tile(k, curOff); });
     applyLayers();
   }
+  // ---------- Date de mise à jour des données (catalogue IGN, CSW de la Géoplateforme) ----------
+  var DSET = { plan: 'IGNF_PLAN-IGN', ortho: 'IGNF_BD-ORTHO', etat: 'IGNF_SCAN-EM-40K', contour: 'IGNF_COURBES-DE-NIVEAU', shade: 'IGNF_BD-ALTI',
+    lidar: 'IGNF_MNT-LIDAR-HD', slope: 'IGNF_BD-ALTI', cadastre: 'IGNF_PARCELLAIRE-EXPRESS-PCI' };
+  var DDATE = {};   // identifiant de jeu de données -> 'AAAA-MM-JJ'
+  try { var dc = JSON.parse(localStorage.getItem('scoutmap.dates') || '{}'); if (dc && Date.now() - (dc.t || 0) < 864e5) DDATE = dc.d || {}; } catch (e) { /* ignore */ }
+  function fmtDate(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); }
+  function ageDays(iso) { return Math.round((Date.now() - new Date(iso + 'T12:00:00').getTime()) / 864e5); }
+  function fetchDate(id) {
+    if (DDATE[id]) return Promise.resolve(DDATE[id]);
+    return fetch(GP + '/csw?REQUEST=GetRecordById&SERVICE=CSW&VERSION=2.0.2&OUTPUTSCHEMA=http://standards.iso.org/iso/19115/-3/mdb/2.0&elementSetName=full&ID=' + encodeURIComponent(id))
+      .then(function (r) { return r.ok ? r.text() : ''; }).then(function (x) {
+        var best = '', re = /<cit:CI_Date>([\s\S]*?)<\/cit:CI_Date>/g, m;
+        while ((m = re.exec(x))) {
+          var d = /<gco:Date(?:Time)?>([^<]+)/.exec(m[1]), ty = /codeListValue="([^"]+)"/.exec(m[1]);
+          if (d && ty && ty[1] === 'revision' && d[1].slice(0, 4) >= '2000' && d[1].slice(0, 10) > best) best = d[1].slice(0, 10);
+        }
+        if (best) { DDATE[id] = best; try { localStorage.setItem('scoutmap.dates', JSON.stringify({ t: Date.now(), d: DDATE })); } catch (e) { /* ignore */ } }
+        return best;
+      }).catch(function () { return ''; });
+  }
+  // Texte d'état d'une couche : { txt, old } (utilisable aussi par les documents imprimés).
+  function layerDate(k) {
+    var d = LAYERS[k]; if (!d) return null;
+    if (!DSET[k]) return { txt: 'mise à jour continue (OpenStreetMap)', old: false };
+    var iso = DDATE[DSET[k]];
+    if (k === 'etat') return { txt: 'carte historique de 1820-1866 (ne change pas)', old: false };
+    if (!iso) return { txt: 'date en cours de lecture…', old: false, pending: true };
+    var a = ageDays(iso);
+    return { txt: 'données IGN mises à jour le ' + fmtDate(iso) + ' (il y a ' + (a < 60 ? a + ' j' : Math.round(a / 30) + ' mois') + ')', iso: iso, old: a > 400 };
+  }
+  var attrDate = '';
+  function renderDates() {
+    var keys = [S.base].concat(OVERS.filter(function (k) { return S.ov[k]; })), html = '';
+    keys.forEach(function (k) {
+      var i = layerDate(k); if (!i) return;
+      html += '<li' + (i.old ? ' class="old"' : '') + '><b>' + esc(LAYERS[k].label) + '</b><span>' + esc(i.txt) + (i.old ? ' · à vérifier' : '') + '</span></li>';
+    });
+    var el = $('#data-dates');
+    if (el) el.innerHTML = '<h4>Mise à jour des données</h4><ul>' + html + '</ul>' +
+      (S.base === 'ortho' ? '<p class="note">Photographies : la date de prise de vue varie selon le département. <a href="https://data.geopf.fr/annexes/ressources/fiches/photographies-aeriennes-RVB/geoportail_dates_des_prises_de_vues_aeriennes-RVB.pdf" target="_blank" rel="noopener">Voir les dates par département (IGN)</a>.</p>' : '') +
+      '<p class="note">Date de révision indiquée par le catalogue de la Géoplateforme (IGN) ; elle peut précéder de quelques semaines l’affichage de la carte.</p>';
+    // ligne discrète en bas de la carte : date du fond
+    var bi = layerDate(S.base);
+    if (attrCtl) {
+      if (attrDate) attrCtl.removeAttribution(attrDate);
+      attrDate = bi && bi.iso ? 'données du ' + new Date(bi.iso + 'T12:00:00').toLocaleDateString('fr-FR') : '';
+      if (attrDate) attrCtl.addAttribution(attrDate);
+    }
+  }
+  function loadDates() {
+    var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
+    Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
+  }
   function applyLayers() {
     Object.keys(LAYERS).forEach(function (k) {
       var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
@@ -175,6 +228,7 @@
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
     $('#base-note').hidden = !!LAYERS[S.base].ign;
+    renderDates();
     var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
     [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
   }
@@ -182,6 +236,7 @@
   function popTab(tab) {
     $$('#pop-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
     $$('#layer-pop .pop-sec').forEach(function (sec) { sec.hidden = sec.dataset.tab !== tab; });
+    $('#data-dates').hidden = tab === 'sharp';
   }
   function thumbUrl(key) {
     var z = 10, n = 1 << z, lon = 5.72, lat = 45.19, r = lat * Math.PI / 180;
@@ -2171,8 +2226,11 @@
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
   })();
 
+  loadDates();
+
   // API interne pour doc.js
   window.SM = {
+    layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
