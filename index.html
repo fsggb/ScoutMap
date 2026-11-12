@@ -360,8 +360,14 @@
 
 <dialog id="dlg-tuto" class="dlg-wide">
   <h2>Tutoriel vidéo</h2>
-  <video id="tuto-video" controls preload="none" playsinline poster="assets/fsggb.png"></video>
-  <p class="dlg-sub" id="tuto-note">Quelques minutes pour découvrir ScoutMap : itinéraire, azimuts, grand jeu et impression. <a href="assets/tuto-scoutmap.mp4" target="_blank" rel="noopener">Ouvrir la vidéo dans un nouvel onglet</a> · Une question, un problème, une idée ? <a href="mailto:service-informatique@fsggb.fr">service-informatique@fsggb.fr</a></p>
+  <video id="tuto-video" controls preload="none" playsinline poster="assets/tuto-poster.png"></video>
+  <div class="tuto-info">
+    <p class="tuto-desc">Quelques minutes pour découvrir ScoutMap : itinéraire, azimuts, grand jeu, enregistrement et impression.</p>
+    <div class="tuto-row">
+      <a class="btn-ghost" href="assets/tuto-scoutmap.mp4" target="_blank" rel="noopener"><svg class="ic"><use href="#i-export"/></svg>Ouvrir dans un nouvel onglet</a>
+      <div class="tuto-contact"><span>Une question, un problème, une idée d’amélioration ?</span><a href="mailto:service-informatique@fsggb.fr">service-informatique@fsggb.fr</a></div>
+    </div>
+  </div>
   <div class="dlg-actions"><button class="btn-primary" id="tuto-close">Fermer</button></div>
 </dialog>
 
