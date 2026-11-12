@@ -109,11 +109,12 @@
   function renderChoices() {
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0, c = config();
     if (!sheetOk) PRM.roadmap = false; if (!tilesOk) { PRM.maps = false; PRM.onesheet = false; }
+    var big = tilesOk ? tooBig(items, c.tiles) : 0; if (big) PRM.maps = false;
     var pl = tilesOk ? tilesPlan(items, c.tiles) : null, fit = tilesOk ? fitScaleFor(items, PRM.paper) : null;
     var n = pl ? pl.pages.length : 0;
     var cards = [
       { k: 'roadmap', on: PRM.roadmap, ok: sheetOk, t: W().sheet, th: sheetOk ? thumbRoadmap(items) : '', cap: W().sheetCap, hide: S.mode === 'game' },
-      { k: 'maps', on: PRM.maps, ok: tilesOk, t: W().maps, th: thumbMaps(items, pl), cap: tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : ' + W().cover) : '' },
+      { k: 'maps', on: PRM.maps, ok: tilesOk && !big, t: W().maps, th: thumbMaps(items, pl), cap: big ? 'Zone trop étendue pour des cartes détaillées à cette échelle (environ ' + big + ' feuilles). Choisissez une échelle plus petite, ou la carte générale.' : tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : ' + W().cover) : '' },
       { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : '' }
     ];
     cards = cards.filter(function (x) { return !x.hide; }); $('#doc-types').style.gridTemplateColumns = 'repeat(' + cards.length + ',1fr)';
@@ -170,13 +171,24 @@
         var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
         pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
         if (outline) { out.push([[la0, lo0], [la0, lo1], [la1, lo1], [la1, lo0], [la0, lo0]]); return; }
-        for (var la = la0; la <= la1 + 0.0009; la += 0.0018) out.push([[la, lo0], [la, lo1]]);   // balayage : tout le dessin est couvert
+        var stp = Math.max(0.0018, (la1 - la0) / 25);
+        for (var la = la0; la <= la1 + 0.0009; la += stp) out.push([[la, lo0], [la, lo1]]);   // balayage : tout le dessin est couvert
       }
     });
     return out.filter(function (l) { return l && l.length; });
   }
+  // Un dessin immense (grand jeu à l'échelle d'un département) demanderait des centaines de feuilles : on ne calcule pas, on propose la carte générale.
+  function tooBig(items, prm) {
+    var pts = []; items.forEach(function (it) { if (it.type === 'game' && SM.game) SM.game.points(it.data).forEach(function (q) { pts.push(q); }); });
+    if (!pts.length) return 0;
+    var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
+    pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+    var wm = (lo1 - lo0) * 111320 * Math.cos((la0 + la1) / 2 * Math.PI / 180), hm = (la1 - la0) * 110540, P = FRAMES[prm.paper], k = prm.scale / 1000;
+    var n = (wm / (k * (P[0] - 20))) * (hm / (k * (P[1] - 20)));
+    return n > 40 ? Math.round(n) : 0;
+  }
   function tilesPlan(items, prm) {
-    if (!window.Paginate) return null;
+    if (!window.Paginate || tooBig(items, prm)) return null;
     return Paginate.plan({ lines: geomLines(items), scale: prm.scale, paper: PAPER[prm.paper], orient: prm.orient, mix: prm.mix, margin: prm.margin, overlap: prm.overlap, corridor: prm.corridor });
   }
   // ---------- Cartes statiques (aperçu et impression) ----------
@@ -381,7 +393,9 @@
   }
   $('#doc-title').addEventListener('input', function () { syncOthers(null, '.d-head h1', this.value); });
   $('#doc-pages').addEventListener('input', function (e) {
-    var h1 = e.target.closest && e.target.closest('.d-head h1'), sub = e.target.closest && e.target.closest('.d-head .d-sub'), ft = e.target.closest && e.target.closest('.d-foot span');
+    // l'événement « input » vise la feuille entière (zone éditable) : on retrouve l'élément réellement modifié par la position du curseur
+    var sel = window.getSelection(), nd = sel && sel.anchorNode, at = nd ? (nd.nodeType === 3 ? nd.parentNode : nd) : e.target;
+    var h1 = at.closest && at.closest('.d-head h1'), sub = at.closest && at.closest('.d-head .d-sub'), ft = at.closest && at.closest('.d-foot span');
     if (h1) { $('#doc-title').value = h1.textContent; syncOthers(h1, '.d-head h1', h1.textContent); }
     else if (sub) syncOthers(sub, '.d-head .d-sub', sub.textContent);
     else if (ft) { var i = Array.prototype.indexOf.call(ft.parentNode.children, ft); $$('#doc-pages .d-foot').forEach(function (f) { var s = f.children[i]; if (s && s !== ft && s.textContent !== ft.textContent) s.textContent = ft.textContent; }); }
@@ -514,7 +528,7 @@
     var urg = [['112', 'Urgences (Europe)'], ['15', 'SAMU'], ['18', 'Pompiers'], ['17', 'Police · Gendarmerie']];
     var resp = '<div class="rp-head"><span>Nom, prénom</span><span>Téléphone</span></div>';
     for (var i = 0; i < 3; i++) resp += '<div class="rp-row"><i class="fl">&nbsp;</i><i class="fl">&nbsp;</i></div>';
-    return '<section class="d-sec d-bottom"><div class="d-urg"><h2>' + ICO_TEL + ' Urgences</h2>' +
+    return '<section class="d-sec d-bottom"><div class="d-urg"><h2>' + ICO_TEL + ' Urgences</h2><div class="u-gap"></div>' +
       urg.map(function (r) { return '<div class="u-row"><span class="u-n">' + r[1] + '</span><b>' + r[0] + '</b></div>'; }).join('') + '</div>' +
       '<div class="d-resp"><h2>' + ICO_TEL + ' Responsables du raid</h2>' + resp +
       fld(ICO_MAIL, 'Courriel', true) + fld(ICO_PIN, 'Lieu du camp', true) + '</div></section>';
@@ -536,8 +550,7 @@
       s1.innerHTML = h;
       // ---------- page 2
       var sum = p ? 'Altitude de ' + Math.round(p.min) + ' à ' + Math.round(p.max) + ' m' : '';
-      var tb = '<table class="rt"><thead><tr><th class="grp" colspan="3">Le point d’arrêt</th><th class="grp" colspan="2">Pour y arriver, depuis l’étape précédente</th><th class="arr" rowspan="2">Date et heure d’arrivée</th></tr>' +
-        '<tr><th class="c">N°</th><th>Nom de l’étape</th><th class="r">Altitude</th><th class="r">Distance</th><th class="r">Dénivelé</th></tr></thead><tbody>' +
+      var tb = '<table class="rt"><thead><tr><th class="c">N°</th><th>Nom de l’étape</th><th class="r">Altitude</th><th class="r">Distance de l’étape</th><th class="r">Dénivelé de l’étape</th><th class="arr">Date et heure d’arrivée</th></tr></thead><tbody>' +
         rows.map(function (x, i) {
           var up = p && i > 0 ? ascBetween(p, rows[i - 1].d, x.d) : null;
           return '<tr><td class="c"><span class="rb ' + x.cls + '">' + esc(x.lab) + '</span></td><td><b>' + esc(x.name) + '</b><br><span class="d-note" style="margin:0">' + esc(x.sub) + '</span></td>' +

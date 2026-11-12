@@ -26,7 +26,7 @@
   function typing() { var a = document.activeElement; return !!a && (/^(input|select|textarea)$/i.test(a.tagName) || a.isContentEditable); }
   function newShape(kind, pts) {
     var s = { id: SM.nid(), kind: kind, pts: pts, fill: STY.fill, alpha: STY.alpha, stroke: STY.stroke, linked: STY.linked, weight: STY.weight,
-      dash: (kind === 'text' || kind === 'cross') ? false : (STY.dash === true ? 'dash' : (STY.dash || false)), font: STY.font || 'sans', align: STY.align || 'center', fontColor: STY.fontColor, size: STY.size, bold: !!STY.bold, italic: !!STY.italic, underline: !!STY.underline, text: kind === 'text' ? 'Texte' : '' };
+      dash: (kind === 'text' || kind === 'cross') ? false : (STY.dash === true ? 'dash' : (STY.dash || false)), font: STY.font || 'arial', align: STY.align || 'center', fontColor: STY.fontColor, size: STY.size, bold: !!STY.bold, italic: !!STY.italic, underline: !!STY.underline, text: kind === 'text' ? 'Texte' : '' };
     if (kind === 'circle') s.r = 0;
     return s;
   }
@@ -41,11 +41,15 @@
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
       html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M4 4L20 20M20 4L4 20" stroke="#fff" stroke-width="' + (sw + 2.2) + '"/><path d="M4 4L20 20M20 4L4 20" stroke="' + s.stroke + '" stroke-width="' + sw + '"/></svg>' });
   }
-  var FONTS = { sans: 'Inter,Arial,sans-serif', serif: 'Georgia,"Times New Roman",serif', hand: '"Comic Sans MS","Segoe Print","Bradley Hand",cursive', title: 'Impact,"Arial Narrow Bold",sans-serif', mono: '"Courier New",Consolas,monospace' };
+  var FONTS = { arial: 'Arial,Helvetica,sans-serif', verdana: 'Verdana,Geneva,sans-serif', tahoma: 'Tahoma,Geneva,sans-serif', trebuchet: '\'Trebuchet MS\',Helvetica,sans-serif', georgia: 'Georgia,serif',
+    times: '\'Times New Roman\',Times,serif', palatino: '\'Palatino Linotype\',\'Book Antiqua\',Palatino,serif', comic: '\'Comic Sans MS\',\'Comic Sans\',\'Chalkboard SE\',cursive', courier: '\'Courier New\',Courier,monospace',
+    impact: 'Impact,\'Arial Narrow Bold\',sans-serif', algerian: 'Algerian,\'Cinzel Decorative\',serif', lobster: 'Lobster,\'Brush Script MT\',cursive', caveat: 'Caveat,\'Segoe Script\',cursive' };
+  var LEGACY = { sans: 'arial', serif: 'georgia', hand: 'comic', title: 'impact', mono: 'courier' };
+  function fontKey(s) { var k = (s && s.font) || 'arial'; k = LEGACY[k] || k; return FONTS[k] ? k : 'arial'; }
   function textIcon(s) {
     var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2);
     return L.divIcon({ className: 'g-icon', iconSize: [0, 0],
-      html: '<div class="gtext" title="Double-clic : modifier le texte" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[s.font || 'sans'] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
+      html: '<div class="gtext" title="Double-clic : modifier le texte" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
   }
   function centroid(s) {
     var pts = s.kind === 'circle' ? [s.pts[0]] : s.pts, la = 0, lo = 0;
@@ -65,7 +69,7 @@
       if (o.stored) { if (o.click) l.on('click', o.click); if (o.ctx) l.on('contextmenu', o.ctx); if (o.tip && l.bindTooltip) l.bindTooltip(o.tip, { sticky: true }); }
       else {
         l.on('click', function (e) { L.DomEvent.stopPropagation(e); select(s.id); });
-        l.on('dblclick', function (e) { L.DomEvent.stop(e); select(s.id); if (s.kind === 'text') editInline(s.id); });
+        l.on('dblclick', function (e) { L.DomEvent.stop(e); if (GT !== 'select') setGT('select'); select(s.id); if (!S.panelOpen || S.rail !== 'game') SM.setRail('game'); setTab('style'); if (s.kind === 'text') editInline(s.id); });
         l.on('contextmenu', function (e) { L.DomEvent.stop(e); shapeCtx(s.id, e); });
       }
     }
@@ -145,7 +149,7 @@
     drawDraft();
   }
   function select(id) {
-    SELID = id || null; applySelStyle(); updateHandles(); renderPane(); SM.persist();
+    SELID = id || null; if (id && GTAB !== 'style' && S.mode === 'game') setTab('style'); applySelStyle(); updateHandles(); renderPane(); SM.persist();
   }
 
   // ---------- Poignées d'édition ----------
@@ -233,9 +237,9 @@
     S.vis.game = true; SM.ensureVisible('game');
     D().shapes.push(s); SELID = s.id;
     var keep = $('#gs-keep').checked;
-    if (!keep) GT = 'select';
+    if (!keep) { GT = 'select'; setTab('style'); }
     SM.persist(); render(); SM.renderLayerList();
-    if (opt && opt.edit) setTimeout(function () { editInline(s.id); }, 30);
+    if (opt && opt.edit) editInline(s.id);
   }
   function addAt(kind, p) {
     if (S.mode !== 'game') SM.setMode('game');
@@ -270,8 +274,15 @@
     else if (e.key.toLowerCase() === 'v') setGT('select');
   });
 
+  // Clic droit pendant le dessin : on termine la forme si elle est complète, sinon on l'abandonne ; dans les deux cas retour à la sélection.
+  function rightClick() {
+    if (S.mode !== 'game' || RT.tool !== 'game' || GT === 'select') return false;
+    if (finishable()) finishDraft(); else cancelDraft();
+    if (GT !== 'select') setGT('select'); else render();
+    return true;
+  }
   function setGT(t) {
-    cancelDraft(); GT = t;
+    cancelDraft(); GT = t; if (t !== 'select') setTab('tools');
     map.getContainer().classList.toggle('gt-select', t === 'select');
     render(); SM.persist();
   }
@@ -291,7 +302,7 @@
       var v = t.innerText.replace(/\u00a0/g, ' ').replace(/\n+$/, '');
       t.contentEditable = 'false'; t.classList.remove('editing'); window.getSelection().removeAllRanges();
       if (save) s.text = v;
-      if (drag && ob.marker.dragging) ob.marker.dragging.enable();
+      var cur = live[id]; if (drag && cur && cur.marker && cur.marker.dragging) cur.marker.dragging.enable();
       refreshStyle(s); SM.persist(); renderPane();
     }
     function stop(e) { e.stopPropagation(); }
@@ -352,6 +363,14 @@
         '<span class="gt">' + ic(KINDS[s.kind].icon) + ' ' + esc(labelOf(s)) + '</span><button class="ibtn danger" data-del="' + s.id + '" title="Supprimer" aria-label="Supprimer">' + ic('x') + '</button></li>';
     }).join('');
   }
+  // ---------- Onglets du panneau : Outils · Style · Éléments ----------
+  var GTAB = 'tools';
+  function setTab(t) {
+    GTAB = t;
+    $$('#gtabs [data-gtab]').forEach(function (b) { var on = b.dataset.gtab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    $$('[data-gtabp]').forEach(function (p) { p.hidden = p.dataset.gtabp !== t; });
+    closePal();
+  }
   function show(el, on) { if (el) el.hidden = !on; }
   var NAMES = { '#ffffff': 'Blanc', '#000000': 'Noir', '#c0262d': 'Rouge', '#e8590c': 'Orange', '#e0a800': 'Jaune', '#2f9e44': 'Vert', '#0e7490': 'Turquoise', '#2563eb': 'Bleu', '#000761': 'Bleu marine', '#7a3db8': 'Violet', '#d6336c': 'Rose', '#12142b': 'Noir', '#c6a24e': 'Or', '#d97706': 'Orange', '#1a7f37': 'Vert' };
   function colorName(c) { return NAMES[String(c).toLowerCase()] || String(c).toUpperCase(); }
@@ -359,6 +378,7 @@
     if (!$('#gtools')) return;
     $$('#gtools button').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
     var s = selShape(), src = s || STY, kind = s ? s.kind : (GT !== 'select' ? GT : null);
+    if ($('#gtabs') && !$('#gtabs .on')) setTab(GTAB);
     $('#gs-target').textContent = s ? 'Élément sélectionné : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style des prochaines : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style des prochaines formes');
     var filled = !kind || kind === 'polygon' || kind === 'rect' || kind === 'circle' || kind === 'text', isT = kind === 'text';
     $$('#gstyle [data-for]').forEach(function (r) {
@@ -377,7 +397,7 @@
     $('#gc-stroke').style.borderColor = src.stroke; $('#gb-stroke-v').textContent = colorName(src.stroke);
     $('#gs-weight-v').textContent = src.weight + ' px';
     $$('#gs-dash button').forEach(function (b) { b.classList.toggle('on', (b.dataset.d || '') === String(src.dash === true ? 'dash' : src.dash || '')); });
-    $('#gs-size-v').textContent = src.size; $('#gc-font').style.background = src.fontColor; $('#gs-font').value = src.font || 'sans';
+    $('#gs-size-v').textContent = src.size; $('#gc-font').style.background = src.fontColor; $('#gs-font').value = fontKey(src);
     if (s && document.activeElement !== $('#gs-text')) $('#gs-text').value = s.text || '';
     ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).classList.toggle('on', !!src[k]); });
     $$('.gtb [data-al]').forEach(function (b) { b.classList.toggle('on', b.dataset.al === (src.align || 'center')); });
@@ -456,6 +476,7 @@
 
   // ---------- Câblage du panneau ----------
   (function wire() {
+    $$('#gtabs [data-gtab]').forEach(function (b) { b.addEventListener('click', function () { setTab(b.dataset.gtab); }); });
     $$('#gstyle [data-pal]').forEach(function (b) { b.addEventListener('click', function () { openPal(b); }); });
     function cur(k) { var s = selShape(); return (s || STY)[k]; }
     $('#gs-weight-m').addEventListener('click', function () { setProp('weight', Math.max(1, cur('weight') - 1)); });
@@ -508,7 +529,7 @@
   function onTool(t) { if (t !== 'game') cancelDraft(); render(); }
   function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); }
 
-  SM.game = { render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();
