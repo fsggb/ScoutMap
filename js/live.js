@@ -1,10 +1,11 @@
 /* ScoutMap : jeu en direct — positions partagées, chat et lien/QR code pour inviter les autres chefs.
    Les échanges passent par une base Firebase (Google) mais sont chiffrés (AES-GCM) avec une clé qui n'est que dans le lien : la base ne voit rien de lisible.
-   Seul le chef qui a créé le salon peut modifier le jeu ; les autres le reçoivent en lecture seule. */
+   Seul le chef qui a lancé le jeu en direct peut modifier le jeu ; les autres le reçoivent en lecture seule. */
 (function () {
   'use strict';
   var SM = window.SM, S = SM.S, map = SM.map, esc = SM.esc;
   var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var CFG = window.SM_FIREBASE || null;
   var FB = 'https://www.gstatic.com/firebasejs/10.12.5/';
   var COLORS = ['#c0262d', '#2563eb', '#1a7f37', '#d97706', '#7a3db8', '#0e7490', '#d6336c', '#a16207', '#4d7c0f', '#475569'];
@@ -57,18 +58,20 @@
   var btn, panel, dlg;
   function build() {
     if (panel) return;
-    btn = document.createElement('button'); btn.id = 'live-btn'; btn.type = 'button'; btn.hidden = true; btn.title = 'Salon : chefs connectés et messages'; btn.setAttribute('aria-label', 'Salon');
+    btn = document.createElement('button'); btn.id = 'live-btn'; btn.type = 'button'; btn.hidden = true; btn.title = 'Jeu en direct : discussion et chefs connectés'; btn.setAttribute('aria-label', 'Salon');
     btn.innerHTML = '<svg class="ic"><use href="#i-people"/></svg><i class="lv-badge" hidden></i>';
     var z = $('.zoomctl'); if (z) z.appendChild(btn); else document.body.appendChild(btn);
     btn.addEventListener('click', function () { togglePanel(); });
     panel = document.createElement('div'); panel.id = 'live-panel'; panel.hidden = true;
     panel.innerHTML =
-      '<div class="lv-head"><b id="lv-title">Salon</b><span id="lv-count"></span><button type="button" class="ibtn" id="lv-x" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
-      '<label class="lv-share"><input type="checkbox" id="lv-sharing"><span>Je partage ma position</span></label>' +
-      '<div class="lv-people" id="lv-people"></div>' +
-      '<div class="lv-chat" id="lv-chat" aria-live="polite"></div>' +
-      '<form class="lv-form" id="lv-form"><input id="lv-msg" type="text" maxlength="400" placeholder="Écrire aux autres chefs…" autocomplete="off"><button type="submit" class="btn-primary sm">Envoyer</button></form>' +
-      '<div class="lv-foot"><button type="button" class="btn-ghost sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button><button type="button" class="btn-ghost sm" id="lv-meet" title="Ouvre un appel Google Meet et envoie le lien dans le salon">Appel vocal</button><button type="button" class="btn-ghost sm danger" id="lv-end"></button></div>';
+      '<div class="lv-head"><b id="lv-title">Jeu en direct</b><button type="button" class="ibtn" id="lv-x" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
+      '<div class="lv-tabs" role="tablist"><button type="button" role="tab" data-lt="chat" class="on">Discussion <i class="lv-tb" id="lv-tb" hidden></i></button><button type="button" role="tab" data-lt="people">Chefs <span id="lv-count"></span></button></div>' +
+      '<p class="lv-role" id="lv-role"></p>' +
+      '<a class="lv-call" id="lv-call" target="_blank" rel="noopener" hidden>📞 Appel en cours : rejoindre</a>' +
+      '<div class="lv-pane" data-lp="chat"><div class="lv-chat" id="lv-chat" aria-live="polite"></div>' +
+      '<form class="lv-form" id="lv-form"><input id="lv-msg" type="text" maxlength="400" placeholder="Écrire aux autres chefs…" autocomplete="off"><button type="submit" class="btn-primary sm">Envoyer</button></form></div>' +
+      '<div class="lv-pane" data-lp="people" hidden><label class="lv-share"><input type="checkbox" id="lv-sharing"><span>Je partage ma position</span></label><div class="lv-people" id="lv-people"></div></div>' +
+      '<div class="lv-foot"><button type="button" class="btn-ghost sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button><button type="button" class="btn-ghost sm" id="lv-meet" title="Lancer un appel vocal Google Meet et envoyer le lien aux chefs">📞 Appel vocal</button><button type="button" class="btn-ghost sm danger" id="lv-end"></button></div>';
     ($('.stage') || document.body).appendChild(panel);
     dlg = document.createElement('dialog'); dlg.id = 'dlg-live'; dlg.className = 'dlg-live'; document.body.appendChild(dlg);
     $('#lv-x').addEventListener('click', function () { togglePanel(false); });
@@ -76,18 +79,27 @@
     $('#lv-form').addEventListener('submit', function (e) { e.preventDefault(); var i = $('#lv-msg'), m = i.value.trim(); if (m) { sendChat(m); i.value = ''; } });
     $('#lv-invite').addEventListener('click', showInvite);
     $('#lv-end').addEventListener('click', endOrLeave);
-    $('#lv-meet').addEventListener('click', function () { var w = window.open('https://meet.google.com/new', '_blank'); sendChat('📞 Appel vocal : ouvrez Google Meet (meet.google.com) et rejoignez le code que je vous envoie.'); if (!w) toast('Autorisez l’ouverture de fenêtres pour lancer Meet.'); });
+    $('#lv-meet').addEventListener('click', callDialog);
+    $$('.lv-tabs [data-lt]').forEach(function (t) { t.addEventListener('click', function () { setLt(t.dataset.lt); }); });
     $('#lv-people').addEventListener('click', function (e) { var r = e.target.closest('[data-u]'); if (!r) return; var p = st.people[r.dataset.u]; if (p) map.setView([p.lat, p.lon], Math.max(map.getZoom(), 15), { animate: true }); });
+  }
+  function setLt(k) {
+    st.lt = k; $$('.lv-tabs [data-lt]').forEach(function (t) { t.classList.toggle('on', t.dataset.lt === k); });
+    $$('.lv-pane').forEach(function (p) { p.hidden = p.dataset.lp !== k; });
+    if (k === 'chat') { st.unread = 0; badge(); var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; } else renderPeople();
   }
   function togglePanel(on) {
     st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen;
-    if (st.panelOpen) { st.unread = 0; badge(); var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; renderPeople(); }
+    if (st.panelOpen) { if ((st.lt || 'chat') === 'chat') { st.unread = 0; badge(); } var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; renderPeople(); }
   }
-  function badge() { var b = $('.lv-badge', btn); b.hidden = !st.unread; b.textContent = st.unread > 9 ? '9+' : st.unread; }
+  function badge() { var b = $('.lv-badge', btn), n = st.unread > 9 ? '9+' : st.unread; b.hidden = !st.unread; b.textContent = n; var t = $('#lv-tb'); if (t) { t.hidden = !st.unread; t.textContent = n; } }
   function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
 
   // ---------- Création et accès ----------
+  function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ room: st.room, key: st.key, owner: st.owner, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
+  function clearSession() { try { localStorage.removeItem('scoutmap.live.session'); } catch (e) { /* ignoré */ } }
   function askName(title, okLabel, cb) {
+    if (st.name && cb.quiet) { cb(st.name); return; }
     var d = dlgOpen('<h2>' + esc(title) + '</h2><p class="dlg-sub">Votre prénom s’affichera à côté de votre position et de vos messages.</p>' +
       '<label class="pdf-name">Prénom <input id="lv-name" type="text" maxlength="24" autocomplete="given-name" value="' + esc(st.name) + '"></label>' +
       '<div class="dlg-actions"><button class="btn-ghost" id="lv-cancel" type="button">Annuler</button><button class="btn-primary" id="lv-ok" type="button">' + esc(okLabel) + '</button></div>');
@@ -96,21 +108,21 @@
     $('#lv-ok', d).addEventListener('click', go); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
     $('#lv-cancel', d).addEventListener('click', function () { d.close(); });
   }
-  // Le chef qui crée le salon
+  // Le chef qui lance le jeu en direct
   function start() {
     build();
     if (!configured()) { dlgOpen('<h2>Jeu en direct</h2><p class="dlg-sub">Le partage en direct n’est pas encore activé sur ce site : il manque la configuration du service (Firebase).</p><div class="dlg-actions"><button class="btn-primary" type="button" data-x2>Compris</button></div>'); $('[data-x2]', dlg).addEventListener('click', function () { dlg.close(); }); return; }
     if (!window.crypto || !crypto.subtle) { toast('Le partage en direct demande une connexion sécurisée (https).'); return; }
     if (st.room) { showInvite(); return; }
     if (!S.game.shapes.length) { toast('Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
-    askName('Partager ce jeu en direct', 'Créer le salon', function () {
-      toast('Création du salon…');
+    askName('Partager ce jeu en direct', 'Lancer le jeu en direct', function () {
+      toast('Lancement du jeu en direct…');
       fb().then(function () { st.room = rand(16); st.key = b64u(crypto.getRandomValues(new Uint8Array(16))); return importKey(st.key); }).then(function (k) {
         st.ck = k; st.owner = true;
         return roomRef().child('owner').set(st.uid);
       }).then(function () { return roomRef().update({ created: firebase.database.ServerValue.TIMESTAMP }); }).then(function () { return publishGame(); }).then(function () {
-        active(); showInvite(); startSharing(); try { sessionStorage.setItem('scoutmap.live', JSON.stringify({ room: st.room, key: st.key, owner: true })); } catch (e) { /* ignoré */ }
-      }).catch(function (e) { st.room = null; toast('Impossible de créer le salon : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
+        active(); showInvite(); startSharing(); saveSession();
+      }).catch(function (e) { st.room = null; toast('Impossible de lancer le jeu en direct : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
     });
   }
   // Un chef qui arrive par le QR code
@@ -119,17 +131,30 @@
     if (!configured()) { toast('Le partage en direct n’est pas activé sur ce site.'); return; }
     st.room = room; st.key = key;
     importKey(key).then(function (k) { st.ck = k; }).catch(function () { st.room = null; toast('Lien incomplet : scannez de nouveau le QR code.'); });
-    askName('Rejoindre le jeu en direct', 'Rejoindre', function () {
-      toast('Connexion au salon…');
+    var go = function () {
+      toast('Connexion au jeu…');
       fb().then(function () { return roomRef().child('owner').once('value'); }).then(function (v) {
-        if (!v.exists()) throw new Error('Ce salon n’existe plus.');
+        if (!v.exists()) throw new Error('Ce jeu en direct est terminé ou n’existe plus.');
+        if (v.val() === st.uid && window.SM_LIVE_ROOM) { st.owner = true; saveSession(); location.replace(location.href.split('?')[0].split('#')[0]); throw new Error('Retour à votre jeu…'); }
         active(); return loadGame();
-      }).then(function () { startSharing(); }).catch(function (e) { toast(e && e.message ? e.message : 'Connexion impossible.'); });
-    });
+      }).then(function () { startSharing(); saveSession(); }).catch(function (e) { toast(e && e.message ? e.message : 'Connexion impossible.'); });
+    };
+    go.quiet = true; askName('Rejoindre le jeu en direct', 'Rejoindre', go);
+  }
+  // Après un rechargement de la page : on se reconnecte tout seul (le chef retrouve son jeu en direct, les autres aussi)
+  function resume() {
+    var s; try { s = JSON.parse(localStorage.getItem('scoutmap.live.session') || 'null'); } catch (e) { s = null; }
+    if (!s || !s.room || !s.key || Date.now() - s.t > 3 * 86400000 || !configured() || !window.crypto || !crypto.subtle) return;
+    build(); st.room = s.room; st.key = s.key; st.owner = !!s.owner;
+    importKey(s.key).then(function (k) { st.ck = k; return fb(); }).then(function () { return roomRef().child('owner').once('value'); }).then(function (v) {
+      if (!v.exists() || (st.owner && v.val() !== st.uid)) throw new Error('fin');
+      active(); if (st.owner) { st.lastGame = ''; if (S.game.shapes.length && !window.SM_VIEWER) { SM.showHome(false); SM.setMode('game'); } } return st.owner ? null : loadGame();
+    }).then(function () { if (s.share) startSharing(); saveSession(); toast('Jeu en direct retrouvé.'); }).catch(function () { st.room = null; st.key = null; st.owner = false; clearSession(); });
   }
   function active() {
-    btn.hidden = false; $('#lv-title').textContent = 'Salon · ' + (S.game.name || 'Grand jeu'); $('#lv-end').textContent = st.owner ? 'Terminer le salon' : 'Quitter';
+    btn.hidden = false; $('#lv-title').textContent = (S.game.name || 'Grand jeu'); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter';
     $('#lv-invite').hidden = false;
+    $('#lv-role').textContent = st.owner ? 'Vous dirigez le jeu : continuez à modifier la carte, les autres chefs reçoivent vos changements en quelques secondes.' : 'Vous suivez le jeu en lecture seule. Seul le chef qui l’a lancé peut le modifier.';
     listen(); togglePanel(true);
     st.timers.push(setInterval(function () { renderPeople(); }, 5000));
     if (st.owner) st.timers.push(setInterval(function () { publishGame(); }, 4000));
@@ -138,7 +163,7 @@
   // ---------- Le jeu (envoyé par le chef, reçu en lecture seule par les autres) ----------
   function snapshot() { return { app: 'ScoutMap', v: 1, name: S.game.name || S.name || 'Grand jeu', rail: 'game', base: S.base, ov: S.ov, route: { wps: [] }, az: { pts: [] }, tracks: [], game: S.game }; }
   function publishGame() {
-    if (!st.owner || !st.room) return Promise.resolve();
+    if (!st.owner || !st.room || !S.game.shapes.length) return Promise.resolve();
     var js = JSON.stringify(snapshot()); if (js === st.lastGame) return Promise.resolve(); st.lastGame = js;
     return enc(snapshot()).then(function (e) { return roomRef().update({ game: e, gameT: firebase.database.ServerValue.TIMESTAMP }); }).catch(function () { st.lastGame = ''; });
   }
@@ -147,12 +172,12 @@
       if (!v.exists()) throw new Error('Le chef n’a encore rien partagé.');
       return dec(v.val());
     }).then(function (data) {
-      if (data.name) $('#lv-title').textContent = 'Salon · ' + data.name;
+      if (data.name) $('#lv-title').textContent = data.name;
       SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true;
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
 
-  // ---------- Écoute du salon ----------
+  // ---------- Écoute du jeu en direct ----------
   function listen() {
     var r = roomRef(), t0 = now();
     function on(ref, ev, fn) { ref.on(ev, fn); st.refs.push([ref, ev, fn]); }
@@ -166,7 +191,7 @@
     on(r.child('chat').orderByChild('t').limitToLast(80), 'child_added', function (snap) {
       var m = snap.val(); dec(m.d).then(function (d) { addChat(d, m.t, snap.key); }).catch(function () { /* ignoré */ });
     });
-    on(r.child('closed'), 'value', function (v) { if (v.val() && !st.owner) finish('Le chef a terminé le salon.'); });
+    on(r.child('closed'), 'value', function (v) { if (v.val() && !st.owner) finish('Le chef a terminé le jeu en direct.'); });
     if (!st.owner) on(r.child('gameT'), 'value', function () { if (st.loaded) loadGame().catch(function () { /* ignoré */ }); });
   }
   var seen = {};
@@ -174,9 +199,29 @@
     if (seen[key]) return; seen[key] = 1;
     var box = $('#lv-chat'), mine = d.u === st.uid, el = document.createElement('div');
     el.className = 'lv-msg' + (mine ? ' mine' : '');
-    el.innerHTML = '<span class="lv-who" style="color:' + esc(d.c || '#475569') + '">' + esc(d.n || '?') + '</span> <time>' + hhmm(t || now()) + '</time><div>' + esc(d.m) + '</div>';
+    var meet = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(d.m || '');
+    if (meet && (now() - (t || now())) < 3 * 3600 * 1000) { st.call = meet[0]; showCall(); }
+    el.innerHTML = '<span class="lv-who" style="color:' + esc(d.c || '#475569') + '">' + esc(d.n || '?') + '</span> <time>' + hhmm(t || now()) + '</time><div>' + linkify(d.m) + '</div>';
     box.appendChild(el); box.scrollTop = box.scrollHeight;
-    if (!mine && !st.panelOpen && (now() - (t || 0)) < 30000) { st.unread++; badge(); }
+    if (!mine && (!st.panelOpen || st.lt === 'people') && (now() - (t || 0)) < 30000) { st.unread++; badge(); }
+  }
+  function linkify(s) {
+    return esc(s || '').replace(/(https?:\/\/[^\s<]+)/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + (/meet\.google\.com/.test(u) ? '📞 Rejoindre l’appel Meet' : u) + '</a>'; });
+  }
+  function showCall() { var a = $('#lv-call'); if (!a || !st.call) return; a.href = st.call; a.hidden = false; }
+  // Appel vocal : on ouvre Google Meet, puis le lien de la réunion est collé ici et envoyé aux chefs (cliquable)
+  function callDialog() {
+    var d = dlgOpen('<h2>Appel vocal avec les chefs</h2><p class="dlg-sub">1. Ouvrez Google Meet et démarrez une réunion.<br>2. Copiez le lien de la réunion et collez-le ci-dessous : il sera envoyé à tous les chefs, qui n’auront qu’à cliquer dessus.</p>' +
+      '<div class="dlg-actions" style="justify-content:flex-start"><a class="btn-ghost" href="https://meet.google.com/new" target="_blank" rel="noopener">1. Ouvrir Google Meet</a></div>' +
+      '<input class="lv-link" id="lv-meetlink" type="url" placeholder="https://meet.google.com/abc-defg-hij" aria-label="Lien de la réunion Meet">' +
+      '<div class="dlg-actions"><button class="btn-ghost" id="lv-mc" type="button">Annuler</button><button class="btn-primary" id="lv-ms" type="button">2. Envoyer le lien aux chefs</button></div>');
+    var i = $('#lv-meetlink', d); i.focus();
+    $('#lv-mc', d).addEventListener('click', function () { d.close(); });
+    function send() {
+      var v = i.value.trim(); if (!/^https?:\/\//i.test(v)) { toast('Collez le lien complet de la réunion (il commence par https://).'); return; }
+      sendChat('📞 Appel vocal : ' + v); d.close(); setLt('chat'); toast('Lien envoyé aux chefs.');
+    }
+    $('#lv-ms', d).addEventListener('click', send); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
   }
   function sendChat(m) {
     if (!st.room) return;
@@ -187,7 +232,7 @@
   function startSharing() {
     if (!navigator.geolocation) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
     if (st.watch !== null) return;
-    st.sharing = true; $('#lv-sharing').checked = true;
+    st.sharing = true; $('#lv-sharing').checked = true; saveSession();
     st.watch = navigator.geolocation.watchPosition(function (pos) {
       var c = pos.coords; st.lastFix = { lat: +c.latitude.toFixed(6), lon: +c.longitude.toFixed(6), acc: Math.round(c.accuracy || 0) };
       var t = Date.now(); if (t - st.lastSend < 2500) return; sendPos();
@@ -203,7 +248,7 @@
     }).catch(function () { /* hors réseau : on réessaie au prochain point */ });
   }
   function stopSharing() {
-    st.sharing = false; if ($('#lv-sharing')) $('#lv-sharing').checked = false;
+    st.sharing = false; if ($('#lv-sharing')) $('#lv-sharing').checked = false; if (st.room) saveSession();
     if (st.watch !== null) { navigator.geolocation.clearWatch(st.watch); st.watch = null; }
     clearInterval(st.hb);
     if (st.room && st.db) roomRef().child('pos/' + st.uid).remove().catch(function () { /* ignoré */ });
@@ -211,7 +256,7 @@
   function renderPeople() {
     if (!panel) return;
     var ids = Object.keys(st.people).sort(function (a, b) { return a === st.uid ? -1 : b === st.uid ? 1 : (st.people[a].n || '').localeCompare(st.people[b].n || ''); });
-    $('#lv-count').textContent = ids.length ? ids.length + ' en ligne' : '';
+    $('#lv-count').textContent = ids.length ? '(' + ids.length + ')' : '';
     $('#lv-people').innerHTML = ids.length ? ids.map(function (u) {
       var p = st.people[u], old = now() - p.t > 90000;
       return '<button type="button" class="lv-p' + (old ? ' old' : '') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c) + '">' + esc((p.n || '?').charAt(0).toUpperCase()) + '</i><b>' + esc(p.n || '?') + (u === st.uid ? ' (moi)' : '') + '</b><small>' + ago(p.t) + ' · ±' + p.acc + ' m</small></button>';
@@ -231,7 +276,7 @@
     var url = linkOf(), qr = qrcode(0, 'M'); qr.addData(url); qr.make();
     var d = dlgOpen('<h2>Inviter les autres chefs</h2><p class="dlg-sub">Ils scannent ce QR code avec l’appareil photo de leur téléphone : ils arrivent sur le jeu, saisissent leur prénom et partagent leur position. Tout est chiffré, et seul vous pouvez modifier le jeu.</p>' +
       '<div class="lv-qr">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
-      '<input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du salon">' +
+      '<input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du jeu en direct">' +
       '<div class="dlg-actions"><button class="btn-ghost" id="lv-copy" type="button">Copier le lien</button>' + (navigator.share ? '<button class="btn-ghost" id="lv-share" type="button">Envoyer…</button>' : '') + '<button class="btn-primary" id="lv-done" type="button">Terminé</button></div>');
     $('#lv-copy', d).addEventListener('click', function () { var i = $('#lv-link', d); i.select(); try { navigator.clipboard.writeText(url).then(function () { toast('Lien copié.'); }, function () { document.execCommand('copy'); toast('Lien copié.'); }); } catch (e) { document.execCommand('copy'); toast('Lien copié.'); } });
     var sh = $('#lv-share', d); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'Jeu en direct', text: 'Rejoins le jeu en direct sur ScoutMap', url: url }).catch(function () { /* annulé */ }); });
@@ -241,9 +286,9 @@
   // ---------- Fin ----------
   function endOrLeave() {
     if (!st.room) return;
-    if (!confirm(st.owner ? 'Terminer le salon ? Les autres chefs seront déconnectés et les positions effacées.' : 'Quitter le salon ?')) return;
+    if (!confirm(st.owner ? 'Terminer le jeu en direct ? Les autres chefs seront déconnectés et les positions effacées.' : 'Quitter le jeu en direct ?')) return;
     var r = roomRef(), p = st.owner ? r.update({ closed: true }).then(function () { return r.remove(); }) : Promise.resolve();
-    stopSharing(); p.catch(function () { /* ignoré */ }).then(function () { finish(st.owner ? 'Salon terminé.' : 'Vous avez quitté le salon.'); });
+    stopSharing(); p.catch(function () { /* ignoré */ }).then(function () { finish(st.owner ? 'Jeu en direct terminé.' : 'Vous avez quitté le jeu en direct.'); });
   }
   function finish(msg) {
     stopSharing(); st.refs.forEach(function (x) { try { x[0].off(x[1], x[2]); } catch (e) { /* ignoré */ } }); st.refs = [];
@@ -251,7 +296,7 @@
     gLive.clearLayers(); st.markers = {}; st.people = {}; seen = {};
     if (btn) btn.hidden = true; if (panel) panel.hidden = true;
     st.room = null; st.key = null; st.owner = false; st.lastGame = ''; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
-    try { sessionStorage.removeItem('scoutmap.live'); } catch (e) { /* ignoré */ }
+    clearSession();
     toast(msg);
   }
 
@@ -260,6 +305,7 @@
   var P; try { P = new URLSearchParams(location.search); } catch (e) { P = null; }
   var room = P && P.get('salle'), km = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);
   if (room && km) { build(); setTimeout(function () { join(room, km[1]); }, 400); }
+  else if (!room) setTimeout(resume, 800);
   else if (room) { build(); setTimeout(function () { toast('Lien incomplet : scannez de nouveau le QR code (il manque la clé).'); }, 600); }
   var gb = $('#game-live'); if (gb) gb.addEventListener('click', start);
 })();
