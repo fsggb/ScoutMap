@@ -32,7 +32,8 @@
   }
   function newStamp(el, p) {
     var th = themeById(D().theme);
-    return { id: SM.nid(), kind: 'stamp', pts: [p], icon: el.i, name: el.l, stroke: STY.iconColor || (th && th.color) || '#4a2c0f', fill: '#ffffff', alpha: 0, linked: false, weight: 3, dash: false,
+    var big = el.art ? 28 : el.flag ? 18 : 0;
+    return { id: SM.nid(), kind: 'stamp', pts: [p], icon: el.i, name: el.l, mm: big || undefined, stroke: el.col || STY.iconColor || (th && th.color) || '#4a2c0f', fill: '#ffffff', alpha: 0, linked: false, weight: 3, dash: false,
       text: '', fontColor: STY.iconText || (th && th.color) || '#12142b', size: 14, font: (th && th.font) || STY.font || 'arial', bold: true, italic: false, underline: false, align: 'center' };
   }
   // ---------- Terrains (zones à motif) et lignes décorées (rivière, route, muraille…) ----------
@@ -102,6 +103,21 @@
     themesP = new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'js/themes.js' + (VQ ? '?' + VQ : ''); sc.onload = res; sc.onerror = function () { themesP = null; rej(); }; document.head.appendChild(sc); });
     return themesP;
   }
+  var artP = null, ARTURI = {};
+  function loadArt() {
+    if (window.SM_ART) return Promise.resolve();
+    if (artP) return artP;
+    artP = new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'js/themes-art.js' + (VQ ? '?' + VQ : ''); sc.onload = res; sc.onerror = function () { artP = null; rej(); }; document.head.appendChild(sc); });
+    return artP;
+  }
+  function isArt(id) { return typeof id === 'string' && id.indexOf('om:') === 0; }
+  function artUri(id) {
+    var code = id.slice(3), svg = window.SM_ART && window.SM_ART[code]; if (!svg) return '';
+    return ARTURI[code] || (ARTURI[code] = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg));
+  }
+  function flagSvg(color, px) {
+    return '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><rect x="4.6" y="2" width="1.9" height="20.5" rx=".9" fill="#5a4630" stroke="#2b2b2b" stroke-width=".7"/><path d="M6.5 3.2C10 1.6 13.5 4.8 20.5 3.2V12.6C13.5 14.2 10 11 6.5 12.6Z" fill="' + color + '" stroke="#2b2b2b" stroke-width="1" stroke-linejoin="round"/></svg>';
+  }
   function stampPx(s, ll, map_) {
     var z = (map_ || map).getZoom(), mpp = 156543.03392 * Math.cos(ll.lat * Math.PI / 180) / Math.pow(2, z);
     var m = (s.mm || D().stampMm || 16) * (s._sc || D().scale || 10000) / 1000;
@@ -109,7 +125,7 @@
   }
   function stampIcon(s, px) {
     var d = window.SM_ICONS && window.SM_ICONS[s.icon], sw = px < 30 ? 36 : 26;
-    var svg = d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
+    var svg = s.icon === 'flag' ? flagSvg(esc(s.stroke), px) : isArt(s.icon) ? (artUri(s.icon) ? '<img src="' + artUri(s.icon) + '" width="' + px + '" height="' + px + '" draggable="false" alt="">' : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="#ccc" opacity=".6"/></svg>') : d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
       : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="' + esc(s.stroke) + '" opacity=".5"/></svg>';
     var cap = px < 22 ? '' : (s.text || (D().captions ? s.name : ''));
     var lab = cap ? '<span class="gstamp-l" style="color:' + esc(s.fontColor) + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + '">' + esc(cap).replace(/\n/g, '<br>') + '</span>' : '';
@@ -131,6 +147,8 @@
   // ---------- Légende : une ligne par type d'élément ou de zone nommé (écran et cartes imprimées) ----------
   function swatch(s) {
     var c = s.stroke, f = s.fill, a = s.alpha > 0 ? s.alpha : 0, da = s.dash ? ' stroke-dasharray="4 3"' : '';
+    if (s.kind === 'stamp' && s.icon === 'flag') return flagSvg(esc(c), 20);
+    if (s.kind === 'stamp' && isArt(s.icon)) return artUri(s.icon) ? '<img src="' + artUri(s.icon) + '" alt="">' : '';
     if (s.kind === 'stamp') { var d = window.SM_ICONS && window.SM_ICONS[s.icon]; return d ? '<svg viewBox="0 0 512 512"><path d="' + d + '" fill="' + esc(c) + '"/></svg>' : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="' + esc(c) + '"/></svg>'; }
     if (s.kind === 'line') return '<svg viewBox="0 0 24 14"><path d="M2 7h20" stroke="' + esc(c) + '" stroke-width="3" fill="none"' + da + '/></svg>';
     if (s.kind === 'arrow') return '<svg viewBox="0 0 24 14"><path d="M2 7h17M14 2l6 5-6 5" stroke="' + esc(c) + '" stroke-width="2.5" fill="none"/></svg>';
@@ -206,7 +224,7 @@
         break;
       case 'cross': ob.marker = add(L.marker(s.pts[0], { icon: crossIcon(s), interactive: inter, draggable: inter && !o.stored, keyboard: false })); break;
       case 'text': ob.marker = add(L.marker(s.pts[0], { icon: textIcon(s), interactive: inter, draggable: inter && !o.stored, keyboard: false })); break;
-      case 'stamp': ob.marker = add(new StampMarker(s.pts[0], s, { icon: stampIcon(s, 40), interactive: inter, draggable: inter && !o.stored, keyboard: false })); if (!window.SM_ICONS) loadThemes().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }); break;
+      case 'stamp': ob.marker = add(new StampMarker(s.pts[0], s, { icon: stampIcon(s, 40), interactive: inter, draggable: inter && !o.stored, keyboard: false })); if (!window.SM_ICONS) loadThemes().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }); if (isArt(s.icon) && !window.SM_ART) loadArt().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }); break;
     }
     if (ob.marker && inter && !o.stored) {
       ob.marker.on('dragstart', function () { select(s.id); });
@@ -524,7 +542,8 @@
   function scaleBtns(sel) { return SCALES.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join(''); }
   function stampBtns(list, color) {
     return list.map(function (e) {
-      return '<button type="button" class="gst' + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" title="' + esc(e.l) + '">' + ico(e.i, color, 44) + '<span>' + esc(e.l) + '</span></button>';
+      var im = e.art ? (artUri(e.i) ? '<img src="' + artUri(e.i) + '" width="46" height="46" alt="">' : '<span class="gst-ph"></span>') : e.flag ? flagSvg(e.col, 44) : ico(e.i, color, 44);
+      return '<button type="button" class="gst' + (e.art ? ' art' : '') + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" data-col="' + esc(e.col || '') + '" data-art="' + (e.art ? 1 : '') + '" data-flag="' + (e.flag ? 1 : '') + '" title="' + esc(e.l) + '">' + im + '<span>' + esc(e.l) + '</span></button>';
     }).join('');
   }
   function zoneBtns(list) { return list.map(function (z) { return '<button type="button" class="gz' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '"><i style="background:' + z.f + ';opacity:' + (0.4 + z.a) + '"></i><span>' + esc(z.l) + '</span></button>'; }).join(''); }
@@ -538,16 +557,20 @@
       $('#gs-st-size').textContent = (D().stampMm || 16) + ' mm'; $('#gcaptions').checked = !!D().captions; $('#gparch').checked = !!D().parch;
       $('#gtheme-info').textContent = th ? 'Thème : ' + th.name + '. Il se choisit à la création du jeu ; pour en changer, créez un nouveau grand jeu.' : perso ? 'Jeu personnalisé (sans thème).' : 'Aucun thème choisi pour ce jeu.';
       $('#gtheme-choose').hidden = !!D().themeLocked;
-      $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ');
+      $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ') + ' — Illustrations en couleur : OpenMoji (CC BY-SA 4.0), openmoji.org';
     }
     // palette (onglet Poser)
-    var cats = th ? ['all'].concat(th.cats) : [];
+    var artL = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []) : [];
+    if (!window.SM_ART && th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
+    var cats = th ? ['all'].concat(th.cats).concat(artL.length ? ['Illustrations'] : []) : [];
     $('#gcats').innerHTML = cats.map(function (c) { return '<button type="button" data-c="' + esc(c) + '" class="' + (GCAT === c ? 'on' : '') + '">' + (c === 'all' ? 'Tout' : esc(c)) + '</button>'; }).join('');
     $('#gcats').hidden = !th;
-    var els = th ? th.el.filter(function (e) { return GCAT === 'all' || e.c === GCAT; }) : [];
+    var els = th ? th.el.concat(artL).filter(function (e) { return GCAT === 'all' || e.c === GCAT; }) : [];
+    if (th && GCAT === 'all') els = artL.concat(th.el);       // les illustrations en couleur d'abord
     $('#gstamps').innerHTML = th ? stampBtns(els, th.color) : '<p class="gtab-help">' + (window.SM_THEMES ? 'Jeu sans thème : utilisez les repères, les zones et les formes libres ci-dessous.' : 'Chargement…') + '</p>';
     $('#gth-name').textContent = th ? th.name : '';
-    $('#gcommon').innerHTML = stampBtns(window.SM_COMMON || [], '#12142b');
+    var FLAGS = [['#c0262d', 'rouge'], ['#2563eb', 'bleu'], ['#1a7f37', 'vert'], ['#e0a800', 'jaune']].map(function (f) { return { i: 'flag', l: 'Équipe ' + f[1], c: 'Repères', col: f[0], flag: 1 }; });
+    $('#gcommon').innerHTML = stampBtns(FLAGS.concat(window.SM_ART_COMMON || [], window.SM_COMMON || []), '#12142b');
     $('#gzones').innerHTML = zoneBtns((th ? th.z : []).concat(window.SM_ZONES || []));
     $('#glines').innerHTML = lineBtns(th ? th.ln : []);
     $$('#gzshape button').forEach(function (b) { b.classList.toggle('on', b.dataset.zs === ZSHAPE); });
@@ -574,7 +597,7 @@
     if (!DRG) return;
     var px = e.containerPoint.distanceTo(DRG.pt) * 2; if (px < 14) return;
     DRG.moved = true; DRG.px = px;
-    var fake = { icon: STAMP.i, stroke: STY.iconColor || '#4a2c0f', text: '', size: 14, fontColor: '#000', font: 'arial' };
+    var fake = { icon: STAMP.i, stroke: STAMP.col || STY.iconColor || '#4a2c0f', text: '', size: 14, fontColor: '#000', font: 'arial' };
     if (drgMk) gDraft.removeLayer(drgMk);
     drgMk = L.marker(DRG.ll, { icon: stampIcon(fake, Math.round(Math.min(px, 600))), interactive: false, opacity: 0.8 }).addTo(gDraft);
   });
@@ -642,7 +665,7 @@
     $('#gcats').addEventListener('click', function (e) { var b = e.target.closest('button[data-c]'); if (b) { GCAT = b.dataset.c; renderThemes(); } });
     function pick(e) {
       var b = e.target.closest('button[data-i]'); if (!b) return;
-      STAMP = { i: b.dataset.i, l: b.dataset.l }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
+      STAMP = { i: b.dataset.i, l: b.dataset.l, col: b.dataset.col || '', art: !!b.dataset.art, flag: !!b.dataset.flag }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
     }
     $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick);
     $('#gzones').addEventListener('click', function (e) {
@@ -694,6 +717,7 @@
       else if (f === 'weight') on = kind !== 'stamp';
       else if (f === 'stampsize') on = kind === 'stamp';
       else if (f === 'legendname') on = !!s && s.kind !== 'text';
+      else if (f === 'stroke' && s && s.kind === 'stamp' && isArt(s.icon)) on = false;
       else if (f === 'text') on = isT || kind === 'stamp';
       show(r, on);
     });
@@ -843,7 +867,7 @@
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
   function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); map.getContainer().classList.remove('parch'); }
 
-  SM.game = { theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();

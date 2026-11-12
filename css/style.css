@@ -963,6 +963,9 @@ body.doc-open .home{display:none!important}
 .gcal-cv{pointer-events:none}
 
 .th-cal{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;height:100%;padding:8px}.th-cal i{font-style:normal;font-size:12px;font-weight:700;color:var(--navy);padding:4px 9px;border-radius:8px;background:#fbf6e8;border:1.5px dashed #b9a875}
+.gst.art{background:#fffdf4;border-color:#e4d9b3}.gst.art img{display:block}.gst-ph{display:block;width:46px;height:46px}
+.gstamp img{display:block;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.gl-sw img{width:100%;height:100%;object-fit:contain}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
