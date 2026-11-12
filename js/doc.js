@@ -231,9 +231,9 @@
 
   // ---------- Construction du document ----------
   function kpi(l, v) { return '<div><span>' + l + '</span><b>' + v + '</b></div>'; }
-  function head(title, sub) {
+  function head(title, sub, pg) {
     return '<header class="d-head"><img src="assets/fsggb.png" alt=""><div><h1>' + esc(title) + '</h1><p class="d-sub">' + sub + '</p></div>' +
-      '<div class="d-tag">ScoutMap<br>FSGGB</div></header>';
+      '<div class="d-tag">ScoutMap<br>FSGGB' + (pg ? '<br><b>Page ' + pg + '</b>' : '') + '</div></header>';
   }
   function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>' + creditText() + footDate() + '</span></footer>'; }
   function creditText() { var l = SM.LAYERS[S.base], a = (l.attr || '© IGN – Géoplateforme').replace(/<[^>]+>/g, ''); return 'Fond : ' + l.label + ' · ' + a + (S.ov.hiking ? ' · Sentiers : Waymarked Trails' : ''); }
@@ -242,8 +242,9 @@
     var el = document.createElement('article');
     el.className = 'sheet'; el.contentEditable = 'true'; el.spellcheck = false;
     el.style.cssText = '--pw:' + pw + 'mm;--ph:' + ph + 'mm;--pm:' + pm + 'mm';
-    $('#doc-pages').appendChild(el); return el;
+    addPage(el); return el;
   }
+  function addPage(el) { var l = $('#doc-loading'); if (l) $('#doc-pages').insertBefore(el, l); else $('#doc-pages').appendChild(el); }
 
   function buildDoc(c) {
     var tok = ++BT;
@@ -275,7 +276,7 @@
   // ----- Document complet : feuille de route, carte générale, puis les cartes de l'itinéraire (index + feuilles F1, F2…)
   function setProgress(done, total, msg) {
     var f = total ? done / total : 0;
-    $('#doc-prog-i').style.width = Math.round(f * 100) + '%'; $('#doc-prog').hidden = done >= total;
+    $('#doc-prog-i').style.width = Math.round(f * 100) + '%'; $('#doc-prog').hidden = done >= total; $('#doc-spin').hidden = done >= total;
     $('#doc-status').textContent = msg || '';
   }
   function buildCombo(c, tok) {
@@ -285,20 +286,20 @@
     if (pl && pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
     closeMaps();
     $('#page-style').textContent = '@page pp{size:' + c.paper + ' portrait;margin:0}@page pl{size:' + c.paper + ' landscape;margin:0}@page{size:' + c.paper + ' portrait;margin:0}';
-    $('#doc-pages').innerHTML = ''; $('#doc-side').innerHTML = '';
+    $('#doc-pages').innerHTML = '<div class="doc-loading" id="doc-loading"><i class="spin"></i><span>Chargement des feuilles…</span></div>'; $('#doc-side').innerHTML = '';
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var total = rf.length + (c.onesheet ? 1 : 0) + (pl ? pl.pages.length + 1 : 0), done = 0;
     setBusy(true); setProgress(0, total, 'Préparation du document…');
     var chain = Promise.resolve();
-    function step(msg, fn) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setProgress(done, total, msg); return fn(); }).then(function () { done++; }); }
+    function step(msg, fn) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setProgress(done, total, msg); return fn(); }).then(function () { done++; if (tok === BT) addThumbs(tok, false); }); }
     if (rf.length) {
       chain = chain.then(function () { return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
       rf.forEach(function (it) {
         step('Feuille de route…', function () {
+          if (it.type === 'route') return roadmapPages(c, it, P, pm);
           var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
-          var cc = { type: 'simple', title: '', overview: true, profile: true, notes: true, paper: c.paper };
-          return it.type === 'route' ? routeSheet(cc, it, sh, P[0] - 2 * pm, rf.length) : azSheet(cc, it, sh, P[0] - 2 * pm, rf.length);
+          return azSheet({ type: 'simple', title: '', overview: true, profile: true, notes: true, paper: c.paper }, it, sh, P[0] - 2 * pm, rf.length);
         });
       });
     }
@@ -319,16 +320,18 @@
     var sizes = '';
     $('#page-style').textContent += sizes;
     chain.then(function () { return Promise.all(docMaps.map(function (m) { return m._ready; })); })
-      .then(function () { if (tok !== BT) return; setProgress(total, total, ''); setBusy(false); buildThumbs(tok); })
+      .then(function () { if (tok !== BT) return; setProgress(total, total, ''); var l = $('#doc-loading'); if (l) l.remove(); setBusy(false); addThumbs(tok, true); })
       .catch(function (e) { if (e === ABORT) return; setBusy(false); setProgress(total, total, ''); SM.toast(e && e.message || 'Document incomplet.'); });
   }
-  // Miniatures latérales (copie réduite de chaque feuille), cliquables
-  function buildThumbs(tok) {
-    var side = $('#doc-side'); side.innerHTML = '';
+  // Miniatures latérales (copie réduite de chaque feuille), cliquables ; ajoutées au fur et à mesure du chargement
+  function addThumbs(tok, all) {
+    var side = $('#doc-side'); if (all) side.innerHTML = '';
     $$('#doc-pages .sheet').forEach(function (sh, i) {
       if (tok !== BT) return;
+      if (!all && (sh._thumb || !sh.querySelector('.leaflet-tile-loaded, .d-svgbox, .idx-chips') && sh.querySelector('.leaflet-container'))) return;
+      sh._thumb = true;
       var W = 128, w = sh.offsetWidth, h = sh.offsetHeight, s = W / w;
-      var b = document.createElement('button'); b.className = 'dthumb'; b.type = 'button'; b.title = 'Aller à la page ' + (i + 1);
+      var b = document.createElement('button'); b.className = 'dthumb'; b.type = 'button'; b.title = 'Aller à la page ' + (i + 1); b.dataset.i = i;
       b.style.width = W + 'px'; b.style.height = Math.round(h * s) + 'px';
       var cl = sh.cloneNode(true); cl.removeAttribute('id'); cl.removeAttribute('contenteditable');
       $$('[id]', cl).forEach(function (x) { x.removeAttribute('id'); });
@@ -336,10 +339,9 @@
       b.appendChild(cl);
       var n = document.createElement('i'); n.textContent = String(i + 1); b.appendChild(n);
       b.addEventListener('click', function () { sh.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-      side.appendChild(b);
+      var old = $('.dthumb[data-i="' + i + '"]', side); if (old) side.replaceChild(b, old); else side.appendChild(b);
     });
   }
-
   function setBusy(b, msg) {
     $('#doc-print').disabled = b; $('#doc-pdf').disabled = b;
   }
@@ -351,7 +353,7 @@
     var el = document.createElement('article');
     el.className = 'sheet tile ' + (orient === 'landscape' ? 'pl' : 'pp') + (idx ? ' idx' : ''); el.spellcheck = false;
     el.style.cssText = '--pw:' + pw + 'mm;--ph:' + ph + 'mm;--pm:' + pm + 'mm';
-    $('#doc-pages').appendChild(el); return el;
+    addPage(el); return el;
   }
   function pageSheet(pl, pg, items, o) {
     var land = pg.orient === 'landscape', pw = land ? o.P[1] : o.P[0], ph = land ? o.P[0] : o.P[1];
@@ -450,6 +452,78 @@
     return '<section class="d-sec d-bottom"><div class="d-notes"><h2>Notes</h2><div class="lines"><br><br><br></div></div>' +
       '<div class="d-urg"><h2>' + PH + ' Numéros d’urgence</h2>' + rows.map(function (r) {
         return '<div class="u-row"><span>' + PH + '<span class="u-n">' + esc(r[0]) + '</span></span><b>' + esc(r[1] || '…………………') + '</b></div>'; }).join('') + '</div></section>';
+  }
+
+  // ----- Feuille de route en deux pages : 1) chiffres, carte, profil, urgences et responsables ; 2) étapes, notes et message de bon raid
+  function ascBetween(p, d0, d1) {
+    var a = 0, prev = null;
+    for (var i = 0; i < p.pts.length; i++) { var q = p.pts[i]; if (q.d < d0) continue; if (q.d > d1) break; if (prev !== null && q.z > prev) a += q.z - prev; prev = q.z; }
+    return a;
+  }
+  var ICO_TEL = '<svg class="ph" viewBox="0 0 24 24" width="13" height="13"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z" fill="currentColor"/></svg>';
+  var ICO_MAIL = '<svg class="ph" viewBox="0 0 24 24" width="13" height="13"><path d="M3 6h18v12H3z M3 7l9 6 9-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  var ICO_PIN = '<svg class="ph" viewBox="0 0 24 24" width="13" height="13"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9.5" r="2.4" fill="currentColor"/></svg>';
+  function fld(ico, label, long) { return '<div class="fld">' + ico + '<span>' + label + '</span><i class="fl' + (long ? ' lg' : '') + '">&nbsp;</i></div>'; }
+  function contactsBlock() {
+    var urg = [['112', 'Urgences (Europe)'], ['15', 'SAMU'], ['18', 'Pompiers'], ['17', 'Police · Gendarmerie']];
+    return '<section class="d-sec d-bottom"><div class="d-urg"><h2>' + ICO_TEL + ' Numéros d’urgence</h2>' +
+      urg.map(function (r) { return '<div class="u-row"><span class="u-n">' + r[1] + '</span><b>' + r[0] + '</b></div>'; }).join('') + '</div>' +
+      '<div class="d-resp"><h2>' + ICO_TEL + ' Responsables du raid</h2>' +
+      fld(ICO_TEL, 'Nom, prénom', true) + fld(ICO_TEL, 'Téléphone') + fld(ICO_TEL, 'Nom, prénom', true) + fld(ICO_TEL, 'Téléphone') +
+      fld(ICO_MAIL, 'Courriel', true) + fld(ICO_PIN, 'Lieu du camp', true) + '</div></section>';
+  }
+  function roadmapPages(c, it, P, pm) {
+    var d = it.data, r = it.res, uid = String(d.id), cw = P[0] - 2 * pm, loop = SM.loopOf(d);
+    var s1 = newSheet(null, P[0], P[1], pm), s2 = newSheet(null, P[0], P[1], pm);
+    s1.className += ' rf pp'; s2.className += ' rf pp';
+    var title = it.name || 'Itinéraire';
+    if (!r) { s1.innerHTML = head(title, 'Itinéraire non calculé', '1 / 2') + '<p class="d-warn">Cet itinéraire n’a pas encore de tracé calculé.</p>' + foot(); s2.remove(); return Promise.resolve(); }
+    return SM.profileFor(r.line).then(function (p) {
+      var rows = stepsTable(d, r, p), sub = esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · '));
+      var walk = ((r.dist / 1000) / S.speed + (p ? p.asc / 400 : 0)) * 3600;
+      // ---------- page 1
+      var h = head(title, sub, '1 / 2') + '<section class="d-kpis">' + kpi('Distance', G.fmtDist(r.dist)) + (p ? kpi('Dénivelé +', '+ ' + Math.round(p.asc) + ' m') + kpi('Dénivelé −', '− ' + Math.round(p.desc) + ' m') : '') +
+        kpi('Durée de marche', G.fmtDur(walk)) + kpi('Étapes', String(rows.length)) + '</section>';
+      h += '<section class="d-sec"><h2>Vue d’ensemble</h2><div class="d-mapbox" id="rov' + uid + '" contenteditable="false"></div></section>';
+      if (p) h += '<section class="d-sec"><h2>Profil d’altitude</h2><div class="d-svgbox" contenteditable="false"><svg id="rsv' + uid + '"></svg></div></section>';
+      h += contactsBlock() + foot();
+      s1.innerHTML = h;
+      // ---------- page 2
+      var sum = p ? 'Altitude de ' + Math.round(p.min) + ' à ' + Math.round(p.max) + ' m' : '';
+      var tb = '<table class="rt"><thead><tr><th class="c">N°</th><th>Étape</th><th class="r">Distance</th><th class="r">Cumul</th><th class="r">Alt.</th><th class="r">D+</th><th class="arr">Date et heure d’arrivée</th></tr></thead><tbody>' +
+        rows.map(function (x, i) {
+          var up = p && i > 0 ? ascBetween(p, rows[i - 1].d, x.d) : null;
+          return '<tr><td class="c"><span class="rb ' + x.cls + '">' + esc(x.lab) + '</span></td><td><b>' + esc(x.name) + '</b><br><span class="d-note" style="margin:0">' + esc(x.sub) + '</span></td>' +
+            '<td class="r">' + (x.leg ? G.fmtDist(x.leg) : '–') + '</td><td class="r">' + (x.cum ? G.fmtDist(x.cum) : '–') + '</td><td class="r">' + (x.alt == null ? '–' : Math.round(x.alt) + ' m') + '</td>' +
+            '<td class="r">' + (up == null ? '–' : '+ ' + Math.round(up) + ' m') + '</td><td class="arr"><span>le <i class="fl sm">&nbsp;</i> / <i class="fl sm">&nbsp;</i></span><span>à <i class="fl sm">&nbsp;</i> h <i class="fl sm">&nbsp;</i></span></td></tr>';
+        }).join('') + '</tbody></table>';
+      s2.innerHTML = head(title, sub, '2 / 2') + (sum ? '<p class="d-note rt-sum">' + esc(sum) + ' · allure : ' + S.speed + ' km/h</p>' : '') +
+        '<section class="d-sec"><h2>Les étapes</h2>' + tb + '</section>' +
+        '<section class="d-sec d-notes"><h2>Notes</h2><div class="lines"><br><br><br><br><br></div></section>' +
+        '<div class="goodraid"><b>Bon raid !</b><span>Restez groupés, soyez prudents et profitez du paysage.</span></div>' + foot();
+      // l'en-tête modifié sur la page 1 se répercute sur la page 2
+      [['h1'], ['.d-sub']].forEach(function (sel) {
+        var a = s1.querySelector('.d-head ' + sel[0]), b = s2.querySelector('.d-head ' + sel[0]);
+        if (a && b) a.addEventListener('input', function () { b.textContent = a.textContent; });
+      });
+      // hauteurs de la carte et du profil ajustées pour que la page 1 tienne sur une feuille, avant de créer la carte
+      var ov = $('#rov' + uid, s1), sv = $('#rsv' + uid, s1), pagePx = P[1] * MM, cw0 = Math.floor(cw * MM);
+      var mh = Math.round(Math.min(cw0 * 0.75, 100 * MM)), ph = p ? Math.round(34 * MM) : 0;
+      function apply() { ov.style.height = mh + 'px'; if (sv) { sv.setAttribute('height', ph); sv.style.height = ph + 'px'; } }
+      function over() { apply(); return s1.scrollHeight - pagePx; }
+      if (over() > 1 && sv) ph = Math.max(80, ph - over());
+      if (over() > 1) mh = Math.max(200, mh - over());
+      if (over() > 1 && sv) ph = Math.max(60, ph - over());
+      if (over() > 1) mh = Math.max(150, mh - over());
+      apply();
+      var m = makeMap(ov, cw0, mh, Math.max(1, SM.wantOff())), b = boundsOf(drawItems(m, [it]));
+      if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
+      L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
+      if (sv && p) {
+        var marks = rows.length <= 14 ? rows.map(function (x) { return { d: x.d, z: x.alt == null ? 0 : x.alt, t: x.lab, c: x.cls === 'start' ? '#1a7f37' : x.cls === 'end' ? '#b4232c' : '#000761' }; }) : [];
+        SM.renderProfileSvg(sv, p, cw0, ph, 'rpg' + uid, marks);
+      }
+    });
   }
 
   function routeSheet(c, it, sheet, cw, count) {

@@ -80,10 +80,11 @@
   </nav>
   <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
   <div class="mb-right">
+    <button class="btn-ghost sm light" id="btn-edit" hidden title="Ouvrir ce raid dans ScoutMap pour le modifier"><svg class="ic"><use href="#i-edit"/></svg><span>Modifier</span></button>
     <button class="btn-ghost sm light" id="btn-tuto" title="Voir le tutoriel vidéo"><svg class="ic"><use href="#i-play"/></svg><span>Tutoriel</span></button>
     <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
-    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
+    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Imprimer / PDF</span></button>
   </div>
 </header>
 <div class="dropdown" id="dropdown" hidden role="menu"></div>
@@ -336,6 +337,23 @@
   <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
 </dialog>
 
+<div class="home" id="home" hidden>
+  <div class="home-in">
+    <img class="home-logo" src="assets/fsggb.png" alt="" width="64" height="64">
+    <h1>Que voulez-vous faire ?</h1>
+    <p class="home-sub">Un outil de la Fédération des Scouts et Guides Godefroy de Bouillon pour préparer les raids : itinéraires, azimuts et grand jeu, sur de vraies cartes imprimables.</p>
+    <div class="home-grid">
+      <button class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Un travail enregistré (.json ou page web .html) ou une trace GPX, KML, GeoJSON.</small></button>
+      <button class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Créer un itinéraire</b><small>Parcours ou boucle à pied, profil d’altitude, feuille de route.</small></button>
+      <button class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Créer des azimuts</b><small>Course d’orientation : azimuts, contre-azimuts, distances.</small></button>
+      <button class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Créer un grand jeu</b><small>Zones, flèches, croix et textes de couleur sur la carte.</small></button>
+    </div>
+    <h2 class="proj-h">Vos travaux dans ce navigateur</h2>
+    <ul class="proj-rows" id="proj-rows"></ul>
+    <p class="proj-note">Ils sont enregistrés automatiquement dans ce navigateur. Si vous effacez ses données, ils seront perdus : téléchargez ceux qui comptent.</p>
+  </div>
+</div>
+
 <dialog id="dlg-tuto" class="dlg-wide">
   <h2>Tutoriel vidéo</h2>
   <video id="tuto-video" controls preload="none" playsinline poster="assets/fsggb.png"></video>
@@ -388,7 +406,7 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
-    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small id="doc-status"></small></div>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small><i class="spin" id="doc-spin" hidden></i><span id="doc-status"></span></small></div>
     <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>
   <div class="doc-prog" id="doc-prog" hidden><i id="doc-prog-i"></i></div>
