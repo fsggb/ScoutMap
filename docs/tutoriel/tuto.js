@@ -27,7 +27,7 @@ const SEED = [
   { id: 14, name: 'Grand jeu – chasse au trésor', kinds: ['Grand jeu'], updated: NOW - 86400e3 * 9, data: { app: 'ScoutMap', v: 1, name: 'Grand jeu – chasse au trésor', rail: 'game', base: 'otm', route: { wps: [] }, az: { pts: [] }, tracks: [],
     game: { shapes: [{ id: 5, kind: 'polygon', pts: [[45.2, 5.7], [45.21, 5.74], [45.19, 5.75]], fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 3, dash: false, fontColor: '#12142b', size: 18, text: '' }] } } }
 ];
-const T = 'fr_FR-tom-medium', F = 'fr_FR-siwis-medium', U = 'fr_FR-upmc-medium';
+const T = 'fr_FR-siwis-medium', F = T, U = T;
 let clipEnd = 0, CUTS = [];
 const cutWait = async fn => {
   const rest = clipEnd - Date.now(); if (rest > 0) await wait(rest + 200);
@@ -46,13 +46,21 @@ const STEPS = [
     await clickSel('#suggest li'); await wait(2000);
     await p.evaluate(() => window.SM.map.setView([43.0306, 0.5722], 11, { animate: false })); await wait(1000);
   }],
+  [T, 'Le bouton Édition, avec un stylo, est activé : un clic sur la carte pose un point. Le cadenas verrouille la carte, pour la déplacer sans rien poser.', async () => {
+    const sel = '#panel [data-pane=route] [data-edit]';
+    await moveTo(sel); await wait(1200); await clickSel(sel); await wait(1600); await clickSel(sel); await wait(800);
+  }],
   [T, 'Cliquez sur la carte pour poser le départ, puis les étapes. Pour une grande boucle, gardez des points assez éloignés les uns des autres.', async () => {
     for (const [dx, dy] of [[-30, 10], [110, -100], [210, -10], [170, 100], [20, 125], [-110, 70]]) { await clickOff(dx, dy); await wait(1500); }
   }],
   [T, 'La boucle se calcule automatiquement, avec la distance, le dénivelé et le profil d’altitude.', async () => { await cutWait(routeReady); await wait(1500); await moveTo('#dock'); await wait(1200); }],
-  [T, 'Quand la carte est dézoomée, chaque point se place tout seul sur le village, le hameau ou le chemin le plus proche. Un clic droit sur un point permet de le remettre là où vous avez cliqué.', async () => {
+  [T, 'Tout est automatique : chaque point se place sur le village ou le chemin le plus proche, l’ordre des points est optimisé, et la boucle est calculée sans repasser deux fois au même endroit. Un clic droit sur un point permet de le remettre là où vous avez cliqué, ou de le supprimer.', async () => {
     const pt = await p.evaluate(() => { const w = window.SM.S.route.wps[2], q = window.SM.map.latLngToContainerPoint([w.lat, w.lon]), r = window.SM.map.getContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; });
-    await move(pt[0], pt[1]); await wait(300); await p.mouse.click(pt[0], pt[1], { button: 'right' }); await wait(3800); await p.keyboard.press('Escape'); await wait(300);
+    await move(pt[0], pt[1]); await wait(300); await p.mouse.click(pt[0], pt[1], { button: 'right' }); await wait(5200); await p.keyboard.press('Escape'); await wait(300);
+  }],
+  [T, 'Vous pouvez aussi supprimer un point avec la touche Suppr, inverser le sens du parcours, ou réduire la liste des points avec la petite flèche.', async () => {
+    await moveTo('#wps li:nth-child(2)'); await wait(900); await moveTo('#route-reverse'); await wait(1300);
+    await clickSel('#wps-toggle'); await wait(1400); await clickSel('#wps-toggle'); await wait(500);
   }],
   [T, 'Vous pouvez aussi fixer une distance maximale. Elle n’est pas bloquante : elle sert seulement d’indication, et le tracé passe en rouge dès qu’on la dépasse.', async () => {
     await clickSel('label.switch:has(#max-on)'); await wait(500);
@@ -66,28 +74,14 @@ const STEPS = [
     await clickSel('#pop-tabs [data-tab=base]'); await wait(800);
     await move(900, 250); await p.mouse.down(); await p.mouse.up(); await wait(300);
   }],
-  [T, 'Pour garder votre travail, ouvrez le menu Fichier. Enregistrer le travail crée un fichier modifiable, avec tous vos points. L’export en page web crée un fichier que n’importe qui peut ouvrir, sans outil d’édition, avec un bouton Modifier pour le rouvrir ici. La trace GPX, elle, se lit dans toutes les applications de randonnée, mais ne peut pas être modifiée dans ScoutMap.', async () => {
+  [T, 'Pour garder votre travail, ouvrez le menu Fichier. Enregistrer crée une page web, qui se rouvre dans ScoutMap et que vous pouvez partager. Exporter crée une trace GPX, pour les autres applications, mais elle ne peut pas être modifiée.', async () => {
     await clickSel('.menu-btn[data-menu=file]'); await wait(800);
-    for (const t of ['fichier modifiable', 'page web', 'trace en GPX']) { const it = await p.$('.mi:has-text("' + t + '")'); if (it) { const b = await it.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 16); await wait(3300); } }
+    for (const t of ['Enregistrer (page web', 'Exporter la trace']) { const it = await p.$('.mi:has-text("' + t + '")'); if (it) { const b = await it.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 16); await wait(4200); } }
     await p.keyboard.press('Escape'); await p.mouse.click(900, 300); await wait(300);
   }],
-  [F, 'L’onglet Azimuts sert à la course d’orientation : posez des points, et vous obtenez les azimuts, les contre-azimuts et les distances.', async () => {
-    await clickSel('.rail-btn[data-rail=az]'); await wait(600);
-    for (const [dx, dy] of [[-120, 40], [20, -80], [170, 30]]) { await clickOff(dx, dy); await wait(1200); }
-  }],
-  [U, 'Dans Grand jeu, choisissez un outil, puis dessinez. Pour une zone, cliquez les sommets l’un après l’autre, puis faites un double-clic pour terminer.', async () => {
-    await clickSel('.rail-btn[data-rail=game]'); await wait(500);
-    await clickSel('#gtools [data-gt=polygon]'); await wait(300);
-    for (const [dx, dy] of [[-150, -90], [130, -100], [150, 60]]) { await clickOff(dx, dy); await wait(700); }
-    const [cx, cy] = await centerPx(); await move(cx - 140, cy + 70); await wait(400); await p.mouse.dblclick(cx - 140, cy + 70); await wait(900);
-  }],
-  [U, 'Les couleurs se règlent avec les pastilles : cliquez sur Remplissage pour la couleur et la transparence, sur Contour pour le trait, ou sur Texte pour le gras et le souligné.', async () => {
-    await clickSel('#gbar [data-pop=fill]'); await wait(2200);
-    await clickSel('#gbar [data-pop=stroke]'); await wait(2200);
-  }],
-  [T, 'Attention : l’impression concerne toujours l’onglet en cours. Revenons sur Itinéraire : c’est donc l’itinéraire qui sera imprimé.', async () => { await clickSel('.rail-btn[data-rail=route]'); await wait(1500); }],
-  [T, 'Cliquez sur Imprimer, puis PDF.', async () => { await clickSel('#btn-pdf'); await wait(1000); }],
-  [T, 'Cochez ce que vous voulez imprimer : la feuille de route, les cartes de l’itinéraire, ou une carte générale. Les vignettes montrent ce que vous obtiendrez.', async () => {
+  [T, 'Bon à savoir : l’impression porte uniquement sur ce que vous voyez dans l’onglet affiché. Si vous êtes dans l’onglet Itinéraire, c’est l’itinéraire qui sera imprimé.', async () => { await clickSel('.rail-btn[data-rail=route]'); await wait(1500); }],
+  [T, 'Pour imprimer, cliquez sur le bouton Imprimer, puis PDF, en haut à droite.', async () => { await clickSel('#btn-pdf'); await wait(1000); }],
+  [T, 'Sélectionnez les documents que vous voulez imprimer : la feuille de route, les cartes de l’itinéraire, ou une carte générale. Les petites images montrent ce que vous obtiendrez.', async () => {
     for (const k of ['roadmap', 'maps', 'onesheet']) { const el = await p.$('#doc-types [data-k=' + k + ']'); const b = await (await el.evaluateHandle(e => e.closest('.dcard'))).asElement().boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 18); await wait(1500); }
   }],
   [T, 'Choisissez ensuite le papier, A4 ou A3, et l’échelle des cartes.', async () => {
@@ -105,14 +99,24 @@ const STEPS = [
   }],
   [T, 'La page 2 contient le tableau des étapes, avec les cases de date et d’heure à remplir, puis les notes et un message de bon raid.', async () => { await p.evaluate(() => { const sc = document.querySelector('.doc-scroll'); sc.scrollBy({ top: 520, behavior: 'smooth' }); }); await wait(4500); }],
   [T, 'Enfin, cliquez sur Imprimer pour utiliser votre imprimante, ou sur Enregistrer en PDF pour obtenir un fichier.', async () => { await moveTo('#doc-pdf'); await wait(1800); await moveTo('#doc-print'); await wait(1800); }],
-  [T, 'Voilà, vous savez tout. Si vous avez des questions, un problème ou une idée d’amélioration, n’hésitez pas à contacter le service informatique de la fédération. Bonne route avec ScoutMap !', async () => { await clickSel('#doc-back'); await wait(1200); }]
+  [T, 'Pour revoir ce tutoriel à tout moment, cliquez sur le point d’interrogation en haut, ou ouvrez le menu Aide, où vous trouverez aussi l’adresse du service informatique.', async () => {
+    await clickSel('#doc-back'); await wait(900); await moveTo('#btn-tuto'); await wait(1500);
+    await clickSel('.menu-btn[data-menu=help]'); await wait(700);
+    const it = await p.$('.mi:has-text("service informatique")'); if (it) { const b = await it.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 14); await wait(1800); }
+    await p.keyboard.press('Escape'); await p.mouse.click(900, 300); await wait(300);
+  }],
+  [T, 'Voilà, vous savez tout. Si vous avez des questions, un problème ou une idée d’amélioration, n’hésitez pas à contacter le service informatique de la fédération. Bonne route avec ScoutMap !', async () => { await wait(2500); }]
 ];
 
 function makeClips() {
   STEPS.forEach((st, i) => {
-    const txt = st[1].replace(/'/g, '’');
+    let txt = st[1];
+    const PRON = [[/ScoutMap/g, 'Scout Map'], [/\bPDF\b/g, 'P D F'], [/\bGPX\b/g, 'G P X'], [/\bKML\b/g, 'K M L'], [/GeoJSON/g, 'Géo Jason'], [/\bA4\b/g, 'A quatre'], [/\bA3\b/g, 'A trois'], [/\bGR\b/g, 'G R'], [/\bPR\b/g, 'P R'], [/Imprimer \/ PDF/g, 'Imprimer ou P D F'], [/ : /g, ', '], [/ – /g, ', ']];
+    PRON.forEach(([re, to]) => { txt = txt.replace(re, to); });
+    txt = txt.replace(/\. /g, '.\n\n');
+    txt = txt.replace(/'/g, '’');
     fs.writeFileSync(DIR + 'c.txt', txt);
-    execSync(`python3 -m piper -m ${DIR}${st[0]}.onnx --length-scale 0.86 --sentence-silence 0.2 -f ${DIR}r${i}.wav < ${DIR}c.txt`, { stdio: 'ignore' });
+    execSync(`python3 -m piper -m ${DIR}${st[0]}.onnx --length-scale 0.9 --sentence-silence 0.55 -f ${DIR}r${i}.wav < ${DIR}c.txt`, { stdio: 'ignore' });
     execSync(`ffmpeg -y -v error -i ${DIR}r${i}.wav -af "loudnorm=I=-17:TP=-2" -ar 44100 ${DIR}n${i}.wav`);
   });
 }
@@ -154,7 +158,7 @@ const dur = i => parseFloat(execSync(`ffprobe -v error -show_entries format=dura
     const left = clipEnd + 450 - Date.now();
     if (left > 0) await wait(left);
   }
-  fs.writeFileSync(DIR + 'starts3.json', JSON.stringify({ starts, cuts: CUTS, total: (Date.now() - T0) / 1000 }));
+  fs.writeFileSync(DIR + 'starts5.json', JSON.stringify({ starts, cuts: CUTS, total: (Date.now() - T0) / 1000 }));
   await ctx.close(); await browser.close();
   console.log('starts', starts.map(x => Math.round(x)), 'cuts', JSON.stringify(CUTS.map(c => c.map(Math.round))), 'total', (Date.now() - T0) / 1000);
 })();
