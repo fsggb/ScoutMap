@@ -7,6 +7,7 @@
   var esc = G.esc;
   var GP = 'https://data.geopf.fr';
   var KEY = 'scoutmap.v3';
+  var VIEWER = !!window.SM_VIEWER;   // page web exportée : lecture seule, sans panneau ni menus
   function ic(n, c) { return '<svg class="ic' + (c ? ' ' + c : '') + '" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function sp(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
   function arr(v) { return Array.isArray(v) ? v : (v == null ? [] : [v]); }
@@ -35,7 +36,7 @@
   var TYPES = ['route', 'az', 'game'];
   var MODE_INFO = { route: { label: 'Itinéraire', icon: 'route' }, az: { label: 'Azimuts', icon: 'compass' }, meas: { label: 'Mesure', icon: 'ruler' }, game: { label: 'Grand jeu', icon: 'flag' } };
   var S = {
-    name: '', mode: null, rail: 'route', panelOpen: true,
+    name: '', pid: 0, mode: null, rail: 'route', panelOpen: true,
     ver: 4, base: 'otm', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
     detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true },
@@ -50,7 +51,7 @@
     if (saved) {
       if (old) { delete saved.detail; delete saved.snap; if (saved.speed === 4) delete saved.speed; }
       ['route', 'az', 'meas', 'game', 'vis', 'ov', 'gameStyle'].forEach(function (k) { if (saved[k]) Object.assign(S[k], saved[k]); });
-      ['name', 'mode', 'rail', 'panelOpen', 'base', 'detail', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
+      ['name', 'pid', 'mode', 'rail', 'panelOpen', 'base', 'detail', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
       if (Array.isArray(saved.layers)) S.layers = saved.layers.filter(function (l) { return l && l.data && l.type && FRESH[l.type]; });
       if (['route', 'az', 'game'].indexOf(S.rail) < 0) S.rail = 'route';
       if ((saved.ver || 0) < 4) { S.base = 'otm'; S.ov.hiking = true; }   // nouveaux réglages par défaut
@@ -60,6 +61,7 @@
     }
   } catch (e) { /* stockage indisponible */ }
   if (TYPES.indexOf(S.mode) < 0) S.mode = 'route';
+  if (!S.pid) S.pid = nid();
   if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
@@ -91,8 +93,10 @@
   function persist() {
     updateHint(); hTrack();
     clearTimeout(saveTimer);
+    if (VIEWER) return;
     saveTimer = setTimeout(function () {
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* quota */ }
+      projAutosave();
     }, 250);
   }
 
@@ -388,8 +392,14 @@
   $('#panel-close').addEventListener('click', function () { S.panelOpen = false; applyPanel(); persist(); });
 
   // ---------- Accueil : choix du type de travail ----------
-  function showHome() { updateHint(); }   // plus d'écran d'accueil : les trois onglets du rail suffisent
+  function showHome(show) {
+    var h = $('#home'); if (!h) return;
+    h.hidden = !show;
+    if (show) { renderHome(); if (SIM.open) simClose(true); closePops(); hideCtx(); map.closePopup(); }
+    updateHint();
+  }
   function startType(t) {
+    if (!$('#home').hidden) { newProject(t); return; }
     setRail(t);
     if (isMobile()) { S.panelOpen = false; applyPanel(); persist(); }
   }
@@ -407,7 +417,7 @@
   }
   function updateHint() {
     var el = $('#toolhint'), r = S.rail;
-    if (!S.mode) { el.hidden = true; return; }
+    if (!S.mode || VIEWER || ($('#home') && !$('#home').hidden)) { el.hidden = true; return; }
     if (r === 'game' && window.SM && SM.game) {
       el.hidden = false; $('#hint-ic').innerHTML = '<use href="#i-flag"/>';
       $('#hint-txt').textContent = SM.game.hint(); $('#hint-btn').textContent = SM.game.hintBtn(); $('#hint-btn').hidden = !SM.game.hintBtn();
@@ -419,6 +429,16 @@
     if (RT.tool === 'pan') { $('#hint-txt').textContent = 'Mode déplacement : la carte se déplace sans poser de point.'; $('#hint-btn').textContent = 'Reprendre le tracé'; }
     else { $('#hint-txt').textContent = hintText(); $('#hint-btn').textContent = 'Terminer'; }
   }
+  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () { newProject(b.dataset.start); }); });
+  $('#home-open').addEventListener('click', function () { $('#file-gpx').click(); });
+  $('.brand').addEventListener('click', function (e) { if (VIEWER) return; e.preventDefault(); showHome(true); });
+  $('#proj-rows').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-a]'), li = e.target.closest('li[data-id]'); if (!b || !li) return;
+    var id = +li.dataset.id, ent = projList().filter(function (x) { return x.id === id; })[0]; if (!ent) return;
+    if (b.dataset.a === 'open') { loadProject(ent.data, ent.id); }
+    else if (b.dataset.a === 'dl') { download(safeName(ent.name) + '.scoutmap.json', JSON.stringify(ent.data, null, 1), 'application/json'); }
+    else if (b.dataset.a === 'del') { if (confirm('Supprimer « ' + ent.name + ' » de ce navigateur ?')) { projStore(projList().filter(function (x) { return x.id !== id; })); renderHome(); } }
+  });
   $('#hint-btn').addEventListener('click', function () { if (S.rail === 'game' && window.SM && SM.game) { SM.game.hintAction(); return; } setTool(RT.tool === 'pan' ? S.rail : 'pan'); });
 
   // ---------- Calques : modèle ----------
@@ -884,7 +904,7 @@
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
     w.forEach(function (p, i) {
-      var m = L.marker([p.lat, p.lon], { draggable: true, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
+      var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
@@ -1096,7 +1116,7 @@
             var ps = j.portions || [], m = ps.length < 2 ? ps[0] : { start: ps[0].start, end: ps[ps.length - 1].end, distance: 0, duration: 0, steps: [] };
             if (ps.length >= 2) ps.forEach(function (q) { m.distance += q.distance || 0; m.duration += q.duration || 0; m.steps = m.steps.concat(q.steps || []); });
             if (!m) m = { start: pf(a), end: pf(b), distance: j.distance, duration: j.duration, steps: [] };
-            resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m });
+            resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m, relaxed: !!relaxed });
           }).catch(function (e) { if (++tries < 5 && !/Erreur 4|introuvable|impossible|no path/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 700 * tries); }).then(go); throw e; });
         }
         return go().catch(function (e) {
@@ -1117,7 +1137,7 @@
       for (var k = st; k < ln.length; k++) line.push(ln[k]);
       bounds.push(line.length - 1); dist += l.dist; dur += l.dur; portions.push(l.portion);
     });
-    return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds };
+    return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds, tunnel: legs.some(function (l) { return l.relaxed; }) };
   }
   function showRoute(res, first) {
     var nat = {};
@@ -1297,11 +1317,11 @@
       : 'Distance maximale : ' + G.fmtDist(mx) + '. Tracez l’itinéraire pour voir la distance réelle.';
   }
   function renderNatWarn() {
-    var el = $('#nat-warn'), r = RT.route;
-    if (!r || !S.route.flagNat || !r.nat || !r.nat.length) { el.hidden = true; return; }
-    el.hidden = false;
-    el.innerHTML = ic('alert') + '<span>Le tracé semble emprunter ' + r.nat.map(function (n) { return (n.label === 'nationale' ? 'une route nationale' : 'la ' + n.label) + ' (≈ ' + G.fmtDist(n.dist) + ')'; }).join(', ') +
-      '. Déplacez un repère pour l’éviter si besoin.</span>';
+    var el = $('#nat-warn'), r = RT.route, msg = '';
+    if (r && S.route.flagNat && r.nat && r.nat.length) msg += 'Le tracé semble emprunter ' + r.nat.map(function (n) { return (n.label === 'nationale' ? 'une route nationale' : 'la ' + n.label) + ' (≈ ' + G.fmtDist(n.dist) + ')'; }).join(', ') + '. Déplacez un repère pour l’éviter si besoin. ';
+    if (r && r.tunnel) msg += 'Un passage en tunnel est inévitable sur ce tracé (aucun autre chemin trouvé) : à vérifier sur place.';
+    if (!msg) { el.hidden = true; return; }
+    el.hidden = false; el.innerHTML = ic('alert') + '<span>' + msg + '</span>';
   }
 
   // ---------- Azimuts ----------
@@ -1450,7 +1470,7 @@
     };
     fr.readAsText(file);
   }
-  $('#file-gpx').addEventListener('change', function () { if (S.mode !== 'route') setMode('route'); Array.prototype.forEach.call(this.files, importGpx); this.value = ''; });
+  $('#file-gpx').addEventListener('change', function () { openFiles(this.files); this.value = ''; });
   $('#layers-import').addEventListener('click', function () { $('#file-gpx').click(); });
   (function dropGpx() {
     var dz = $('#layers-import');
@@ -1459,7 +1479,7 @@
     window.addEventListener('drop', function (e) {
       if (!e.dataTransfer || !e.dataTransfer.files.length) return;
       e.preventDefault(); dz.classList.remove('over');
-      Array.prototype.forEach.call(e.dataTransfer.files, function (f) { if (/\.(gpx|kml|geojson|json)$/i.test(f.name) || /xml|json/.test(f.type)) importGpx(f); });
+      openFiles(e.dataTransfer.files);
     });
   })();
 
@@ -1531,11 +1551,120 @@
   });
   $('#pop-tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-tab]'); if (b) popTab(b.dataset.tab); });
   $('#ov-none').addEventListener('click', function () { OVERS.forEach(function (k) { S.ov[k] = false; }); applyLayers(); persist(); });
+  // ---------- Travaux enregistrés dans le navigateur, fichiers .json / .html, ouverture ----------
+  var PKEY = 'scoutmap.projects', APP_URL = 'https://fsggb.github.io/ScoutMap/';
+  function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function projStore(list) { try { localStorage.setItem(PKEY, JSON.stringify(list)); return true; } catch (e) { toast('Le stockage du navigateur est plein : téléchargez vos travaux pour les garder.'); return false; } }
+  function projData(withRes) {
+    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, tracks: S.tracks };
+    if (withRes && RT.route && RT.route.line) {
+      o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, nat: RT.route.nat || [],
+        portions: (RT.route.portions || []).map(function (q) { return { start: q.start, end: q.end, distance: q.distance, duration: q.duration, steps: [] }; }) };
+    }
+    return o;
+  }
+  function projKinds() {
+    var k = [];
+    if (S.route.wps.length) k.push('Itinéraire' + (RT.route ? ' ' + G.fmtDist(RT.route.dist) : ''));
+    if (S.az.pts.length) k.push('Azimuts');
+    if (S.game.shapes.length) k.push('Grand jeu');
+    if (S.tracks.length) k.push('Trace importée');
+    return k;
+  }
+  function projName() {
+    if (S.name) return S.name;
+    var k = projKinds()[0] || 'Travail';
+    return k.split(' ')[0] + ' du ' + new Date().toLocaleDateString('fr-FR');
+  }
+  function projAutosave() {
+    var kinds = projKinds(); if (!kinds.length || VIEWER) return;
+    var list = projList().filter(function (e) { return e.id !== S.pid; });
+    list.push({ id: S.pid, name: projName(), updated: Date.now(), kinds: kinds, data: projData(false) });
+    list.sort(function (a, b) { return b.updated - a.updated; });
+    projStore(list.slice(0, 40));
+  }
+  function safeName(s) { return (s || 'scoutmap').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'scoutmap'; }
+  function b64e(s) { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function b64d(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
+  function loadProject(o, id) {
+    if (!o || o.app !== 'ScoutMap') throw new Error('Ce fichier n’est pas un travail ScoutMap.');
+    S.pid = id || nid(); S.name = o.name || ''; $('#proj-name').value = S.name;
+    S.route = Object.assign(freshRoute(null, 1), o.route || {}); S.route.wps = (o.route && o.route.wps) || [];
+    S.az = Object.assign(freshAz(null, 1), o.az || {}); S.az.pts = (o.az && o.az.pts) || [];
+    S.game = Object.assign(freshGame(null, 1), o.game || {}); S.game.shapes = (o.game && o.game.shapes) || [];
+    if (o.gameStyle) Object.assign(S.gameStyle, o.gameStyle);
+    S.tracks = o.tracks || []; S.layers = [];
+    if (o.base && LAYERS[o.base] && LAYERS[o.base].base) S.base = o.base;
+    if (o.ov) Object.assign(S.ov, o.ov);
+    RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
+    var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
+    select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
+    showHome(false); setRail(rail); setTool(VIEWER ? 'pan' : rail); persist();
+    var b = layerBounds(rail === 'route' ? 'route' : rail); if (b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
+  }
+  function downloadText(name, text, mime) { download(name, text, mime); }
+  function downloadProject() { download(safeName(projName()) + '.scoutmap.json', JSON.stringify(projData(true), null, 1), 'application/json'); }
+  function exportHtml() {
+    var dir = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''), page = location.href.split('#')[0].split('?')[0];
+    toast('Préparation de la page web…');
+    function get(u, bin) { return fetch(u).then(function (r) { if (!r.ok) throw new Error('Fichier introuvable : ' + u); return bin ? r.blob() : r.text(); }); }
+    function dataUri(blob) { return new Promise(function (res) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.readAsDataURL(blob); }); }
+    get(/\.html?$/.test(page) ? page : dir + 'index.html').then(function (html) {
+      var jobs = [];
+      html = html.replace(/<link rel="stylesheet" href="(css\/[^"?]+)(\?[^"]*)?">/g, function (m, u) { var k = jobs.length; jobs.push(get(dir + u)); return '@@CSS' + k + '@@'; });
+      html = html.replace(/<script src="(js\/[^"?]+)(\?[^"]*)?"><\/script>/g, function (m, u) { var k = jobs.length; jobs.push(get(dir + u)); return '@@JS' + k + '@@'; });
+      html = html.replace(/<script src="\/ScoutHub[^>]*><\/script>/g, '');
+      var logo = get(dir + 'assets/fsggb.png', true).then(dataUri);
+      return Promise.all(jobs.concat([logo])).then(function (res) {
+        var lg = res[res.length - 1], first = true;
+        html = html.replace(/@@(CSS|JS)(\d+)@@/g, function (m, kind, k) {
+          var txt = res[+k].replace(/<\/script/g, '<\\/script');
+          if (kind === 'CSS') return '<style>' + res[+k] + '</style>';
+          var pre = '';
+          if (first) { first = false; pre = '<script id="scoutmap-data" type="application/json">' + JSON.stringify(projData(true)).replace(/</g, '\\u003c') + '</script>\n<script>window.SM_VIEWER=true;</script>\n'; }
+          return pre + '<script>' + txt + '</script>';
+        });
+        html = html.split('assets/fsggb.png').join(lg);
+        html = html.replace('<head>', '<head>\n<!-- Page ScoutMap (FSGGB) : tous les éléments du raid sont dans <script id="scoutmap-data"> (JSON). Ouvrez ce fichier dans ScoutMap (Fichier > Ouvrir) pour le modifier. -->');
+        download(safeName(projName()) + '.html', html, 'text/html');
+        toast('Page web enregistrée : elle s’ouvre dans n’importe quel navigateur, sans outils d’édition.');
+      });
+    }).catch(function (e) { toast('Export impossible : ' + (e.message || 'erreur')); });
+  }
+  function openFiles(files) {
+    Array.prototype.forEach.call(files, function (f) {
+      if (/\.(gpx|kml)$/i.test(f.name)) { if (S.mode !== 'route') setRail('route'); showHome(false); importGpx(f); return; }
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var txt = String(fr.result), o = null;
+          if (/\.html?$/i.test(f.name)) { var m = /<script id="scoutmap-data" type="application\/json">([\s\S]*?)<\/script>/.exec(txt); if (!m) throw new Error('Cette page ne contient pas de travail ScoutMap.'); o = JSON.parse(m[1]); }
+          else { o = JSON.parse(txt); }
+          if (o && o.app === 'ScoutMap') { loadProject(o); toast('Travail ouvert : ' + (o.name || f.name)); }
+          else if (/\.(geo)?json$/i.test(f.name)) { if (S.mode !== 'route') setRail('route'); showHome(false); importGpx(f); }
+          else throw new Error('Format non reconnu.');
+        } catch (e) { toast(e.message || 'Ouverture impossible.'); }
+      };
+      fr.readAsText(f);
+    });
+  }
+  function newProject(t) {
+    resetAll(false); S.pid = nid(); showHome(false); setRail(t);
+    if (isMobile()) { S.panelOpen = false; applyPanel(); persist(); }
+  }
+  function fmtWhen(ts) { return new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+  function renderHome() {
+    var list = projList().sort(function (a, b) { return b.updated - a.updated; });
+    $('#proj-rows').innerHTML = list.length ? list.map(function (e) {
+      return '<li data-id="' + e.id + '"><button class="pr-open" data-a="open"><b>' + esc(e.name) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></button>' +
+        '<button class="ibtn" data-a="dl" title="Télécharger ce travail" aria-label="Télécharger">' + ic('download') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
+    }).join('') : '<li class="pr-none">Aucun travail enregistré pour le moment : ils apparaîtront ici automatiquement.</li>';
+  }
   function resetAll(ask) {
-    if (ask && !confirm('Effacer tout le travail en cours (tous les calques, traces importées comprises) ?')) return;
+    if (ask && !confirm('Effacer le travail en cours ? (il reste dans la liste de l’accueil tant que vous ne le supprimez pas)')) return;
     S.route = freshRoute(null, 1); S.az = freshAz(null, 1); S.meas = freshMeas(null, 1); S.game = freshGame(null, 1); S.layers = []; S.tracks = []; S.name = '';
     S.vis = { route: true, az: true, meas: true, game: true }; RT.route = null; select(null); applyVis();
-    $('#proj-name').value = '';
+    $('#proj-name').value = ''; S.pid = nid();
     syncRouteUi(); refreshRouteView(); renderAz(); renderMeas(); renderTracks(); renderStored(); renderLayerList(); if (window.SM && SM.game) SM.game.render(); persist();
     if (ask) showHome(true);
   }
@@ -1677,6 +1806,7 @@
   var ctxEl = document.createElement('div'); ctxEl.className = 'dropdown ctx'; ctxEl.id = 'ctxmenu'; ctxEl.hidden = true; ctxEl.setAttribute('role', 'menu'); document.body.appendChild(ctxEl);
   function hideCtx() { ctxEl.hidden = true; }
   function showCtx(x, y, items) {
+    if (VIEWER) return;
     hideMenu();
     ctxEl.innerHTML = items.map(function (it, i) {
       if (it === '-') return '<div class="mi-sep"></div>';
@@ -2109,11 +2239,15 @@
   $('#dlg-tuto').addEventListener('close', function () { $('#tuto-video').pause(); });
   var MENUS = {
     file: [
-      { t: 'Nouveau projet', i: 'file', a: function () { resetAll(true); } },
-      { t: 'Ouvrir une trace (GPX, KML, GeoJSON)…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
-      { t: 'Enregistrer en GPX…', i: 'download', k: 'Ctrl+S', a: openExport },
+      { t: 'Accueil : mes travaux', i: 'home', a: function () { showHome(true); } },
+      { t: 'Ouvrir un fichier…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
       '-',
-      { t: 'Imprimer / exporter en PDF…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
+      { t: 'Enregistrer le travail (fichier modifiable .json)', i: 'download', k: 'Ctrl+S', a: downloadProject },
+      { t: 'Exporter en page web (.html, à partager)', i: 'map', a: exportHtml },
+      { t: 'Enregistrer la trace en GPX (lecture seule)', i: 'download', a: openExport },
+      '-',
+      { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
+      { t: 'Enregistrer en PDF…', i: 'download', a: function () { openPdf(); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
@@ -2176,9 +2310,10 @@
   document.addEventListener('keydown', function (e) {
     var tag = document.activeElement && document.activeElement.tagName, typing = /input|select|textarea/i.test(tag) || (document.activeElement && document.activeElement.isContentEditable);
     var mod = e.ctrlKey || e.metaKey;
+    if (VIEWER && !(mod && e.key.toLowerCase() === 'p')) return;
     if (document.body.classList.contains('doc-open') || document.querySelector('dialog[open]')) return;
     if (mod && e.key.toLowerCase() === 'p') { e.preventDefault(); openPdf(); return; }
-    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); openExport(); return; }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); downloadProject(); return; }
     if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#file-gpx').click(); return; }
     if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redoAction(); else undoAction(); return; }
     if (mod && e.key.toLowerCase() === 'y' && !typing) { e.preventDefault(); redoAction(); return; }
@@ -2189,7 +2324,7 @@
     if (k === 'escape') { hideMenu(); hideCtx(); closePops(); if (window.SM && SM.game && S.mode === 'game' && SM.game.escape()) return; if (SEL) select(null); else if (RT.tool !== 'pan') setTool('pan'); map.closePopup(); }
     else if (k === 'i') startType('route'); else if (k === 'a') startType('az'); else if (k === 'g') startType('game');
   });
-  window.addEventListener('beforeunload', function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
+  window.addEventListener('beforeunload', function () { if (VIEWER) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
 
   // ---------- Démarrage ----------
   curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
@@ -2202,6 +2337,23 @@
   if (S.route.wps.length > 1) computeRoute(); else refreshProfile();
   fillPlaces(S.route);
   H.ready = true; H.lastKey = hKey(); H.lastSnap = hSnap(); hButtons();
+  (function bootMode() {
+    var hash = location.hash || '';
+    if (VIEWER) {
+      document.body.classList.add('viewer'); showHome(false);
+      try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); }
+      S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
+      $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho'].indexOf(b.dataset.base) < 0) b.hidden = true; });
+      $$('#pop-tabs [data-tab=sharp]').forEach(function (b) { b.hidden = true; });
+      $('#btn-edit').hidden = false;
+      $('#btn-edit').addEventListener('click', function () { window.open(APP_URL + '#projet=' + b64e(JSON.stringify(projData(false))), '_blank'); });
+      return;
+    }
+    if (/^#projet=/.test(hash)) {
+      try { loadProject(JSON.parse(b64d(hash.slice(8)))); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } return; } catch (e) { toast('Lien illisible : le travail n’a pas pu être ouvert.'); }
+    }
+    showHome(true);
+  })();
 
   // ---------- Ma position (utile sur téléphone) ----------
   (function locate() {
@@ -2232,6 +2384,7 @@
   (function urlActions() {
     var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
     if (!['lieu', 'centre', 'fond', 'couches', 'itineraire'].some(function (k) { return P.has(k); })) return;
+    showHome(false);
     var num = function (x) { var n = parseFloat(x); return isFinite(n) ? n : null; };
     var coordOf = function (t) { var m = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*[, ;]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(t || ''); if (!m) return null; var a = +m[1], b = +m[2]; return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? [a, b] : null; };
     var geocode = function (q) {
