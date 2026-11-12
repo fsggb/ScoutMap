@@ -158,7 +158,7 @@
       keyboard: false, touchZoom: false, tap: false, zoomSnap: 0, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, maxZoom: 19, minZoom: 3 });
     m._ready = new Promise(function (res) {
       var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
-      function fin() { if (!done) { done = true; res(); } }
+      function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(res, res); } }
       // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
       var t0 = Date.now();
       base.once('load', function () {
@@ -168,7 +168,7 @@
         })();
       });
       setTimeout(fin, 30000);
-      Object.keys(SM.LAYERS).forEach(function (k) { var d = SM.LAYERS[k]; if (!d.base && S.ov[k] && (!o.ignOnly || d.ign)) SM.tile(k, off).addTo(m); });
+      Object.keys(SM.LAYERS).forEach(function (k) { var d = SM.LAYERS[k]; if (!d.base && S.ov[k] && (!o.ignOnly || d.ign) && (k !== 'hiking' || SM.hikeFailed())) SM.tile(k, off).addTo(m); });
     });
     docMaps.push(m); return m;
   }
