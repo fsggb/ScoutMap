@@ -8,6 +8,8 @@
   <link rel="icon" type="image/png" href="assets/fsggb.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="css/style.css?v=__V__">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Cinzel+Decorative:wght@400;700&family=Lobster&display=swap">
 </head>
 <body>
 
@@ -111,7 +113,13 @@
     <section class="pane" data-pane="game" hidden>
       <h2 class="pane-title">Grand jeu</h2>
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
-      <h3 class="sub">Outils de dessin</h3>
+      <div class="gtabs" id="gtabs" role="tablist">
+        <button type="button" role="tab" data-gtab="tools">Outils</button>
+        <button type="button" role="tab" data-gtab="style">Style</button>
+        <button type="button" role="tab" data-gtab="list">Éléments <span class="count" id="gs-count"></span></button>
+      </div>
+      <div data-gtabp="tools">
+      <p class="gtab-help">Choisissez un outil, puis dessinez sur la carte. <kbd>Échap</kbd>, clic droit ou double-clic : l’outil est lâché et on revient à la sélection.</p>
       <div class="gtools" id="gtools">
         <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
         <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
@@ -123,6 +131,8 @@
         <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
       </div>
 
+      </div>
+      <div data-gtabp="style" hidden>
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
       <div class="gfmt" id="gstyle">
         <div class="gf-cols">
@@ -145,7 +155,7 @@
           <label class="gf-l" for="gs-text">Texte <small>(ou double-clic sur la carte)</small></label>
           <textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte"></textarea>
           <div class="gf-line">
-            <select id="gs-font" aria-label="Police"><option value="sans">Moderne</option><option value="serif">Classique</option><option value="hand">Manuscrite</option><option value="title">Titre</option><option value="mono">Machine</option></select>
+            <select id="gs-font" aria-label="Police"><option value="arial" style="font-family:Arial,Helvetica,sans-serif">Arial</option><option value="verdana" style="font-family:Verdana,Geneva,sans-serif">Verdana</option><option value="tahoma" style="font-family:Tahoma,Geneva,sans-serif">Tahoma</option><option value="trebuchet" style="font-family:'Trebuchet MS',Helvetica,sans-serif">Trebuchet MS</option><option value="georgia" style="font-family:Georgia,serif">Georgia</option><option value="times" style="font-family:'Times New Roman',Times,serif">Times New Roman</option><option value="palatino" style="font-family:'Palatino Linotype','Book Antiqua',Palatino,serif">Palatino</option><option value="comic" style="font-family:'Comic Sans MS','Comic Sans','Chalkboard SE',cursive">Comic Sans MS</option><option value="courier" style="font-family:'Courier New',Courier,monospace">Courier New</option><option value="impact" style="font-family:Impact,'Arial Narrow Bold',sans-serif">Impact</option><option value="algerian" style="font-family:Algerian,'Cinzel Decorative',serif">Algerian</option><option value="lobster" style="font-family:Lobster,'Brush Script MT',cursive">Lobster</option><option value="caveat" style="font-family:Caveat,'Segoe Script',cursive">Caveat</option></select>
             <div class="gstep"><button type="button" id="gs-size-m" aria-label="Réduire le texte">A<small>−</small></button><output id="gs-size-v">18</output><button type="button" id="gs-size-p" aria-label="Agrandir le texte">A<small>+</small></button></div>
           </div>
           <div class="gtb" role="toolbar" aria-label="Mise en forme du texte">
@@ -170,10 +180,12 @@
         <button class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
       </div>
 
-      <h3 class="sub">Éléments <span class="count" id="gs-count"></span></h3>
+      </div>
+      <div data-gtabp="list" hidden>
       <ul class="glist" id="gs-list"></ul>
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
-      <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne.</p>
+      <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne. Double-clic sur une forme : la modifier.</p>
+      </div>
       <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
@@ -453,9 +465,10 @@
     <dt><kbd>Ctrl</kbd> + <kbd>O</kbd></dt><dd>Ouvrir un fichier (page web, GPX, KML, GeoJSON)</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Enregistrer (page web .html, modifiable)</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>P</kbd></dt><dd>Imprimer / PDF</dd>
+    <dt>Clic droit en dessinant</dt><dd>Grand jeu : termine la forme et relâche l’outil</dd>
     <dt>Clic droit</dt><dd>Menu du point : retirer, inverser le sens, départ, étape, arrivée, coordonnées</dd>
     <dt>Double-clic</dt><dd>Terminer une zone du grand jeu</dd>
-    <dt>Double-clic sur un texte</dt><dd>Modifier le texte directement sur la carte (grand jeu) : Entrée valide, Échap annule</dd>
+    <dt>Double-clic sur une forme</dt><dd>Grand jeu : la modifier (onglet Style) ; sur un texte, le modifier directement sur la carte (Entrée valide, Échap annule)</dd>
     <dt>Clic sur A</dt><dd>Ferme la boucle (itinéraire ou azimuts)</dd>
   </dl>
   <div class="dlg-actions"><button class="btn-primary" data-close-dlg>Fermer</button></div>

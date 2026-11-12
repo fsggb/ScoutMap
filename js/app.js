@@ -2117,7 +2117,7 @@
     if (li.querySelector('[data-a=del]')) items.push(CSEP, { t: 'Supprimer', i: 'trash', danger: true, a: act('del') });
     if (items.length) showCtx(e.clientX, e.clientY, items);
   });
-  map.on('contextmenu', function (e) { showCtx(e.originalEvent.clientX, e.originalEvent.clientY, mapMenu(e.latlng)); });
+  map.on('contextmenu', function (e) { if (window.SM && SM.game && SM.game.rightClick && SM.game.rightClick()) return; showCtx(e.originalEvent.clientX, e.originalEvent.clientY, mapMenu(e.latlng)); });
 
   // ---------- Recherche ----------
   var qTimer, qCtl, qItems = [], qAct = -1;
