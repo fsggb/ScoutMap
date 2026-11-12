@@ -988,7 +988,7 @@
     setRouteStatus('Calcul de l’itinéraire…');
     var tag = S.route.id, tok = RT.rtTok = (RT.rtTok || 0) + 1;
     routeTimer = setTimeout(function () {
-      var jobs = []; for (var i = 0; i + 1 < w.length; i++) jobs.push(fetchLeg(w[i], w[i + 1], null));
+      var jobs = []; w.forEach(function (_, i) { if (i + 1 < w.length) jobs.push(fetchLeg(w[i], w[i + 1], null).catch(function (e) { e.leg = i; throw e; })); });
       Promise.all(jobs).then(function (legs) {
         if (tag !== S.route.id || tok !== RT.rtTok) return;
         var first = !RT.route;
@@ -996,12 +996,58 @@
         if (S.route.noBack) improveBack(legs, w, tok, tag);
       }).catch(function (e) {
         if (tok !== RT.rtTok) return;
+        if (e && e.leg != null && /no path|Erreur 4|introuvable|impossible/i.test(e.message || '') && rescueLeg(e.leg, w, tok)) return;
         setRouteStatus('Itinéraire impossible : ' + (e.message || 'service indisponible') + '. Rapprochez les points d’une route ou d’un chemin.', true);
         refreshProfile();
       });
     }, 250);
   }
   // ----- Calcul par tronçons (un appel par couple de repères) : aucun nombre maximal d'étapes, et un seul tronçon à recalculer quand on déplace un point.
+  // ----- Secours : un point tombé au milieu d'un champ (ou loin de tout chemin) est ramené sur le village ou hameau à moins de 100 m, sinon sur le chemin le plus proche.
+  function nearestRoadPoint(lat, lon) {
+    var url = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&COUNT=60&CQL_FILTER=' +
+      encodeURIComponent('DWITHIN(geometrie,POINT(' + lat.toFixed(6) + ' ' + lon.toFixed(6) + '),400,meters)');
+    return fetch(url).then(function (r) { return r.ok ? r.json() : { features: [] }; }).then(function (j) {
+      var best = null, bd = Infinity, here = L.latLng(lat, lon);
+      (j.features || []).forEach(function (f) {
+        var g = f.geometry; if (!g) return;
+        var lines = g.type === 'MultiLineString' ? g.coordinates : [g.coordinates];
+        lines.forEach(function (ln) { for (var i = 0; i < ln.length; i++) {
+          var a = ln[i], b = ln[Math.min(i + 1, ln.length - 1)];
+          for (var s = 0; s <= 4; s++) {   // points intermédiaires sur chaque segment
+            var q = [a[0] + (b[0] - a[0]) * s / 4, a[1] + (b[1] - a[1]) * s / 4], d = here.distanceTo(L.latLng(q[1], q[0]));
+            if (d < bd) { bd = d; best = q; }
+          }
+        } });
+      });
+      return best ? { lat: best[1], lon: best[0], d: bd } : null;
+    }).catch(function () { return null; });
+  }
+  function snapPoint(w) {
+    return villageCenter(w.lat, w.lon, 100).then(function (v) {
+      if (v) return { lat: v.p.lat, lon: v.p.lon, what: v.what === 'la mairie' ? 'la mairie du village' : 'l’église du village' };
+      return poiAround('lieu-dit habité', w.lat, w.lon, 100).then(function (h) {
+        h.sort(function (a, b) { return a.d - b.d; });
+        if (h.length) return { lat: h[0].lat, lon: h[0].lon, what: 'le hameau' };
+        return nearestRoadPoint(w.lat, w.lon).then(function (r) { return r ? { lat: r.lat, lon: r.lon, what: 'le chemin le plus proche' } : null; });
+      });
+    });
+  }
+  function rescueLeg(i, w, tok) {
+    var cands = [w[i], w[i + 1]].filter(function (x, k, a) { return x && !x.rescued && a.indexOf(x) === k; });
+    if (!cands.length) return false;
+    cands.forEach(function (x) { x.rescued = true; });
+    setRouteStatus('Aucun chemin trouvé : recherche du village ou du chemin le plus proche…');
+    Promise.all(cands.map(snapPoint)).then(function (rs) {
+      if (tok !== RT.rtTok) return;
+      var moved = [];
+      rs.forEach(function (r, k) { if (r) { var x = cands[k]; x.lat = r.lat; x.lon = r.lon; x.place = undefined; moved.push(r.what); } });
+      if (!moved.length) { setRouteStatus('Itinéraire impossible : aucun chemin à proximité de ces points. Rapprochez-les d’une route ou d’un chemin.', true); return; }
+      toast('Point déplacé sur ' + moved[0] + '.');
+      renderRouteMarkers(); renderWpList(); persist(); fillPlaces(S.route); computeRoute();
+    });
+    return true;
+  }
   function pf(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }
   function runLeg(task) {
     legQueue.push(task); pumpLegs();
@@ -1032,7 +1078,7 @@
             if (ps.length >= 2) ps.forEach(function (q) { m.distance += q.distance || 0; m.duration += q.duration || 0; m.steps = m.steps.concat(q.steps || []); });
             if (!m) m = { start: pf(a), end: pf(b), distance: j.distance, duration: j.duration, steps: [] };
             resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m });
-          }).catch(function (e) { if (++tries < 5 && !/Erreur 4|introuvable|impossible/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 700 * tries); }).then(go); throw e; });
+          }).catch(function (e) { if (++tries < 5 && !/Erreur 4|introuvable|impossible|no path/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 700 * tries); }).then(go); throw e; });
         }
         return go().catch(function (e) { delete legCache[key]; reject(e); });
       });
