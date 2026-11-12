@@ -312,14 +312,15 @@
   }
   // Dessine les sentiers déjà chargés : un seul tracé par itinéraire (léger), rose ; GR plein, GR de Pays en tirets longs, PR en pointillés. Aucune icône : seulement le nom des GR, de temps en temps.
   function hkDraw(target, bounds, zoom, lbl) {
-    var seen = {}, nl = 0, wt = zoom >= 15 ? 4 : 3;
+    // épaisseur proportionnelle au zoom, comme les petites routes orange : très fine de loin, plus marquée de près
+    var seen = {}, nl = 0, wt = zoom < 12.5 ? 1.2 : zoom < 14 ? 1.6 : zoom < 15 ? 2.1 : zoom < 16 ? 2.6 : 3.2;
     hkCells(bounds).forEach(function (c) {
       var cell = HK.cells[c[0] + ',' + c[1]]; if (!cell) return;
       (cell.osm || []).concat(zoom >= HK_IGNZ ? (cell.ign || []) : []).forEach(function (r) {
-        var dash = r.cls === 'PR' ? '1 6' : r.cls === 'GRP' ? '12 5' : null, w1 = r.cls === 'PR' ? Math.max(2, wt - 1) : wt;
-        L.polyline(r.ways, { color: '#fff', weight: w1 + 2, opacity: 0.7, lineCap: 'butt', interactive: false }).addTo(target);
+        var dash = r.cls === 'PR' ? '1 5' : r.cls === 'GRP' ? '9 4' : null, w1 = r.cls === 'PR' ? Math.max(1.2, wt * 0.85) : wt;
+        L.polyline(r.ways, { color: '#fff', weight: w1 + 1.4, opacity: 0.6, lineCap: 'butt', interactive: false }).addTo(target);
         L.polyline(r.ways, { color: HK.colour, weight: w1, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
-        if (lbl && r.ref && r.cls !== 'PR' && zoom >= 12 && !seen[r.id] && nl < 40) {
+        if (lbl && r.ref && r.cls !== 'PR' && zoom >= 13 && !seen[r.id] && nl < 8) {
           var best = null, bl = 0;
           r.ways.forEach(function (w2) { var mid = w2[Math.floor(w2.length / 2)]; if (w2.length > bl && bounds.contains(mid)) { bl = w2.length; best = mid; } });
           if (best) { seen[r.id] = 1; nl++; L.marker(best, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target); }
