@@ -176,6 +176,10 @@
           <label class="gf-l" for="gs-name">Nom dans la légende <small>(laisser vide : pas dans la légende)</small></label>
           <input id="gs-name" type="text" maxlength="40" placeholder="Ex. Forêt, Château fort…" autocomplete="off">
         </div>
+        <div class="gf-line" data-for="tex">
+          <label class="gf-l" for="gs-tex">Remplissage</label>
+          <select id="gs-tex"><option value="">Couleur unie</option><option value="forest">Motif forêt</option><option value="water">Motif eau</option><option value="marsh">Motif marais</option><option value="sand">Motif sable</option><option value="grass">Motif prairie</option><option value="rock">Motif montagnes</option><option value="field">Motif champs</option></select>
+        </div>
         <div class="gf-line" data-for="dash">
           <span class="gf-l">Type de trait</span>
           <div class="gdash" id="gs-dash">
@@ -270,6 +274,7 @@
         <button class="btn-ghost danger" id="az-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
       </div>
       <div class="stats" id="az-stats" hidden></div>
+          <button class="btn-ghost block" id="az-live" title="Partager le parcours : QR code, positions en direct, messages"><svg class="ic"><use href="#i-people"/></svg>Partager en direct…</button>
           <button class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 

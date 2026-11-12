@@ -10,7 +10,7 @@
   var FB = 'https://www.gstatic.com/firebasejs/10.12.5/';
   var COLORS = ['#c0262d', '#2563eb', '#1a7f37', '#d97706', '#7a3db8', '#0e7490', '#d6336c', '#a16207', '#4d7c0f', '#475569'];
   var ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
-  var st = { room: null, key: null, ck: null, owner: false, uid: null, name: '', sharing: false, db: null, people: {}, markers: {}, offset: 0, unread: 0, panelOpen: false, watch: null, lastSend: 0, lastFix: null, lastGame: '', timers: [], refs: [], fbp: null, closed: false };
+  var st = { mode: 'game', av: null, room: null, key: null, ck: null, owner: false, uid: null, name: '', sharing: false, db: null, people: {}, markers: {}, offset: 0, unread: 0, panelOpen: false, watch: null, lastSend: 0, lastFix: null, lastGame: '', timers: [], refs: [], fbp: null, closed: false };
   var gLive = L.layerGroup().addTo(map);
   try { st.name = localStorage.getItem('scoutmap.live.name') || ''; } catch (e) { /* ignoré */ }
 
@@ -29,6 +29,37 @@
     var u = unb64u(str);
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, st.ck, u.slice(12)).then(function (b) { return JSON.parse(new TextDecoder().decode(b)); });
   }
+  // ---------- Avatar : une icône (et une couleur) choisies parmi celles du jeu ----------
+  try { st.av = JSON.parse(localStorage.getItem('scoutmap.live.avatar') || 'null'); } catch (e) { st.av = null; }
+  var avWait = false;
+  function avInner(o) {
+    var d = o && o.a && window.SM_ICONS && window.SM_ICONS[o.a];
+    if (o && o.a && !d && !avWait && SM.game && SM.game.loadThemes) { avWait = true; SM.game.loadThemes().then(function () { renderPeople(); }).catch(function () { /* hors ligne */ }); }
+    return d ? '<svg viewBox="0 0 512 512"><path d="' + d + '" fill="#fff"/></svg>' : esc(((o && o.n) || '?').charAt(0).toUpperCase());
+  }
+  function myColor() { return (st.av && st.av.c) || colorOf(st.uid); }
+  function avatarDialog() {
+    function open() {
+      var th = SM.game && SM.game.theme && SM.game.theme(), list = (th ? th.el.filter(function (e) { return !e.art; }) : []).concat(window.SM_COMMON || []);
+      var seen = {}; list = list.filter(function (e) { if (seen[e.i]) return false; seen[e.i] = 1; return !!(window.SM_ICONS && window.SM_ICONS[e.i]); });
+      var cur = { a: st.av && st.av.i || '', c: myColor() };
+      var d = dlgOpen('<h2>Mon avatar</h2><p class="dlg-sub">Choisissez l’icône et la couleur qui vous représentent sur la carte et dans la discussion.</p>' +
+        '<div class="lv-avc" id="lv-avc">' + COLORS.map(function (c) { return '<button type="button" data-c="' + c + '" style="background:' + c + '" aria-label="Couleur"></button>'; }).join('') + '</div>' +
+        '<div class="lv-avg" id="lv-avg">' + list.map(function (e) { return '<button type="button" data-i="' + esc(e.i) + '" title="' + esc(e.l) + '"><svg viewBox="0 0 512 512"><path d="' + window.SM_ICONS[e.i] + '" fill="#fff"/></svg></button>'; }).join('') + '</div>' +
+        '<div class="dlg-actions"><button class="btn-ghost" id="lv-av-no" type="button">Initiale seulement</button><button class="btn-primary" id="lv-av-ok" type="button">Enregistrer</button></div>');
+      function paint() { $$('#lv-avg button', d).forEach(function (b) { b.style.background = cur.c; b.classList.toggle('on', b.dataset.i === cur.a); }); $$('#lv-avc button', d).forEach(function (b) { b.classList.toggle('on', b.dataset.c === cur.c); }); }
+      $('#lv-avc', d).addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { cur.c = b.dataset.c; paint(); } });
+      $('#lv-avg', d).addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { cur.a = b.dataset.i; paint(); } });
+      $('#lv-av-no', d).addEventListener('click', function () { cur.a = ''; paint(); });
+      $('#lv-av-ok', d).addEventListener('click', function () {
+        st.av = { i: cur.a, c: cur.c }; try { localStorage.setItem('scoutmap.live.avatar', JSON.stringify(st.av)); } catch (e) { /* ignoré */ }
+        d.close(); paintMyAv(); st.lastSend = 0; sendPos(); renderPeople();
+      });
+      paint();
+    }
+    if (SM.game && SM.game.loadThemes) SM.game.loadThemes().then(open).catch(open); else open();
+  }
+  function paintMyAv() { var b = $('#lv-myav'); if (b) { b.style.background = myColor(); b.innerHTML = avInner({ a: st.av && st.av.i, n: st.name }); } }
   function colorOf(uid) { var h = 0; for (var i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0; return COLORS[h % COLORS.length]; }
   function now() { return Date.now() + st.offset; }
   function ago(t) {
@@ -70,7 +101,7 @@
       '<a class="lv-call" id="lv-call" target="_blank" rel="noopener" hidden>📞 Appel en cours : rejoindre</a>' +
       '<div class="lv-pane" data-lp="chat"><div class="lv-chat" id="lv-chat" aria-live="polite"></div>' +
       '<form class="lv-form" id="lv-form"><input id="lv-msg" type="text" maxlength="400" placeholder="Écrire aux autres chefs…" autocomplete="off"><button type="submit" class="btn-primary sm">Envoyer</button></form></div>' +
-      '<div class="lv-pane" data-lp="people" hidden><label class="lv-share"><input type="checkbox" id="lv-sharing"><span>Je partage ma position</span></label><div class="lv-people" id="lv-people"></div></div>' +
+      '<div class="lv-pane" data-lp="people" hidden><div class="lv-me"><button type="button" class="lv-myav" id="lv-myav" title="Changer mon avatar"></button><span>Mon avatar <small>(icône et couleur)</small></span><button type="button" class="btn-ghost sm" id="lv-avedit">Changer</button></div><label class="lv-share"><input type="checkbox" id="lv-sharing"><span>Je partage ma position</span></label><div class="lv-people" id="lv-people"></div></div>' +
       '<div class="lv-foot"><button type="button" class="btn-ghost sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button><button type="button" class="btn-ghost sm" id="lv-meet" title="Lancer un appel vocal Google Meet et envoyer le lien aux chefs">📞 Appel vocal</button><button type="button" class="btn-ghost sm danger" id="lv-end"></button></div>';
     ($('.stage') || document.body).appendChild(panel);
     dlg = document.createElement('dialog'); dlg.id = 'dlg-live'; dlg.className = 'dlg-live'; document.body.appendChild(dlg);
@@ -78,6 +109,7 @@
     $('#lv-sharing').addEventListener('change', function () { this.checked ? startSharing() : stopSharing(); });
     $('#lv-form').addEventListener('submit', function (e) { e.preventDefault(); var i = $('#lv-msg'), m = i.value.trim(); if (m) { sendChat(m); i.value = ''; } });
     $('#lv-invite').addEventListener('click', showInvite);
+    $('#lv-avedit').addEventListener('click', avatarDialog); $('#lv-myav').addEventListener('click', avatarDialog);
     $('#lv-end').addEventListener('click', endOrLeave);
     $('#lv-meet').addEventListener('click', callDialog);
     $$('.lv-tabs [data-lt]').forEach(function (t) { t.addEventListener('click', function () { setLt(t.dataset.lt); }); });
@@ -96,7 +128,9 @@
   function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
 
   // ---------- Création et accès ----------
-  function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ room: st.room, key: st.key, owner: st.owner, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
+  function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : S.game.shapes.length > 0; }
+  function liveName() { return st.mode === 'az' ? (S.az.name || 'Azimuts') : (S.game.name || 'Grand jeu'); }
+  function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ mode: st.mode, room: st.room, key: st.key, owner: st.owner, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
   function clearSession() { try { localStorage.removeItem('scoutmap.live.session'); } catch (e) { /* ignoré */ } }
   function askName(title, okLabel, cb) {
     if (st.name && cb.quiet) { cb(st.name); return; }
@@ -114,7 +148,9 @@
     if (!configured()) { dlgOpen('<h2>Jeu en direct</h2><p class="dlg-sub">Le partage en direct n’est pas encore activé sur ce site : il manque la configuration du service (Firebase).</p><div class="dlg-actions"><button class="btn-primary" type="button" data-x2>Compris</button></div>'); $('[data-x2]', dlg).addEventListener('click', function () { dlg.close(); }); return; }
     if (!window.crypto || !crypto.subtle) { toast('Le partage en direct demande une connexion sécurisée (https).'); return; }
     if (st.room) { showInvite(); return; }
-    if (!S.game.shapes.length) { toast('Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
+    if (S.mode !== 'game' && S.mode !== 'az') { toast('Le partage en direct est disponible pour le Grand jeu et pour les Azimuts.'); return; }
+    st.mode = S.mode;
+    if (!hasContent()) { toast(st.mode === 'az' ? 'Posez d’abord des points sur la carte des azimuts, puis partagez-les.' : 'Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
     askName('Partager ce jeu en direct', 'Lancer le jeu en direct', function () {
       toast('Lancement du jeu en direct…');
       fb().then(function () { st.room = rand(16); st.key = b64u(crypto.getRandomValues(new Uint8Array(16))); return importKey(st.key); }).then(function (k) {
@@ -148,22 +184,22 @@
     build(); st.room = s.room; st.key = s.key; st.owner = !!s.owner;
     importKey(s.key).then(function (k) { st.ck = k; return fb(); }).then(function () { return roomRef().child('owner').once('value'); }).then(function (v) {
       if (!v.exists() || (st.owner && v.val() !== st.uid)) throw new Error('fin');
-      active(); if (st.owner) { st.lastGame = ''; if (S.game.shapes.length && !window.SM_VIEWER) { SM.showHome(false); SM.setMode('game'); } } return st.owner ? null : loadGame();
+      st.mode = s.mode || 'game'; active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame();
     }).then(function () { if (s.share) startSharing(); saveSession(); toast('Jeu en direct retrouvé.'); }).catch(function () { st.room = null; st.key = null; st.owner = false; clearSession(); });
   }
   function active() {
-    btn.hidden = false; $('#lv-title').textContent = (S.game.name || 'Grand jeu'); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter';
+    btn.hidden = false; $('#lv-title').textContent = liveName(); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter';
     $('#lv-invite').hidden = false;
     $('#lv-role').textContent = st.owner ? 'Vous dirigez le jeu : continuez à modifier la carte, les autres chefs reçoivent vos changements en quelques secondes.' : 'Vous suivez le jeu en lecture seule. Seul le chef qui l’a lancé peut le modifier.';
-    listen(); togglePanel(true);
+    listen(); togglePanel(true); paintMyAv();
     st.timers.push(setInterval(function () { renderPeople(); }, 5000));
     if (st.owner) st.timers.push(setInterval(function () { publishGame(); }, 4000));
   }
 
   // ---------- Le jeu (envoyé par le chef, reçu en lecture seule par les autres) ----------
-  function snapshot() { return { app: 'ScoutMap', v: 1, name: S.game.name || S.name || 'Grand jeu', rail: 'game', base: S.base, ov: S.ov, route: { wps: [] }, az: { pts: [] }, tracks: [], game: S.game }; }
+  function snapshot() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
   function publishGame() {
-    if (!st.owner || !st.room || !S.game.shapes.length) return Promise.resolve();
+    if (!st.owner || !st.room || !hasContent()) return Promise.resolve();
     var js = JSON.stringify(snapshot()); if (js === st.lastGame) return Promise.resolve(); st.lastGame = js;
     return enc(snapshot()).then(function (e) { return roomRef().update({ game: e, gameT: firebase.database.ServerValue.TIMESTAMP }); }).catch(function () { st.lastGame = ''; });
   }
@@ -173,6 +209,7 @@
       return dec(v.val());
     }).then(function (data) {
       if (data.name) $('#lv-title').textContent = data.name;
+      if (data.rail === 'az' || data.rail === 'game') st.mode = data.rail;
       SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true;
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
@@ -201,7 +238,7 @@
     el.className = 'lv-msg' + (mine ? ' mine' : '');
     var meet = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(d.m || '');
     if (meet && (now() - (t || now())) < 3 * 3600 * 1000) { st.call = meet[0]; showCall(); }
-    el.innerHTML = '<span class="lv-who" style="color:' + esc(d.c || '#475569') + '">' + esc(d.n || '?') + '</span> <time>' + hhmm(t || now()) + '</time><div>' + linkify(d.m) + '</div>';
+    el.innerHTML = '<i class="lv-av" style="background:' + esc(d.c || '#475569') + '">' + avInner(d) + '</i><span class="lv-who" style="color:' + esc(d.c || '#475569') + '">' + esc(d.n || '?') + '</span> <time>' + hhmm(t || now()) + '</time><div>' + linkify(d.m) + '</div>';
     box.appendChild(el); box.scrollTop = box.scrollHeight;
     if (!mine && (!st.panelOpen || st.lt === 'people') && (now() - (t || 0)) < 30000) { st.unread++; badge(); }
   }
@@ -225,7 +262,7 @@
   }
   function sendChat(m) {
     if (!st.room) return;
-    enc({ u: st.uid, n: st.name, c: colorOf(st.uid), m: m.slice(0, 400) }).then(function (e) { return roomRef().child('chat').push({ d: e, t: firebase.database.ServerValue.TIMESTAMP }); }).catch(function () { toast('Message non envoyé.'); });
+    enc({ u: st.uid, n: st.name, c: myColor(), a: st.av && st.av.i || '', m: m.slice(0, 400) }).then(function (e) { return roomRef().child('chat').push({ d: e, t: firebase.database.ServerValue.TIMESTAMP }); }).catch(function () { toast('Message non envoyé.'); });
   }
 
   // ---------- Positions ----------
@@ -243,7 +280,7 @@
   }
   function sendPos() {
     if (!st.lastFix || !st.room || !st.sharing) return; st.lastSend = Date.now();
-    enc({ n: st.name, c: colorOf(st.uid), lat: st.lastFix.lat, lon: st.lastFix.lon, acc: st.lastFix.acc }).then(function (e) {
+    enc({ n: st.name, c: myColor(), a: st.av && st.av.i || '', lat: st.lastFix.lat, lon: st.lastFix.lon, acc: st.lastFix.acc }).then(function (e) {
       return roomRef().child('pos/' + st.uid).set({ d: e, t: firebase.database.ServerValue.TIMESTAMP });
     }).catch(function () { /* hors réseau : on réessaie au prochain point */ });
   }
@@ -259,12 +296,12 @@
     $('#lv-count').textContent = ids.length ? '(' + ids.length + ')' : '';
     $('#lv-people').innerHTML = ids.length ? ids.map(function (u) {
       var p = st.people[u], old = now() - p.t > 90000;
-      return '<button type="button" class="lv-p' + (old ? ' old' : '') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c) + '">' + esc((p.n || '?').charAt(0).toUpperCase()) + '</i><b>' + esc(p.n || '?') + (u === st.uid ? ' (moi)' : '') + '</b><small>' + ago(p.t) + ' · ±' + p.acc + ' m</small></button>';
+      return '<button type="button" class="lv-p' + (old ? ' old' : '') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c) + '">' + avInner(p) + '</i><b>' + esc(p.n || '?') + (u === st.uid ? ' (moi)' : '') + '</b><small>' + ago(p.t) + ' · ±' + p.acc + ' m</small></button>';
     }).join('') : '<p class="lv-none">Personne ne partage sa position pour l’instant.</p>';
     // marqueurs
     Object.keys(st.markers).forEach(function (u) { if (!st.people[u]) { gLive.removeLayer(st.markers[u]); delete st.markers[u]; } });
     ids.forEach(function (u) {
-      var p = st.people[u], old = now() - p.t > 90000, html = '<div class="lv-pin' + (old ? ' old' : '') + '" style="background:' + esc(p.c) + '">' + esc((p.n || '?').charAt(0).toUpperCase()) + '</div><span class="lv-tag">' + esc(p.n || '?') + '</span>';
+      var p = st.people[u], old = now() - p.t > 90000, html = '<div class="lv-pin' + (old ? ' old' : '') + '" style="background:' + esc(p.c) + '">' + avInner(p) + '</div><span class="lv-tag">' + esc(p.n || '?') + '</span>';
       if (st.markers[u]) { st.markers[u].setLatLng([p.lat, p.lon]); st.markers[u].setIcon(L.divIcon({ className: 'lv-wrap', html: html, iconSize: [0, 0] })); }
       else st.markers[u] = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: 'lv-wrap', html: html, iconSize: [0, 0] }), zIndexOffset: 3500, title: p.n }).addTo(gLive);
     });
@@ -308,4 +345,5 @@
   else if (!room) setTimeout(resume, 800);
   else if (room) { build(); setTimeout(function () { toast('Lien incomplet : scannez de nouveau le QR code (il manque la clé).'); }, 600); }
   var gb = $('#game-live'); if (gb) gb.addEventListener('click', start);
+  var ab = $('#az-live'); if (ab) ab.addEventListener('click', start);
 })();
