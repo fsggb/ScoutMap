@@ -23,13 +23,13 @@
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
   // Réglages de l'aperçu (modifiables en direct dans la barre d'outils)
-  var PRM = { type: 'simple', paper: 'A4', orient: 'portrait', scale: 'view', tscale: 25000, line: true };
+  var PRM = { type: 'simple', paper: 'A4', orient: 'portrait', scale: 'view', tscale: 25000, line: true, roadmap: true };
   var BT = 0, buildTimer = null, ABORT = { abort: true };
   function config() {
     var items = pickables(), t = PRM.type;
     return {
       type: t, title: '', paper: PRM.paper, orient: PRM.orient, scale: PRM.scale, overview: true, profile: true, notes: true, items: items, showLine: PRM.line,
-      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: PRM.orient, mix: PRM.orient === 'auto' }
+      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: PRM.orient, mix: PRM.orient === 'auto', roadmap: PRM.roadmap }
     };
   }
   function openPdf(type) {
@@ -38,12 +38,17 @@
     $$('#doc-types .dcard').forEach(function (b) { var on = ok[b.dataset.type]; b.disabled = !on; b.classList.toggle('dis', !on); });
     $('#pdf-empty').hidden = list.length > 0;
     if (type && ok[type]) { start(type); return; }
+    $$('#pdf-paper-seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.v === PRM.paper); });
     var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
   }
   $$('#doc-types .dcard').forEach(function (b) { b.addEventListener('click', function () { if (!b.disabled) { $('#dlg-pdf').close(); start(b.dataset.type); } }); });
   $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
+  $('#pdf-paper-seg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return; PRM.paper = b.dataset.v;
+    $$('#pdf-paper-seg button').forEach(function (x) { x.classList.toggle('on', x === b); });
+  });
   function start(type) {
-    PRM.type = type; PRM.paper = 'A4'; PRM.line = true;
+    PRM.type = type; PRM.line = true; PRM.roadmap = true;
     PRM.orient = type === 'tiles' ? 'auto' : type === 'map' ? 'landscape' : 'portrait';
     PRM.scale = type === 'map' && S.mode === 'game' ? 'fit' : 'view';
     renderTools(); rebuild(0);
@@ -62,6 +67,7 @@
     }
     if (t === 'tiles') h += '<label>Échelle ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>';
     if ((t === 'map' || t === 'tiles') && hasLine) h += '<label>Tracé ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
+    if (t === 'tiles' && pickables().some(sheetCapable)) h += '<label class="chk"><input type="checkbox" data-k="roadmap"' + (PRM.roadmap ? ' checked' : '') + '> Avec la feuille de route</label>';
     h += '<span class="doc-sum" id="doc-sum"></span>';
     $('#doc-tools').innerHTML = h;
     updateSummary();
@@ -74,6 +80,7 @@
   });
   $('#doc-tools').addEventListener('change', function (e) {
     if (e.target.dataset.k === 'scale') { PRM.scale = e.target.value; rebuild(450); }
+    else if (e.target.dataset.k === 'roadmap') { PRM.roadmap = e.target.checked; rebuild(450); }
   });
   function rebuild(delay) { clearTimeout(buildTimer); buildTimer = setTimeout(function () { buildDoc(config()); }, delay); }
   function updateSummary() {
@@ -229,8 +236,8 @@
     }).then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
   function setBusy(b, msg) {
-    var btn = $('#doc-print'); btn.disabled = b;
-    btn.innerHTML = b ? (msg || 'Chargement des cartes…') : ic('printer') + 'Imprimer / Enregistrer en PDF';
+    var btn = $('#doc-print'); btn.disabled = b; $('#doc-pdf').disabled = b;
+    btn.innerHTML = b ? (msg || 'Chargement des cartes…') : ic('printer') + 'Imprimer';
   }
   function titleFor(c, it, n) { return c.title ? (n > 1 ? c.title + ' – ' + it.name : c.title) : it.name; }
 
@@ -292,6 +299,18 @@
       z0: SM.zoomFor(prm.scale, pl.lat0), title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
     setBusy(true, 'Préparation des feuilles…');
     var chain = Promise.resolve();
+    var rf = prm.roadmap ? items.filter(sheetCapable) : [];
+    if (rf.length) {
+      chain = chain.then(function () { setBusy(true, 'Feuille de route…'); return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
+      rf.forEach(function (it) {
+        chain = chain.then(function () {
+          if (tok !== BT) throw ABORT;
+          var pm = 10, sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
+          var cc = { type: 'simple', title: '', overview: true, profile: true, notes: true };
+          return it.type === 'route' ? routeSheet(cc, it, sh, P[0] - 2 * pm, rf.length) : azSheet(cc, it, sh, P[0] - 2 * pm, rf.length);
+        });
+      });
+    }
     if (prm.index) chain = chain.then(function () { if (tok !== BT) throw ABORT; return indexSheet(pl, items, o); });
     pl.pages.forEach(function (pg) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setBusy(true, 'Chargement de la feuille F' + pg.n + ' / ' + o.total + '…'); return pageSheet(pl, pg, items, o); }); });
     chain.then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
@@ -401,11 +420,14 @@
     setTimeout(function () { SM.map.invalidateSize(); }, 50);
   }
   $('#doc-back').addEventListener('click', closeDoc);
-  $('#doc-print').addEventListener('click', function () {
+  function doPrint(pdf) {
     var h1 = $('.sheet h1'); origTitle = origTitle || document.title;
     document.title = (h1 && h1.textContent.trim()) || 'ScoutMap';
-    setTimeout(function () { window.print(); }, 60);
-  });
+    if (pdf) SM.toast('Dans la fenêtre d’impression, choisissez « Enregistrer au format PDF » comme imprimante.');
+    setTimeout(function () { window.print(); }, pdf ? 1400 : 60);
+  }
+  $('#doc-print').addEventListener('click', function () { doPrint(false); });
+  $('#doc-pdf').addEventListener('click', function () { doPrint(true); });
   window.addEventListener('afterprint', function () { document.title = 'ScoutMap'; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) closeDoc(); });
 

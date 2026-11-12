@@ -587,6 +587,11 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .doc-sum{font-size:13.5px;font-weight:700;color:var(--navy)}
 .doc-sum.bad{color:#b4232c}
 @media print{.doc-tools{display:none}}
+.dpaper{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;font-weight:600;color:#33364d}
+.doc-go{display:flex;gap:8px;align-items:center}
+.doc-tools .chk{font-weight:600}
+.sheet.rf.pp{page:pp}
+@media print{.sheet.rf{padding:var(--pm)!important;width:var(--pw)!important;height:auto!important;min-height:0!important;overflow:visible!important}.doc-go{display:none}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
