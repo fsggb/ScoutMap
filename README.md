@@ -6,6 +6,8 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 **Site : https://fsggb.github.io/ScoutMap/**
 
 ## Simplification (novembre 2026)
+- **Impression en étapes** : 1) choisir le document et le format du papier (A4 / A3, orientation automatique) ; 2) aperçu avec barre d'outils en direct ; 3) « Imprimer » (fenêtre du système) ou « Enregistrer en PDF ». La « Carte du parcours » imprime dans l'ordre : feuille de route (portrait), planche d'assemblage, puis toutes les cartes F1, F2… (case « Avec la feuille de route »).
+- **Secours du tracé** : si aucun chemin n'est trouvé depuis un point (champ, enclave), il est ramené sur l'église, la mairie ou le hameau à moins de 100 m, sinon sur le chemin le plus proche (BD TOPO), puis l'itinéraire est recalculé.
 - **Trois onglets** dans la barre de gauche : Itinéraire, Azimuts, Grand jeu. Chaque onglet a son propre dessin ; en changeant d'onglet, la carte n'affiche que le dessin de l'onglet. Plus de calques superposés, plus d'écran d'accueil, plus d'outil Mesures.
 - **Fond par défaut : OpenTopoMap**, aussi utilisé pour l'impression ; les sentiers balisés (GR, PR…) sont affichés par défaut à partir du zoom 10.
 - **Traces** : enregistrement en GPX ; ouverture de GPX, KML et GeoJSON (menu Fichier ou glisser-déposer sur la carte), affichées sur l'onglet Itinéraire.
