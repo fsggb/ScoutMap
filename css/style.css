@@ -526,8 +526,7 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
   .recbar{top:64px}
   dialog{padding:18px}
   .doc-bar{flex-wrap:wrap;gap:8px;padding:8px 10px}
-  .doc-bar-txt small{display:none}
-}
+  }
 
 /* ---------- Carte du parcours sur plusieurs feuilles ---------- */
 .alert.ok{background:#e8f6ec;color:#14532d}
@@ -592,6 +591,45 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .doc-tools .chk{font-weight:600}
 .sheet.rf.pp{page:pp}
 @media print{.sheet.rf{padding:var(--pm)!important;width:var(--pw)!important;height:auto!important;min-height:0!important;overflow:visible!important}.doc-go{display:none}}
+#dlg-pdf.dlg-wide{width:min(980px,96vw)}
+#dlg-pdf .dlg-sub{text-align:center;margin:-8px 0 14px}
+.dcards{grid-template-columns:repeat(3,1fr)!important;gap:16px}
+.dcard{position:relative;align-items:stretch;padding:14px 14px 16px;cursor:pointer}
+.dcard input{position:absolute;opacity:0;pointer-events:none}
+.dcard .dc-tick{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:#fff;border:2px solid #cfcbbd;color:transparent;z-index:2}
+.dcard.on{border-color:var(--navy);box-shadow:0 0 0 3px rgba(198,162,78,.45)}
+.dcard.on .dc-tick{background:var(--navy);border-color:var(--navy);color:#fff}
+.dcard .dc-th{height:150px;display:grid;place-items:center;background:#f3f1ea;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.dcard .th-svg{width:100%;height:100%}
+.dcard b{font-size:16px}
+.dcard small{min-height:54px}
+.th-page{width:104px;height:140px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);padding:6px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box}
+.th-bar{display:block;height:6px;background:var(--gold);border-radius:2px}
+.th-kp{display:flex;gap:4px}.th-kp b{flex:1;font-size:7px;background:#eef0f8;border-left:2px solid var(--gold);padding:2px 3px;color:var(--navy)}
+.th-page svg{width:100%;height:46px}
+.th-rows i,.th-two i{display:block;height:3px;background:#d5d8e6;margin:2px 0;border-radius:1px}
+.th-two{display:flex;gap:5px;margin-top:auto}.th-two span{flex:1}.th-two em{font-style:normal;font-size:6px;color:var(--navy);font-weight:700}
+.pdf-set{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 28px;margin-top:18px}
+.pdf-set label{display:flex;align-items:center;gap:10px;font-weight:600;color:#33364d}
+.pdf-set label.off{opacity:.4;pointer-events:none}
+.pdf-set .seg button{white-space:nowrap;padding:7px 12px}
+.doc-bar-txt small{display:block;font-size:12px;color:var(--muted)}
+.doc-prog{height:3px;background:#e4e0d4}.doc-prog i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s}
+.doc-body{flex:1;display:flex;min-height:0}
+.doc-side{flex:none;width:158px;overflow:auto;background:#4a4e66;padding:12px 0 40px}
+.dthumb{position:relative;display:block;margin:0 auto 14px;padding:0;border:2px solid transparent;background:#fff;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.dthumb:hover{border-color:var(--gold)}
+.dthumb i{position:absolute;right:3px;bottom:3px;background:rgba(0,7,97,.85);color:#fff;font-style:normal;font-size:10px;font-weight:700;border-radius:8px;padding:1px 6px}
+.d-bottom{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;break-inside:avoid}
+.d-bottom .d-notes .lines{min-height:34mm}
+.d-urg .u-row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;border-bottom:1px solid #dcdfec;padding:3px 0;font-size:9pt}
+.d-urg .u-row>span{display:flex;align-items:center;gap:5px;color:#33364d}
+.d-urg h2 .ph,.d-urg .ph{color:var(--navy);flex:none}
+.d-tbl.dense{font-size:8.6pt}.d-tbl.dense td{padding:2px 6px}.d-tbl.dense td.fill{height:7mm}
+.d-tbl.vdense{font-size:8pt}.d-tbl.vdense td{padding:1px 5px}.d-tbl.vdense td.fill{height:5.5mm}.d-tbl.vdense .d-note{display:none}
+.d-tbl thead{display:table-header-group}
+@media print{.doc-side,.doc-prog{display:none!important}.doc-body{display:block!important}}
+@media (max-width:860px){.dcards{grid-template-columns:1fr!important}.doc-side{display:none}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

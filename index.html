@@ -325,15 +325,11 @@
 
 <dialog id="dlg-pdf" class="dlg-wide">
   <h2>Que voulez-vous imprimer ?</h2>
-  <div class="dcards" id="doc-types">
-    <button class="dcard" data-type="simple"><span class="dc-ic"><svg class="ic"><use href="#i-file"/></svg></span><b>Feuille de route</b><small>L’essentiel sur une page : distance, dénivelé, étapes</small></button>
-    <button class="dcard" data-type="detail"><span class="dc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Feuille de route détaillée</b><small>Avec consignes de guidage, altitudes et durées</small></button>
-    <button class="dcard" data-type="map"><span class="dc-ic"><svg class="ic"><use href="#i-map"/></svg></span><b>Carte à l’échelle</b><small>Ce que vous voyez à l’écran, sur une seule feuille</small></button>
-    <button class="dcard" data-type="tiles"><span class="dc-ic"><svg class="ic"><use href="#i-layers"/></svg></span><b>Carte du parcours</b><small>Plusieurs feuilles A4 ou A3, le moins possible</small></button>
-  </div>
-  <div class="dpaper"><span>Format du papier</span><div class="seg" id="pdf-paper-seg"><button data-v="A4" class="on">A4</button><button data-v="A3">A3</button></div></div>
+  <p class="dlg-sub">Cochez ce que vous voulez : tout s’imprime à la suite.</p>
+  <div class="dcards" id="doc-types"></div>
+  <div class="pdf-set" id="pdf-set"></div>
   <p class="pdf-empty" id="pdf-empty" hidden>Tracez d’abord quelque chose sur la carte pour pouvoir l’imprimer.</p>
-  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button></div>
+  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok"><svg class="ic"><use href="#i-eye"/></svg>Voir l’aperçu</button></div>
 </dialog>
 
 <dialog id="dlg-video">
@@ -372,11 +368,14 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
-    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small>Cliquez dans le document pour modifier un texte.</small></div>
-    <div class="doc-tools" id="doc-tools"></div>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small id="doc-status"></small></div>
     <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>
-  <div class="doc-scroll"><div id="doc-pages"></div></div>
+  <div class="doc-prog" id="doc-prog" hidden><i id="doc-prog-i"></i></div>
+  <div class="doc-body">
+    <nav class="doc-side" id="doc-side" aria-label="Pages"></nav>
+    <div class="doc-scroll"><div id="doc-pages"></div></div>
+  </div>
 </div>
 <style id="page-style"></style>
 
