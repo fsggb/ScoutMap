@@ -1746,6 +1746,17 @@
     }).join('') : '<li class="none">Aucun résultat</li>';
     ul.hidden = false;
   }
+  // Recherche : les index « lieux » et « adresses » sont interrogés séparément (l'index combiné de la Géoplateforme est parfois très lent), avec délai maximal.
+  function geoSearch(q, limit, signal) {
+    function one(ix) {
+      var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 9000);
+      if (signal) signal.addEventListener('abort', function () { ctl.abort(); });
+      return fetch(GP + '/geocodage/search?q=' + encodeURIComponent(q) + '&index=' + ix + '&limit=' + limit, { signal: ctl.signal })
+        .then(function (r) { return r.ok ? r.json() : { features: [] }; }).then(function (j) { clearTimeout(to); return j.features || []; })
+        .catch(function (e) { clearTimeout(to); if (signal && signal.aborted) throw e; return []; });
+    }
+    return Promise.all([one('poi'), one('address')]).then(function (r) { return r[0].concat(r[1]).slice(0, limit); });
+  }
   $('#q').addEventListener('input', function () {
     var v = this.value.trim(); clearTimeout(qTimer);
     $('#q-clear').hidden = !this.value;
@@ -1755,9 +1766,9 @@
     if (v.length < 3) { closeSuggest(); return; }
     qTimer = setTimeout(function () {
       if (qCtl) qCtl.abort(); qCtl = new AbortController();
-      fetch(GP + '/geocodage/search?q=' + encodeURIComponent(v) + '&index=poi,address&limit=7', { signal: qCtl.signal })
-        .then(function (r) { return r.json(); }).then(function (j) {
-          qItems = (j.features || []).map(itemOf); qAct = qItems.length ? 0 : -1; renderSuggest();
+      geoSearch(v, 7, qCtl.signal)
+        .then(function (fs) {
+          qItems = fs.map(itemOf); qAct = qItems.length ? 0 : -1; renderSuggest();
         }).catch(function (e) { if (e.name !== 'AbortError') { qItems = []; $('#suggest').innerHTML = '<li class="none">Recherche indisponible</li>'; $('#suggest').hidden = false; } });
     }, 220);
   });
@@ -2146,8 +2157,8 @@
     var coordOf = function (t) { var m = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*[, ;]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(t || ''); if (!m) return null; var a = +m[1], b = +m[2]; return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? [a, b] : null; };
     var geocode = function (q) {
       var c = coordOf(q); if (c) return Promise.resolve({ lat: c[0], lon: c[1], name: '' });
-      return fetch(GP + '/geocodage/search?q=' + encodeURIComponent(q.slice(0, 120)) + '&index=poi,address&limit=1').then(function (r) { return r.json(); }).then(function (j) {
-        var f = (j.features || [])[0]; if (!f || !f.geometry || !f.geometry.coordinates) return null;
+      return geoSearch(q.slice(0, 120), 1).then(function (fs) {
+        var f = fs[0]; if (!f || !f.geometry || !f.geometry.coordinates) return null;
         var pr = f.properties || {}; return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], name: String(pr.toponym || pr.name || pr.label || q).slice(0, 80) };
       }).catch(function () { return null; });
     };
