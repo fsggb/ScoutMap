@@ -470,7 +470,7 @@
       if (c.overview) h += '<section class="d-sec"><h2>Vue d’ensemble</h2><div class="d-mapbox" id="dov' + uid + '" contenteditable="false"></div></section>';
       if (c.profile && p) h += '<section class="d-sec"><h2>Profil d’altitude</h2><div class="d-svgbox" contenteditable="false"><svg id="dsvg' + uid + '"></svg></div><p class="d-note">Distance en abscisse, altitude en ordonnée (source : altimétrie IGN, tracé lissé).</p></section>';
       var dense = rows.length > 16 ? ' vdense' : rows.length > 9 ? ' dense' : '';
-      var budget = { ov: detail ? 80 : 62, pr: detail ? 46 : 36 };
+      var budget = { ov: detail ? 90 : 80, pr: detail ? 46 : 32 };
       h += '<section class="d-sec"><h2>Étapes</h2><table class="d-tbl' + dense + '"><thead><tr><th>Point</th><th>Lieu</th>' + (detail ? '<th class="r">Alt.</th>' : '') + '<th class="r">Depuis le précédent</th><th class="r">Cumul</th><th class="fill">Date et heure d’arrivée</th></tr></thead><tbody>' +
         rows.map(function (x) {
           return '<tr><td><b>' + esc(x.lab) + '</b></td><td>' + esc(x.name) + '<br><span class="d-note" style="margin:0">' + esc(x.sub) + '</span></td>' + (detail ? '<td class="r">' + (x.alt == null ? '–' : Math.round(x.alt) + ' m') + '</td>' : '') +
@@ -489,36 +489,36 @@
       if (c.notes) h += bottomBlock();
       h += foot();
       sheet.innerHTML = h;
-      var ov = $('#dov' + uid, sheet);
+      var ov = $('#dov' + uid, sheet), sv0 = $('#dsvg' + uid, sheet), sq = { mh: 0, ph: 0 };
+      // Tout doit tenir sur une page : on ajuste les hauteurs de la carte et du profil AVANT de créer les cartes (tableau compacté d'abord).
+      (function squeeze() {
+        var pagePx = (PAPER[c.paper] || PAPER.A4)[1] * MM, tbl = sheet.querySelector('.d-tbl'), cw0 = Math.floor(cw * MM);
+        var mh = ov ? Math.round(Math.min(cw0 * 0.62, budget.ov * MM)) : 0, ph = sv0 && p ? Math.round(budget.pr * MM) : 0;
+        function apply() { if (ov) ov.style.height = mh + 'px'; if (sv0 && p) { sv0.setAttribute('height', ph); sv0.style.height = ph + 'px'; } }
+        function over() { apply(); return sheet.scrollHeight - pagePx; }
+        function shrinkProf(min) { if (sv0 && p && over() > 1) ph = Math.max(min, ph - over()); }
+        function shrinkMap(min) { if (ov && over() > 1) mh = Math.max(min, mh - over()); }
+        // priorité à la carte d'ensemble : on réduit d'abord le profil, puis le tableau, puis la carte
+        if (over() > 1) shrinkProf(80);
+        if (over() > 1 && tbl) tbl.classList.add('dense');
+        if (over() > 1) { shrinkMap(210); shrinkProf(60); }
+        if (over() > 1 && tbl) { tbl.classList.remove('dense'); tbl.classList.add('vdense'); }
+        if (over() > 1) { shrinkMap(140); shrinkProf(60); }
+        apply(); sq = { mh: mh, ph: ph };
+      })();
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, budget.ov * MM)), Math.max(1, SM.wantOff()));
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, Math.max(1, SM.wantOff()));
         var pts = drawItems(m, [it]), b = boundsOf(pts); mp = m; bnd = b;
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
       }
       var sv = $('#dsvg' + uid, sheet);
       if (sv && p) {
-        var wpx = Math.floor(cw * MM), hpx = Math.round(budget.pr * MM);
+        var wpx = Math.floor(cw * MM), hpx = sq.ph || Math.round(budget.pr * MM);
         var marks = rows.length <= 14 ? rows.map(function (x) { return { d: x.d, z: x.alt == null ? 0 : x.alt, t: x.lab, c: x.cls === 'start' ? '#1a7f37' : x.cls === 'end' ? '#b4232c' : '#000761' }; }) : [];
         sv.setAttribute('width', wpx); sv.setAttribute('height', hpx);
         SM.renderProfileSvg(sv, p, wpx, hpx, 'dpg' + uid, marks);
       }
-      // Tout doit tenir sur une page : si ça déborde, on compacte le tableau puis on réduit la carte et le profil.
-      (function squeeze() {
-        var pagePx = (PAPER[c.paper] || PAPER.A4)[1] * MM, tbl = sheet.querySelector('.d-tbl'), wp = Math.floor(cw * MM);
-        var mh = ov ? ov.offsetHeight : 0, ph = sv && p ? +sv.getAttribute('height') : 0;
-        function over() { return sheet.scrollHeight - pagePx; }
-        function setMap(hh) { ov.style.height = hh + 'px'; mp.invalidateSize(); if (bnd) mp.fitBounds(bnd, { animate: false, padding: [30, 30], maxZoom: 16 }); mh = hh; }
-        function setProf(hh) { sv.setAttribute('height', hh); SM.renderProfileSvg(sv, p, wp, hh, 'dpg' + uid, marks); ph = hh; }
-        var stage = 0, guard = 0;
-        while (over() > 1 && guard++ < 14) {
-          var o = over();
-          if (stage === 0) { if (tbl) tbl.classList.add('dense'); stage = 1; }
-          else if (stage === 1) { if (ov && mh > 120) setMap(Math.max(120, mh - o * 0.6)); if (sv && p && over() > 1 && ph > 80) setProf(Math.max(80, ph - Math.max(0, over()))); stage = 2; }
-          else if (stage === 2) { if (tbl) { tbl.classList.remove('dense'); tbl.classList.add('vdense'); } stage = 3; }
-          else { if (ov && mh > 70) setMap(Math.max(70, mh - over())); if (sv && p && over() > 1 && ph > 60) setProf(Math.max(60, ph - over())); break; }
-        }
-      })();
     });
   }
 
