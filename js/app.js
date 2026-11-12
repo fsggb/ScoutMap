@@ -2100,6 +2100,13 @@
   function removeLast() {
     if (S.rail === 'route') $('#route-undo').click(); else if (S.rail === 'az') $('#az-undo').click(); else if (S.rail === 'meas') $('#meas-undo').click();
   }
+  function openTuto() {
+    var v = $('#tuto-video'); if (!v.getAttribute('src')) v.setAttribute('src', 'assets/tuto-scoutmap.mp4');
+    openDlg('dlg-tuto');
+  }
+  $('#btn-tuto').addEventListener('click', openTuto);
+  $('#tuto-close').addEventListener('click', function () { var v = $('#tuto-video'); v.pause(); $('#dlg-tuto').close(); });
+  $('#dlg-tuto').addEventListener('close', function () { $('#tuto-video').pause(); });
   var MENUS = {
     file: [
       { t: 'Nouveau projet', i: 'file', a: function () { resetAll(true); } },
@@ -2137,6 +2144,7 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
+      { t: 'Tutoriel vidéo', i: 'play', a: openTuto },
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
       { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
     ]

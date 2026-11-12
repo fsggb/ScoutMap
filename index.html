@@ -80,6 +80,7 @@
   </nav>
   <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
   <div class="mb-right">
+    <button class="btn-ghost sm light" id="btn-tuto" title="Voir le tutoriel vidéo"><svg class="ic"><use href="#i-play"/></svg><span>Tutoriel</span></button>
     <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
     <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
@@ -333,6 +334,13 @@
   <p class="dlg-sub">Choisissez les éléments à inclure dans le fichier.</p>
   <div class="checks" id="export-opts"></div>
   <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
+</dialog>
+
+<dialog id="dlg-tuto" class="dlg-wide">
+  <h2>Tutoriel vidéo</h2>
+  <video id="tuto-video" controls preload="none" playsinline poster="assets/fsggb.png"></video>
+  <p class="dlg-sub" id="tuto-note">Deux à quatre minutes pour découvrir ScoutMap : itinéraire, azimuts, grand jeu et impression.</p>
+  <div class="dlg-actions"><button class="btn-primary" id="tuto-close">Fermer</button></div>
 </dialog>
 
 <dialog id="dlg-pdf" class="dlg-wide">
