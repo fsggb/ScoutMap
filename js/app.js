@@ -223,11 +223,11 @@
     var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
     Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
   }
-  // ---------- Sentiers GR / GRP / PR (données OpenStreetMap via Overpass), dessinés en rose ----------
+  // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (Overpass) ----------
   // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
   // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
-  var HK = { cells: {}, pend: {}, fail: 0, failed: false, group: L.layerGroup(), colour: '#e0368a', ends: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'] };
-  var HK_CELL = 0.2, HK_MINZ = 11;
+  var HK = { cells: {}, pend: {}, group: L.layerGroup(), colour: '#e0368a', ends: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'] };
+  var HK_CELL = 0.2, HK_MINZ = 12;
   function hkClass(tags) {
     var ref = String(tags.ref || ''), name = String(tags.name || ''), sym = String(tags['osmc:symbol'] || '').toLowerCase(), net = tags.network || '';
     if (/GRP|GR\s*®?\s*de\s*Pays/i.test(ref + ' ' + name)) return 'GRP';
@@ -248,70 +248,89 @@
     });
     return out;
   }
-  function hkFetchCell(ci, cj) {
-    var key = ci + ',' + cj;
-    if (HK.cells[key]) return Promise.resolve();
-    if (HK.pend[key]) return HK.pend[key];
-    var s = ci * HK_CELL, w = cj * HK_CELL, q = hkQuery(s.toFixed(4), w.toFixed(4), (s + HK_CELL).toFixed(4), (w + HK_CELL).toFixed(4));
-    function tryEnd(k) {
-      if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
-      var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 28000);
-      return fetch(HK.ends[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
-        .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .catch(function () { clearTimeout(to); return tryEnd(k + 1); });
-    }
-    HK.pend[key] = tryEnd(0).then(function (j) { HK.cells[key] = hkParse(j); HK.fail = 0; delete HK.pend[key]; }, function () {
-      delete HK.pend[key];
-      if (++HK.fail >= 2 && !HK.failed) { HK.failed = true; applyLayers(); }   // bascule silencieuse sur les tuiles de secours
+  // Itinéraires de randonnée pédestre de la BD TOPO (IGN, WFS de la Géoplateforme) : circuits et sentiers locaux (PR…) ; quelques GR y figurent aussi.
+  function hkIgnParse(j) {
+    var out = [];
+    (j.features || []).forEach(function (f) {
+      var pr = f.properties || {}, g = f.geometry; if (!g || !/pédestre/i.test(pr.nature || '')) return;
+      var top = String(pr.toponyme || ''), cls = /GRP|GR\s*®?\s*de\s*Pays/i.test(top) ? 'GRP' : /(^|\s)GR\s?\d/i.test(top) ? 'GR' : 'PR';
+      var lines = g.type === 'MultiLineString' ? g.coordinates : g.type === 'LineString' ? [g.coordinates] : [];
+      var ways = lines.filter(function (l) { return l.length > 1; }).map(function (l) { return l.map(function (q) { return [q[1], q[0]]; }); });
+      var m = /GR\s?\d+\w*/i.exec(top);
+      if (ways.length) out.push({ id: 'i' + (pr.cleabs || out.length), cls: cls, ref: cls === 'GR' && m ? m[0].replace(/\s+/g, ' ').toUpperCase() : '', ways: ways });
     });
-    return HK.pend[key];
+    return out;
+  }
+  // Une cellule contient deux jeux de données chargés séparément : osm (GR et GR de Pays, dès le zoom 12) et ign (PR et circuits, à partir du zoom 14 pour ne pas surcharger la carte).
+  var HK_IGNZ = 14;
+  function hkFetchCell(ci, cj, needIgn) {
+    var key = ci + ',' + cj, cell = HK.cells[key] || (HK.cells[key] = { osm: null, ign: null, osmT: 0, ignT: 0 }), now = Date.now(), jobs = [];
+    var s = ci * HK_CELL, w = cj * HK_CELL, n = s + HK_CELL, e = w + HK_CELL;
+    if (!cell.osm && now - cell.osmT > 60000 && !HK.pend[key + 'o']) {
+      var q = hkQuery(s.toFixed(4), w.toFixed(4), n.toFixed(4), e.toFixed(4));
+      var tryEnd = function (k) {
+        if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
+        var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 28000);
+        return fetch(HK.ends[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
+          .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .catch(function () { clearTimeout(to); return tryEnd(k + 1); });
+      };
+      HK.pend[key + 'o'] = tryEnd(0).then(function (j) { cell.osm = hkParse(j).filter(function (r) { return r.cls !== 'PR'; }); }, function () { cell.osmT = Date.now(); }).then(function () { delete HK.pend[key + 'o']; });
+      jobs.push(HK.pend[key + 'o']);
+    } else if (HK.pend[key + 'o']) jobs.push(HK.pend[key + 'o']);
+    if (needIgn && !cell.ign && now - cell.ignT > 60000 && !HK.pend[key + 'i']) {
+      var ignUrl = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:itineraire_autre&OUTPUTFORMAT=application/json&COUNT=2500&SRSNAME=EPSG:4326&PROPERTYNAME=nature,toponyme,cleabs,geometrie&BBOX=' +
+        s.toFixed(4) + ',' + w.toFixed(4) + ',' + n.toFixed(4) + ',' + e.toFixed(4) + ',urn:ogc:def:crs:EPSG::4326';
+      HK.pend[key + 'i'] = fetch(ignUrl).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) { cell.ign = hkIgnParse(j); }, function () { cell.ignT = Date.now(); }).then(function () { delete HK.pend[key + 'i']; });
+      jobs.push(HK.pend[key + 'i']);
+    } else if (needIgn && HK.pend[key + 'i']) jobs.push(HK.pend[key + 'i']);
+    return Promise.all(jobs);
   }
   function hkCells(b) {
     var out = [];
     for (var i = Math.floor(b.getSouth() / HK_CELL); i <= Math.floor(b.getNorth() / HK_CELL); i++) for (var j = Math.floor(b.getWest() / HK_CELL); j <= Math.floor(b.getEast() / HK_CELL); j++) out.push([i, j]);
     return out.length > 12 ? [] : out;
   }
-  // Dessine les sentiers déjà chargés dans la carte (ou le groupe) donnée ; weight/labels selon le zoom.
+  // Dessine les sentiers déjà chargés : un seul tracé par itinéraire (léger), rose ; GR plein, GR de Pays en tirets longs, PR en pointillés. Aucune icône : seulement le nom des GR, de temps en temps.
   function hkDraw(target, bounds, zoom, lbl) {
     var seen = {}, nl = 0, wt = zoom >= 15 ? 4 : 3;
     hkCells(bounds).forEach(function (c) {
-      (HK.cells[c[0] + ',' + c[1]] || []).forEach(function (r) {
-        var dash = r.cls === 'PR' ? '2 6' : r.cls === 'GRP' ? '12 5' : null;
-        r.ways.forEach(function (w) {
-          L.polyline(w, { color: '#fff', weight: wt + 2, opacity: 0.75, lineCap: 'butt', interactive: false }).addTo(target);
-          L.polyline(w, { color: HK.colour, weight: wt, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
-        });
+      var cell = HK.cells[c[0] + ',' + c[1]]; if (!cell) return;
+      (cell.osm || []).concat(zoom >= HK_IGNZ ? (cell.ign || []) : []).forEach(function (r) {
+        var dash = r.cls === 'PR' ? '1 6' : r.cls === 'GRP' ? '12 5' : null, w1 = r.cls === 'PR' ? Math.max(2, wt - 1) : wt;
+        L.polyline(r.ways, { color: '#fff', weight: w1 + 2, opacity: 0.7, lineCap: 'butt', interactive: false }).addTo(target);
+        L.polyline(r.ways, { color: HK.colour, weight: w1, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
         if (lbl && r.ref && r.cls !== 'PR' && zoom >= 12 && !seen[r.id] && nl < 40) {
-          var best = r.ways.reduce(function (a, b2) { return b2.length > a.length ? b2 : a; }, r.ways[0]), mid = best[Math.floor(best.length / 2)];
-          if (bounds.contains(mid)) {
-            seen[r.id] = 1; nl++;
-            L.marker(mid, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target);
-          }
+          var best = null, bl = 0;
+          r.ways.forEach(function (w2) { var mid = w2[Math.floor(w2.length / 2)]; if (w2.length > bl && bounds.contains(mid)) { bl = w2.length; best = mid; } });
+          if (best) { seen[r.id] = 1; nl++; L.marker(best, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target); }
         }
       });
     });
   }
+  function hkNeeds(b, z) { return hkCells(b).filter(function (c) { var cell = HK.cells[c[0] + ',' + c[1]]; return !cell || (!cell.osm && Date.now() - cell.osmT > 60000) || (z >= HK_IGNZ && !cell.ign && Date.now() - cell.ignT > 60000); }); }
   function hkRefresh() {
     HK.group.clearLayers();
-    if (!S.ov.hiking || HK.failed) { if (map.hasLayer(HK.group)) map.removeLayer(HK.group); return; }
+    if (!S.ov.hiking) { if (map.hasLayer(HK.group)) map.removeLayer(HK.group); return; }
     if (!map.hasLayer(HK.group)) HK.group.addTo(map);
     var z = map.getZoom(); if (z < HK_MINZ) return;
-    var b = map.getBounds(), cells = hkCells(b);
+    var b = map.getBounds();
     hkDraw(HK.group, b, z, true);
-    var todo = cells.filter(function (c) { return !HK.cells[c[0] + ',' + c[1]]; });
-    if (todo.length) Promise.all(todo.map(function (c) { return hkFetchCell(c[0], c[1]); })).then(function () { if (S.ov.hiking && !HK.failed) hkRefresh(); });
+    var todo = hkNeeds(b, z);
+    if (todo.length) Promise.all(todo.map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { if (S.ov.hiking && map.getZoom() >= HK_MINZ) { HK.group.clearLayers(); hkDraw(HK.group, map.getBounds(), map.getZoom(), true); } });
   }
   var hkTimer; map.on('moveend zoomend', function () { clearTimeout(hkTimer); hkTimer = setTimeout(hkRefresh, 350); });
   // Pour les documents imprimés : charge les cellules nécessaires puis dessine dans la carte du document.
   function hikeDraw(m) {
-    if (!S.ov.hiking || HK.failed) return Promise.resolve();
-    var b = m.getBounds(), cells = hkCells(b);
-    return Promise.all(cells.map(function (c) { return hkFetchCell(c[0], c[1]); })).then(function () { if (!HK.failed) hkDraw(m, b, m.getZoom(), true); });
+    if (!S.ov.hiking) return Promise.resolve();
+    var b = m.getBounds(), z = m.getZoom();
+    return Promise.all(hkCells(b).map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { hkDraw(m, b, z, true); });
   }
   function applyLayers() {
     Object.keys(LAYERS).forEach(function (k) {
       var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
-      if (k === 'hiking') on = on && HK.failed;   // tuiles de secours seulement si le service des sentiers est indisponible
+      if (k === 'hiking') on = false;   // les sentiers sont dessinés en rose (vectoriel) : plus de tuiles avec icônes
       if (on) { if (!map.hasLayer(tiles[k])) tiles[k].addTo(map); } else if (map.hasLayer(tiles[k])) map.removeLayer(tiles[k]);
     });
     tiles[S.base].bringToBack();
@@ -2513,7 +2532,7 @@
 
   // API interne pour doc.js
   window.SM = {
-    hikeDraw: hikeDraw, hikeFailed: function () { return HK.failed; },
+    hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
