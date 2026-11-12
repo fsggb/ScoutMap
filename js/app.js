@@ -32,11 +32,11 @@
   var GAME_PAL = ['#c0262d', '#2563eb', '#1a7f37', '#d97706', '#7a3db8'];
   function freshGame(prev, n) { return { id: nid(), name: 'Grand jeu ' + n, color: GAME_PAL[(n - 1) % GAME_PAL.length], shapes: [] }; }
   var FRESH = { route: freshRoute, az: freshAz, meas: freshMeas, game: freshGame };
-  var TYPES = ['route', 'az', 'meas', 'game'];
+  var TYPES = ['route', 'az', 'game'];
   var MODE_INFO = { route: { label: 'Itinéraire', icon: 'route' }, az: { label: 'Azimuts', icon: 'compass' }, meas: { label: 'Mesure', icon: 'ruler' }, game: { label: 'Grand jeu', icon: 'flag' } };
   var S = {
     name: '', mode: null, rail: 'route', panelOpen: true,
-    base: 'plan', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: false, lidar: false },
+    ver: 4, base: 'otm', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
     detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
@@ -52,13 +52,15 @@
       ['route', 'az', 'meas', 'game', 'vis', 'ov', 'gameStyle'].forEach(function (k) { if (saved[k]) Object.assign(S[k], saved[k]); });
       ['name', 'mode', 'rail', 'panelOpen', 'base', 'detail', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
       if (Array.isArray(saved.layers)) S.layers = saved.layers.filter(function (l) { return l && l.data && l.type && FRESH[l.type]; });
-      if (['route', 'az', 'meas', 'game', 'layers'].indexOf(S.rail) < 0) S.rail = 'route';
+      if (['route', 'az', 'game'].indexOf(S.rail) < 0) S.rail = 'route';
+      if ((saved.ver || 0) < 4) { S.base = 'otm'; S.ov.hiking = true; }   // nouveaux réglages par défaut
+      S.ver = 4; S.layers = [];                                           // plus de calques superposés
       if (!S.view || !S.view.c) S.view = { c: [46.6, 2.5], z: 5.6 };
       delete S.route.profile;
     }
   } catch (e) { /* stockage indisponible */ }
-  if (TYPES.indexOf(S.mode) < 0) S.mode = null;
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0) S.base = 'plan';
+  if (TYPES.indexOf(S.mode) < 0) S.mode = 'route';
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -117,7 +119,7 @@
     slope: { ign: true, label: 'Pentes', icon: 'slope', l: 'ELEVATION.SLOPES', f: 'jpeg', n: 14, o: { minZoom: 6, opacity: 0.5 } },
     cadastre: { ign: true, label: 'Cadastre', icon: 'parcel', l: 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS', f: 'png', n: 19, o: { minZoom: 12, opacity: 0.85 } },
     hiking: { label: 'Sentiers balisés (GR…)', icon: 'route', url: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', n: 18,
-      attr: '© <a href="https://hiking.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a> / ' + OSMA + ' contributors', o: { opacity: 0.9 } }
+      attr: '© <a href="https://hiking.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a> / ' + OSMA + ' contributors', o: { opacity: 0.9, minZoom: 10 } }
   };
   var BASES = Object.keys(LAYERS).filter(function (k) { return LAYERS[k].base; });
   var OVERS = Object.keys(LAYERS).filter(function (k) { return !LAYERS[k].base; });
@@ -345,8 +347,6 @@
     if (window.SM && SM.game && SM.game.onTool) SM.game.onTool(t);
   }
   function updateRailMode() {
-    var info = MODE_INFO[S.mode || 'route'];
-    $('#rail-mode-l').textContent = info.label; $('#rail-mode use').setAttribute('href', '#i-' + info.icon);
   }
   function setMode(m) {
     if (m === S.mode) { showHome(false); return; }
@@ -364,7 +364,7 @@
     else if (!S.mode) { showHome(true); return; }
     S.rail = r; S.panelOpen = true;
     $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== r; });
-    $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === r || (b.dataset.rail === 'mode' && TYPES.indexOf(r) >= 0)); });
+    $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === r); });
     applyPanel();
     setTool(TYPES.indexOf(r) >= 0 ? r : 'pan');
     if (r === 'layers') renderLayerList();
@@ -388,25 +388,11 @@
   $('#panel-close').addEventListener('click', function () { S.panelOpen = false; applyPanel(); persist(); });
 
   // ---------- Accueil : choix du type de travail ----------
-  function homeCount(t) { return S.layers.filter(function (l) { return l.type === t; }).length + (isEmpty(t, S[t]) ? 0 : 1) + (t === 'route' ? S.tracks.length : 0); }
-  function showHome(show) {
-    var h = $('#home'); h.hidden = !show;
-    if (show) {
-      TYPES.forEach(function (t) { var n = homeCount(t), b = $('[data-badge="' + t + '"]'); b.hidden = !n; b.textContent = n + (n > 1 ? ' éléments' : ' élément'); });
-      $('#home-continue').hidden = !S.mode;
-      if (SIM.open) simClose(true);
-      closePops(); hideCtx(); map.closePopup();
-    }
-    updateHint();
-  }
+  function showHome() { updateHint(); }   // plus d'écran d'accueil : les trois onglets du rail suffisent
   function startType(t) {
     setRail(t);
     if (isMobile()) { S.panelOpen = false; applyPanel(); persist(); }
   }
-  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () { startType(b.dataset.start); }); });
-  $('#home-import').addEventListener('click', function () { startType('route'); $('#file-gpx').click(); });
-  $('#home-continue').addEventListener('click', function () { showHome(false); });
-  $('.brand').addEventListener('click', function (e) { e.preventDefault(); showHome(true); });
 
   function hintText() {
     var r = S.rail, n = S.route.wps.length;
@@ -421,7 +407,7 @@
   }
   function updateHint() {
     var el = $('#toolhint'), r = S.rail;
-    if (!S.mode || !$('#home').hidden) { el.hidden = true; return; }
+    if (!S.mode) { el.hidden = true; return; }
     if (r === 'game' && window.SM && SM.game) {
       el.hidden = false; $('#hint-ic').innerHTML = '<use href="#i-flag"/>';
       $('#hint-txt').textContent = SM.game.hint(); $('#hint-btn').textContent = SM.game.hintBtn(); $('#hint-btn').hidden = !SM.game.hintBtn();
@@ -452,6 +438,7 @@
     return all ? out : out.filter(function (l) { return l.type === S.mode; });   // seul le type en cours est visible
   }
   function archiveActive(t) {
+    return false;   // un seul dessin par onglet : on ne superpose plus de calques
     if (isEmpty(t, S[t])) return false;
     S.layers.push({ type: t, vis: S.vis[t] !== false, data: S[t], res: t === 'route' ? RT.route : null });
     return true;
@@ -498,18 +485,14 @@
     if (L0) { L0.data.name = name; syncNames(); renderLayerList(); refreshProfile(); renderStored(); persist(); }
   }
   function syncNames() {
-    $('#route-name').value = S.route.name; $('#az-name').value = S.az.name; $('#meas-name').value = S.meas.name; $('#game-name').value = S.game.name;
+    $('#route-name').value = S.route.name; $('#az-name').value = S.az.name; $('#game-name').value = S.game.name;
   }
-  [['route-name', 'route'], ['az-name', 'az'], ['meas-name', 'meas'], ['game-name', 'game']].forEach(function (p) {
+  [['route-name', 'route'], ['az-name', 'az'], ['game-name', 'game']].forEach(function (p) {
     $('#' + p[0]).addEventListener('input', function () { S[p[1]].name = this.value || ''; renderLayerList(); persist(); });
     $('#' + p[0]).addEventListener('change', function () { if (!this.value.trim()) { this.value = S[p[1]].name = 'Sans nom'; renderLayerList(); } });
   });
-  $('#route-new').addEventListener('click', function () { newLayer('route'); });
-  $('#az-new').addEventListener('click', function () { newLayer('az'); });
-  $('#meas-new').addEventListener('click', function () { newLayer('meas'); });
-  $('#game-new').addEventListener('click', function () { newLayer('game'); });
-  $('#game-pdf').addEventListener('click', function () { openPdf('map'); });
-  $$('[data-newlayer]').forEach(function (b) { b.addEventListener('click', function () { newLayer(b.dataset.newlayer); }); });
+  $('#game-pdf').addEventListener('click', function () { openPdf(); });
+  $('#az-print').addEventListener('click', function () { openPdf(); });
 
   // Calques stockés : dessin statique, clic = reprendre l'édition
   function renderStored() {
@@ -965,8 +948,7 @@
   $('#opt-national').addEventListener('change', function () { S.route.flagNat = this.checked; renderNatWarn(); persist(); });
   $('#max-on').addEventListener('change', function () { S.route.maxOn = this.checked; syncRouteUi(); onMaxChange(); persist(); });
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
-  $('#route-pdf').addEventListener('click', function () { openPdf('simple'); });
-  $('#route-tiles').addEventListener('click', function () { openPdf('tiles'); });
+  $('#route-pdf').addEventListener('click', function () { openPdf(); });
   function onMaxChange() { restyleRoute(); renderRouteStats(); renderGauge(); refreshProfile(); }
   function syncRouteUi() {
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
@@ -1330,6 +1312,7 @@
   // ---------- Mesure ----------
   var measLayers = [];
   function renderMeas() {
+    return;   // la fonction Mesures a été retirée de l'interface
     measLayers.forEach(function (l) { gMeas.removeLayer(l); }); measLayers = []; measMarkers = [];
     var pts = S.meas.pts, area = S.meas.mode === 'area', col = S.meas.color;
     $$('#meas-mode button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.meas.mode); });
@@ -1356,9 +1339,6 @@
     } else el.innerHTML = '<div><span>Distance</span><b>' + G.fmtDist(len) + '</b></div><div><span>Points</span><b>' + pts.length + '</b></div>';
     renderLayerList(); refreshProfile(); applySel();
   }
-  $$('#meas-mode button').forEach(function (b) { b.addEventListener('click', function () { S.meas.mode = b.dataset.v; renderMeas(); persist(); }); });
-  $('#meas-undo').addEventListener('click', function () { S.meas.pts.pop(); select(null); renderMeas(); persist(); });
-  $('#meas-clear').addEventListener('click', function () { S.meas.pts = []; select(null); renderMeas(); persist(); });
 
   // ---------- Traces importées ----------
   var trackLayers = {};
@@ -1383,7 +1363,7 @@
     var fr = new FileReader();
     fr.onload = function () {
       try {
-        var base = file.name.replace(/\.gpx$/i, ''), res = G.parseGpx(fr.result, base);
+        var base = file.name.replace(/\.(gpx|kml|geojson|json)$/i, ''), res = /\.(geojson|json)$/i.test(file.name) ? G.parseGeoJson(fr.result, base) : /\.kml$/i.test(file.name) ? G.parseKml(fr.result, base) : G.parseGpx(fr.result, base);
         if (!res.tracks.length && !res.wpts.length) { toast('Aucune trace ni point dans ce fichier.'); return; }
         var added = [];
         res.tracks.forEach(function (t, i) {
@@ -1391,11 +1371,11 @@
           S.tracks.push(tr); added.push(tr);
         });
         if (!res.tracks.length) S.tracks.push({ id: Date.now(), name: base + ' (points)', coords: res.wpts.map(function (w) { return [w.lat, w.lon]; }), color: palette[0], show: true, wpts: res.wpts });
-        renderTracks(); setRail('layers');
+        renderTracks();
         var b = L.latLngBounds([]); (added.length ? added : S.tracks.slice(-1)).forEach(function (t) { t.coords.forEach(function (c) { b.extend(c); }); });
         if (b.isValid()) fit(b, { padding: [60, 60] });
         if (added[0]) { S.profileSrc = 't' + added[0].id; refreshProfile(); }
-        toast(res.tracks.length + ' trace(s) importée(s).'); persist();
+        toast((res.tracks.length || 1) + ' trace(s) importée(s) (affichée(s) sur l’onglet Itinéraire).'); persist();
       } catch (e) { toast(e.message || 'Import impossible.'); }
     };
     fr.readAsText(file);
@@ -1409,7 +1389,7 @@
     window.addEventListener('drop', function (e) {
       if (!e.dataTransfer || !e.dataTransfer.files.length) return;
       e.preventDefault(); dz.classList.remove('over');
-      Array.prototype.forEach.call(e.dataTransfer.files, function (f) { if (/\.gpx$/i.test(f.name) || /xml/.test(f.type)) importGpx(f); });
+      Array.prototype.forEach.call(e.dataTransfer.files, function (f) { if (/\.(gpx|kml|geojson|json)$/i.test(f.name) || /xml|json/.test(f.type)) importGpx(f); });
     });
   })();
 
@@ -1425,26 +1405,13 @@
   var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure', game: 'Grand jeu' };
   function renderLayerList() {
     var el = $('#layer-list'); if (!el) return;
-    var all = layersList(), rows = all.filter(function (l) {
-      if (!l.active || !l.empty) return true;
-      return !all.some(function (o) { return o.type === l.type && o !== l && !o.empty; });   // un calque vide en cours n'apparaît que s'il est seul de son type
-    });
-    var html = rows.map(function (l) {
-      var v = l.vis, canInv = l.type === 'route' && !l.empty;
-      return '<li class="lrow' + (v ? '' : ' off') + (l.empty ? ' vide' : '') + (l.active && !l.empty ? ' active' : '') + '" data-k="' + esc(l.key) + '">' +
-        (l.empty ? '<span style="width:30px"></span>' : '<button class="ibtn" data-a="vis" title="' + (v ? 'Masquer' : 'Afficher') + '" aria-label="' + (v ? 'Masquer' : 'Afficher') + '">' + ic(v ? 'eye' : 'eye-off') + '</button>') +
-        '<span class="lsw" style="background:' + l.color + '"></span><div class="lmeta"><b class="lname" data-a="rename" title="Double-clic pour renommer">' + esc(l.name) + '</b><small>' + TYPE_LABEL[l.type] + ' · ' + esc(layerMeta(l)) + (l.active && !l.empty ? ' · actif' : '') + '</small></div>' +
-        (l.empty ? '' : (canInv ? '<button class="ibtn" data-a="inv" title="Inverser le sens" aria-label="Inverser le sens">' + ic('swap') + '</button>' : '') +
-          (l.active ? '' : '<button class="ibtn" data-a="edit" title="Modifier ce calque" aria-label="Modifier">' + ic('edit') + '</button>') +
-          '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
-    }).join('');
-    html += (S.mode === 'route' ? S.tracks : []).map(function (t) {
+    var box = $('#tracks-box'); if (box) box.hidden = !S.tracks.length;
+    el.innerHTML = S.tracks.map(function (t) {
       var v = t.show !== false;
       return '<li class="lrow' + (v ? '' : ' off') + '" data-k="t' + t.id + '"><button class="ibtn" data-a="vis" title="' + (v ? 'Masquer' : 'Afficher') + '" aria-label="Basculer">' + ic(v ? 'eye' : 'eye-off') + '</button><span class="lsw" style="background:' + t.color + '"></span>' +
-        '<div class="lmeta"><b class="lname" data-a="rename" title="Double-clic pour renommer">' + esc(t.name) + '</b><small>Trace GPX · ' + G.fmtDist(G.pathLength(t.coords)) + '</small></div>' +
+        '<div class="lmeta"><b class="lname" data-a="rename" title="Double-clic pour renommer">' + esc(t.name) + '</b><small>Trace importée · ' + G.fmtDist(G.pathLength(t.coords)) + '</small></div>' +
         '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
     }).join('');
-    el.innerHTML = html;
   }
   function layerBounds(key) {
     var pts = [];
@@ -1492,7 +1459,6 @@
     inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(true); else if (ev.key === 'Escape') commit(false); });
     inp.addEventListener('blur', function () { commit(true); });
   });
-  $('#open-basemaps').addEventListener('click', function () { togglePop('layer-pop', true); });
   $('#pop-tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-tab]'); if (b) popTab(b.dataset.tab); });
   $('#ov-none').addEventListener('click', function () { OVERS.forEach(function (k) { S.ov[k] = false; }); applyLayers(); persist(); });
   function resetAll(ask) {
@@ -1503,7 +1469,6 @@
     syncRouteUi(); refreshRouteView(); renderAz(); renderMeas(); renderTracks(); renderStored(); renderLayerList(); if (window.SM && SM.game) SM.game.render(); persist();
     if (ask) showHome(true);
   }
-  $('#reset-all').addEventListener('click', function () { resetAll(true); });
   $('#proj-name').addEventListener('input', function () { S.name = this.value; persist(); });
 
   // ---------- Fonds, couches, netteté (fenêtres flottantes) ----------
@@ -2055,14 +2020,11 @@
   }
   var MENUS = {
     file: [
-      { t: 'Accueil : choisir un type de travail', i: 'home', k: 'H', a: function () { showHome(true); } },
-      '-',
       { t: 'Nouveau projet', i: 'file', a: function () { resetAll(true); } },
-      { t: 'Importer un fichier GPX…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
-      { t: 'Exporter en GPX…', i: 'download', k: 'Ctrl+S', a: openExport },
+      { t: 'Ouvrir une trace (GPX, KML, GeoJSON)…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
+      { t: 'Enregistrer en GPX…', i: 'download', k: 'Ctrl+S', a: openExport },
       '-',
-      { t: 'Exporter en PDF / imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
-      { t: 'Imprimer la carte du parcours (A4 / A3, plusieurs feuilles)…', i: 'map', a: function () { openPdf('tiles'); } }
+      { t: 'Imprimer / exporter en PDF…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
@@ -2070,31 +2032,23 @@
       '-',
       { t: 'Supprimer le point sélectionné', i: 'trash', k: 'Suppr', a: deleteSelected, dis: function () { return !SEL; } },
       { t: 'Retirer le dernier point posé', i: 'undo', a: removeLast, dis: function () { return !canUndo(); } },
-      '-',
       { t: 'Inverser le sens de l’itinéraire', i: 'swap', a: reverseRoute, dis: function () { return S.route.wps.length < 2; } },
-      { t: 'Effacer l’itinéraire en cours', i: 'trash', a: function () { $('#route-clear').click(); }, dis: function () { return !S.route.wps.length; } },
-      { t: 'Effacer les azimuts en cours', i: 'trash', a: function () { $('#az-clear').click(); }, dis: function () { return !S.az.pts.length; } },
-      { t: 'Effacer la mesure en cours', i: 'trash', a: function () { $('#meas-clear').click(); }, dis: function () { return !S.meas.pts.length; } },
-      { t: 'Effacer le grand jeu en cours', i: 'trash', a: function () { removeLayer('game'); }, dis: function () { return !S.game.shapes.length; } },
       '-',
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
     ],
     create: [
-      { t: 'Nouvel itinéraire à pied', i: 'route', k: 'I', a: function () { newLayer('route', { loop: false }); } },
-      { t: 'Nouvel itinéraire en boucle', i: 'loop', a: function () { newLayer('route', { loop: true }); } },
-      { t: 'Nouveaux azimuts', i: 'compass', k: 'A', a: function () { newLayer('az'); } },
-      { t: 'Nouvelle mesure de distance', i: 'ruler', k: 'M', a: function () { newLayer('meas'); S.meas.mode = 'dist'; renderMeas(); } },
-      { t: 'Nouvelle mesure de surface', i: 'ruler', a: function () { newLayer('meas'); S.meas.mode = 'area'; renderMeas(); } },
-      { t: 'Nouveau grand jeu (zones, flèches, textes)', i: 'flag', k: 'G', a: function () { newLayer('game'); } },
+      { t: 'Itinéraire à pied', i: 'route', k: 'I', a: function () { startType('route'); } },
+      { t: 'Azimuts', i: 'compass', k: 'A', a: function () { startType('az'); } },
+      { t: 'Grand jeu (zones, flèches, textes)', i: 'flag', k: 'G', a: function () { startType('game'); } },
       '-',
       { t: 'Simulation du parcours…', i: 'play', a: simOpen, dis: function () { return !currentProfile; } }
     ],
     view: [
+      { t: 'Fond de carte et informations…', i: 'map', a: function () { togglePop('layer-pop', true); popTab('base'); } },
+      { t: 'Recadrer sur le tracé', i: 'target', a: function () { $('#fit-all').click(); } },
+      '-',
       { t: 'Panneau latéral', chk: function () { return S.panelOpen; }, a: togglePanel },
       { t: 'Profil d’altitude', chk: function () { return S.dockOpen; }, a: toggleDock },
-      { t: 'Calques', i: 'layers', k: 'L', a: function () { setRail('layers'); } },
-      { t: 'Fond de carte…', i: 'map', a: function () { togglePop('layer-pop', true); popTab('base'); } },
-      { t: 'Informations affichées (relief, sentiers, cadastre…)', i: 'layers', a: function () { togglePop('layer-pop', true); popTab('info'); } },
       '-',
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
@@ -2143,7 +2097,7 @@
     if ((e.key === 'Delete' || e.key === 'Backspace') && SEL) { e.preventDefault(); deleteSelected(); return; }
     var k = e.key.toLowerCase();
     if (k === 'escape') { hideMenu(); hideCtx(); closePops(); if (window.SM && SM.game && S.mode === 'game' && SM.game.escape()) return; if (SEL) select(null); else if (RT.tool !== 'pan') setTool('pan'); map.closePopup(); }
-    else if (k === 'i') startType('route'); else if (k === 'a') startType('az'); else if (k === 'm') startType('meas'); else if (k === 'g') startType('game'); else if (k === 'l') setRail('layers'); else if (k === 'h') showHome(true);
+    else if (k === 'i') startType('route'); else if (k === 'a') startType('az'); else if (k === 'g') startType('game');
   });
   window.addEventListener('beforeunload', function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
 
@@ -2151,11 +2105,10 @@
   curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
   renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); renderStored(); showCoords(); updateScaleUI();
   $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== S.rail; });
-  $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === S.rail || (b.dataset.rail === 'mode' && TYPES.indexOf(S.rail) >= 0)); });
+  $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === S.rail || false); });
   $('#app').classList.toggle('nopanel', !S.panelOpen);
   updateRailMode(); applyDock();
-  setTool('pan');
-  showHome(!S.mode);
+  setTool(S.rail);
   if (S.route.wps.length > 1) computeRoute(); else refreshProfile();
   fillPlaces(S.route);
   H.ready = true; H.lastKey = hKey(); H.lastSnap = hSnap(); hButtons();

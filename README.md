@@ -5,6 +5,12 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 
 **Site : https://fsggb.github.io/ScoutMap/**
 
+## Simplification (novembre 2026)
+- **Trois onglets** dans la barre de gauche : Itinéraire, Azimuts, Grand jeu. Chaque onglet a son propre dessin ; en changeant d'onglet, la carte n'affiche que le dessin de l'onglet. Plus de calques superposés, plus d'écran d'accueil, plus d'outil Mesures.
+- **Fond par défaut : OpenTopoMap**, aussi utilisé pour l'impression ; les sentiers balisés (GR, PR…) sont affichés par défaut à partir du zoom 10.
+- **Traces** : enregistrement en GPX ; ouverture de GPX, KML et GeoJSON (menu Fichier ou glisser-déposer sur la carte), affichées sur l'onglet Itinéraire.
+- **Impression** : quatre grandes cartes (feuille de route, feuille détaillée, carte à l'échelle, carte du parcours sur plusieurs feuilles) puis, dans l'aperçu, une barre d'outils (papier, sens, échelle, tracé affiché ou points seulement) qui recalcule en direct.
+
 ## Fonds de carte (« filtres ») et conditions d'usage
 
 Bouton *Fonds et couches* : **Plan IGN**, **Photographies**, **État-major (1820-66)** (IGN, données ouvertes de la Géoplateforme) ; **OpenTopoMap**, **OpenStreetMap**, **OSM France**, **CyclOSM** (serveurs libres) ; couches : courbes de niveau, ombrage, **relief LiDAR HD**, pentes, cadastre, **sentiers balisés (Waymarked Trails : GR…)**. Toutes les sources sont chargées en CORS, avec attribution affichée.
