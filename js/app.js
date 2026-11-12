@@ -1047,7 +1047,7 @@
   function renderRouteMarkers() {
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
-    S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
+    S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); var oi = offInfo(q); if (oi) routeLinks.push(L.marker(oi.mid, { interactive: false, icon: L.divIcon({ className: 'link-lbl', html: '<span>Azimut ' + esc(oi.az) + ' · ' + esc(oi.d) + '</span>', iconSize: [0, 0] }) }).addTo(gRoute)); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
     w.forEach(function (p, i) {
       var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
@@ -1069,7 +1069,7 @@
     $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
       return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || p.place || '') + '" placeholder="' + esc(titleOf(d, i)) + '" aria-label="Nom du point (village ou hameau par défaut)">' +
-        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (offInfo(p) ? ' · hors sentier : azimut ' + esc(offInfo(p).az) + ' sur ' + esc(offInfo(p).d) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
     applySel();
   }
@@ -1214,6 +1214,12 @@
     return nearestRoadPoint(lat, lon, 150).then(function (r) { return r || nearestRoadPoint(lat, lon, 600); }).then(function (r) { return r || nearestRoadPoint(lat, lon, 2500); });
   }
   // Un point hors sentier (pic, col…) reste exactement où il est ; il est relié en pointillés au chemin le plus proche, qui sert au calcul de l'itinéraire.
+  // Azimut à suivre pour quitter le chemin et rejoindre le point (et azimut du retour), dans l'unité des azimuts (degrés, grades ou millièmes ; nord géographique ou magnétique).
+  function offInfo(w) {
+    if (!w || !w.anchor) return null;
+    var a = azParams(S.az), from = [w.anchor.lat, w.anchor.lon], to = [w.lat, w.lon], tr = G.bearing(from, to), bk = (tr + 180) % 360;
+    return { az: G.fmtAz(G.trueToUnit(tr, a.unit, a.ref, a.decl), a.unit), back: G.fmtAz(G.trueToUnit(bk, a.unit, a.ref, a.decl), a.unit), d: G.fmtDist(w.anchor.d), mid: [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2] };
+  }
   function ensureAnchor(w) {
     if (!w || w.noAnchor) return Promise.resolve();
     return nearestRoadLadder(w.lat, w.lon).then(function (r) {
@@ -1222,7 +1228,7 @@
       if (r.d <= 40) { if (w.anchor) { delete w.anchor; renderRouteMarkers(); computeRoute(); persist(); } return; }
       w.anchor = { lat: r.lat, lon: r.lon, d: Math.round(r.d) };
       renderRouteMarkers(); renderWpList(); computeRoute(); persist();
-      toast('Point hors sentier : il est relié en pointillés au chemin le plus proche (' + G.fmtDist(r.d) + ').');
+      var oi = offInfo(w); toast('Point hors sentier : relié en pointillés au chemin le plus proche (' + G.fmtDist(r.d) + '). Azimut à suivre depuis le chemin : ' + oi.az + '.');
     });
   }
   function snapPoint(w) {
@@ -1975,6 +1981,7 @@
     if (a === 'start') w.unshift(o); else if (a === 'end') w.push(o);
     else if (w.length < 2) w.push(o); else w.splice(w.length - 1, 0, o);
     setRail('route'); setTool('pan'); renderRouteMarkers(); computeRoute(); persist(); fillPlaces(S.route);
+    ensureAnchor(o);
   }
 
   // ---------- Menus contextuels (clic droit) ----------
@@ -2601,7 +2608,7 @@
 
   // API interne pour doc.js
   window.SM = {
-    ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
+    ensureAnchor: ensureAnchor, offInfo: offInfo, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
