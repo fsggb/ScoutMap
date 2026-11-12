@@ -954,7 +954,7 @@
   function snapToChurch(w) {
     if (!w || S.route.snapChurch === false || w.noSnap) return Promise.resolve();
     var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
-    if (mpp < 0.55) return Promise.resolve();                       // très zoomé : on respecte le clic
+    if (mpp < 0.55) return ensureAnchor(w);                         // très zoomé : on respecte le clic, mais un point loin de tout chemin est relié en pointillés
     var R = Math.min(1250, Math.max(100, 24 * mpp)), o = { lat: w.lat, lon: w.lon };
     return villageCenter(w.lat, w.lon, R).then(function (res) {
       if (res) return { lat: res.p.lat, lon: res.p.lon, what: res.what };
@@ -963,16 +963,18 @@
         if (h.length) return { lat: h[0].lat, lon: h[0].lon, what: 'le hameau' };
         return Promise.all([poiAround('col', w.lat, w.lon, Math.min(R, 400)), poiAround('sommet', w.lat, w.lon, Math.min(R, 300))]).then(function (r) {
           var all = r[0].map(function (x) { x.k = 'le col'; return x; }).concat(r[1].map(function (x) { x.k = 'le sommet'; return x; })).sort(function (x, y) { return x.d - y.d; });
-          if (all.length) return { lat: all[0].lat, lon: all[0].lon, what: all[0].k };
-          return nearestRoadPoint(w.lat, w.lon).then(function (rd) { return rd && rd.d <= Math.max(R, 150) ? { lat: rd.lat, lon: rd.lon, what: 'le chemin le plus proche' } : null; });
+          if (all.length) return { lat: all[0].lat, lon: all[0].lon, what: all[0].k, offtrail: true };
+          return nearestRoadPoint(w.lat, w.lon, Math.max(R, 150)).then(function (rd) { return rd ? { lat: rd.lat, lon: rd.lon, what: 'le chemin le plus proche' } : null; });
         });
       });
     }).then(function (res) {
-      var i = S.route.wps.indexOf(w); if (i < 0 || !res) return;
-      if (L.latLng(w.lat, w.lon).distanceTo(L.latLng(res.lat, res.lon)) < 8) return;
+      var i = S.route.wps.indexOf(w); if (i < 0) return;
+      if (!res) return ensureAnchor(w);                          // rien à proximité : on vérifie au moins la distance au chemin
+      if (L.latLng(w.lat, w.lon).distanceTo(L.latLng(res.lat, res.lon)) < 8) return ensureAnchor(w);
       w.orig = o; w.moved = true; w.lat = res.lat; w.lon = res.lon; w.place = undefined;
       renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
       toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.');
+      if (res.offtrail) ensureAnchor(w);
     }).catch(function () {});
   }
   function restoreWp(i) {
@@ -1024,8 +1026,11 @@
     S.route.loop = true; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist();
     toast('Boucle fermée : le tracé revient au point de départ.');
   }
+  var routeLinks = [];
   function renderRouteMarkers() {
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
+    routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
+    S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
     w.forEach(function (p, i) {
       var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
@@ -1033,7 +1038,7 @@
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
         var q = m.getLatLng(); S.route.wps[i] = { lat: q.lat, lon: q.lng, name: S.route.wps[i].name };
-        renderWpList(); computeRoute(); persist(); fillPlaces(S.route); reorderFree(S.route.wps[i]);
+        renderWpList(); computeRoute(); persist(); fillPlaces(S.route); ensureAnchor(S.route.wps[i]); reorderFree(S.route.wps[i]);
       });
       m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
       m.on('contextmenu', function (e) { L.DomEvent.stop(e); select('route', i, true); showCtx(e.originalEvent.clientX, e.originalEvent.clientY, routePtMenu(i)); });
@@ -1150,7 +1155,7 @@
     setRouteStatus('Calcul de l’itinéraire…');
     var tag = S.route.id, tok = RT.rtTok = (RT.rtTok || 0) + 1;
     routeTimer = setTimeout(function () {
-      var jobs = []; w.forEach(function (_, i) { if (i + 1 < w.length) jobs.push(fetchLeg(w[i], w[i + 1], null).catch(function (e) { e.leg = i; throw e; })); });
+      var jobs = []; w.forEach(function (_, i) { if (i + 1 < w.length) jobs.push(fetchLeg(rp(w[i]), rp(w[i + 1]), null).catch(function (e) { e.leg = i; throw e; })); });
       Promise.all(jobs).then(function (legs) {
         if (tag !== S.route.id || tok !== RT.rtTok) return;
         var first = !RT.route;
@@ -1159,16 +1164,18 @@
       }).catch(function (e) {
         if (tok !== RT.rtTok) return;
         if (e && e.leg != null && /no path|Erreur 4|introuvable|impossible/i.test(e.message || '') && rescueLeg(e.leg, w, tok)) return;
-        setRouteStatus('Itinéraire impossible : ' + (e.message || 'service indisponible') + '. Rapprochez les points d’une route ou d’un chemin.', true);
+        var emsg = 'Itinéraire impossible : ' + (e.message || 'service indisponible') + '. Rapprochez les points d’une route ou d’un chemin.';
+        setRouteStatus(emsg, true); toast(emsg);
         refreshProfile();
       });
     }, 250);
   }
   // ----- Calcul par tronçons (un appel par couple de repères) : aucun nombre maximal d'étapes, et un seul tronçon à recalculer quand on déplace un point.
   // ----- Secours : un point tombé au milieu d'un champ (ou loin de tout chemin) est ramené sur le village ou hameau à moins de 100 m, sinon sur le chemin le plus proche.
-  function nearestRoadPoint(lat, lon) {
-    var url = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&COUNT=60&CQL_FILTER=' +
-      encodeURIComponent('DWITHIN(geometrie,POINT(' + lat.toFixed(6) + ' ' + lon.toFixed(6) + '),400,meters)');
+  function nearestRoadPoint(lat, lon, radius) {
+    radius = radius || 400;
+    var url = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&COUNT=' + (radius > 600 ? 250 : 60) + '&CQL_FILTER=' +
+      encodeURIComponent('DWITHIN(geometrie,POINT(' + lat.toFixed(6) + ' ' + lon.toFixed(6) + '),' + radius + ',meters)');
     return fetch(url).then(function (r) { return r.ok ? r.json() : { features: [] }; }).then(function (j) {
       var best = null, bd = Infinity, here = L.latLng(lat, lon);
       (j.features || []).forEach(function (f) {
@@ -1185,13 +1192,29 @@
       return best ? { lat: best[1], lon: best[0], d: bd } : null;
     }).catch(function () { return null; });
   }
+  // Chemin le plus proche, en élargissant la recherche (150 m, 600 m, 2,5 km) : utile en montagne, pour un pic ou un col loin de tout sentier.
+  function nearestRoadLadder(lat, lon) {
+    return nearestRoadPoint(lat, lon, 150).then(function (r) { return r || nearestRoadPoint(lat, lon, 600); }).then(function (r) { return r || nearestRoadPoint(lat, lon, 2500); });
+  }
+  // Un point hors sentier (pic, col…) reste exactement où il est ; il est relié en pointillés au chemin le plus proche, qui sert au calcul de l'itinéraire.
+  function ensureAnchor(w) {
+    if (!w || w.noAnchor) return Promise.resolve();
+    return nearestRoadLadder(w.lat, w.lon).then(function (r) {
+      var i = S.route.wps.indexOf(w); if (i < 0) return;
+      if (!r) { setRouteStatus('Aucun chemin trouvé à moins de 2,5 km de « ' + nameOf(S.route, i) + ' » : impossible de le relier à l’itinéraire.', true); toast('Je n’arrive pas à trouver de chemin proche de ce point.'); return; }
+      if (r.d <= 40) { if (w.anchor) { delete w.anchor; renderRouteMarkers(); computeRoute(); persist(); } return; }
+      w.anchor = { lat: r.lat, lon: r.lon, d: Math.round(r.d) };
+      renderRouteMarkers(); renderWpList(); computeRoute(); persist();
+      toast('Point hors sentier : il est relié en pointillés au chemin le plus proche (' + G.fmtDist(r.d) + ').');
+    });
+  }
   function snapPoint(w) {
     return villageCenter(w.lat, w.lon, 100).then(function (v) {
       if (v) return { lat: v.p.lat, lon: v.p.lon, what: v.what === 'la mairie' ? 'la mairie du village' : 'l’église du village' };
       return poiAround('lieu-dit habité', w.lat, w.lon, 100).then(function (h) {
         h.sort(function (a, b) { return a.d - b.d; });
         if (h.length) return { lat: h[0].lat, lon: h[0].lon, what: 'le hameau' };
-        return nearestRoadPoint(w.lat, w.lon).then(function (r) { return r ? { lat: r.lat, lon: r.lon, what: 'le chemin le plus proche' } : null; });
+        return nearestRoadLadder(w.lat, w.lon).then(function (r) { return r ? (r.d <= 150 ? { lat: r.lat, lon: r.lon, what: 'le chemin le plus proche' } : { anchor: { lat: r.lat, lon: r.lon, d: Math.round(r.d) }, what: 'le chemin le plus proche (relié en pointillés)' }) : null; });
       });
     });
   }
@@ -1199,17 +1222,18 @@
     var cands = [w[i], w[i + 1]].filter(function (x, k, a) { return x && !x.rescued && a.indexOf(x) === k; });
     if (!cands.length) return false;
     cands.forEach(function (x) { x.rescued = true; });
-    setRouteStatus('Aucun chemin trouvé : recherche du village ou du chemin le plus proche…');
+    setRouteStatus('Aucun chemin trouvé : recherche du village ou du chemin le plus proche…'); toast('Je n’arrive pas à relier ce point : je cherche le chemin le plus proche.');
     Promise.all(cands.map(snapPoint)).then(function (rs) {
       if (tok !== RT.rtTok) return;
       var moved = [];
-      rs.forEach(function (r, k) { if (r) { var x = cands[k]; if (!x.orig) x.orig = { lat: x.lat, lon: x.lon }; x.lat = r.lat; x.lon = r.lon; x.place = undefined; x.moved = true; moved.push(r.what); } });
-      if (!moved.length) { setRouteStatus('Itinéraire impossible : aucun chemin à proximité de ces points. Rapprochez-les d’une route ou d’un chemin.', true); return; }
-      toast('Point déplacé sur ' + moved[0] + '.');
+      rs.forEach(function (r, k) { if (r) { var x = cands[k]; if (r.anchor) { x.anchor = r.anchor; moved.push(r.what); } else { if (!x.orig) x.orig = { lat: x.lat, lon: x.lon }; x.lat = r.lat; x.lon = r.lon; x.place = undefined; x.moved = true; moved.push(r.what); } } });
+      if (!moved.length) { var msg = 'Je n’arrive pas à trouver de chemin proche de ces points (à moins de 2,5 km) : rapprochez-les d’une route ou d’un chemin.'; setRouteStatus(msg, true); toast(msg); return; }
+      toast('Aucun chemin direct : point placé sur ' + moved[0] + '.');
       renderRouteMarkers(); renderWpList(); persist(); fillPlaces(S.route); computeRoute();
     });
     return true;
   }
+  function rp(x) { return x && x.anchor ? { lat: x.anchor.lat, lon: x.anchor.lon } : x; }   // point utilisé pour le calcul : le chemin le plus proche d'un point hors sentier
   function pf(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }
   function runLeg(task) {
     legQueue.push(task); pumpLegs();
@@ -1266,6 +1290,15 @@
   function showRoute(res, first) {
     var nat = {};
     res.portions.forEach(function (p) { (p.steps || []).forEach(function (s) { var k = natOf(stepMeta(s)); if (k) nat[k] = (nat[k] || 0) + (s.distance || 0); }); });
+    // distance hors sentier : aller simple pour le départ et l'arrivée, aller-retour pour les étapes intermédiaires
+    var ew = effWps(), n = ew.length, off = 0, ps = res.portions.map(function (q) { return Object.assign({}, q); });
+    function dl(x) { return x && x.anchor ? x.anchor.d : 0; }
+    ps.forEach(function (q, i) {
+      var extra = (i === 0 ? dl(ew[0]) : 0), k = i + 1, last = k === n - 1;
+      extra += last ? dl(ew[k]) : 2 * dl(ew[k]);
+      q.distance = (q.distance || 0) + extra; off += extra;
+    });
+    if (off) { res.portions = ps; res.dist += off; res.off = off; }
     var wasOver = overMax();
     res.nat = Object.keys(nat).map(function (k) { return { label: k, dist: nat[k] }; });
     res.back = S.route.noBack ? retrace(res.line) : { runs: [], total: 0 };
@@ -1331,7 +1364,7 @@
       cur.line.forEach(function (q, k) { var d = Math.pow(q[0] - mid[0], 2) + Math.pow((q[1] - mid[1]) * Math.cos(mid[0] * Math.PI / 180), 2); if (d < best) { best = d; bi = k; } });
       for (leg = 0; leg < legs.length - 1 && cur.bounds[leg + 1] < bi; leg++);
       var lk = leg + ':' + legs[leg].dist.toFixed(0); if (seen[lk]) { step(idx + 1); return; } seen[lk] = 1;
-      var a = w[leg], b = w[leg + 1], p0 = u.pts[0], p1 = u.pts[u.pts.length - 1], kx = Math.cos(mid[0] * Math.PI / 180);
+      var a = rp(w[leg]), b = rp(w[leg + 1]), p0 = u.pts[0], p1 = u.pts[u.pts.length - 1], kx = Math.cos(mid[0] * Math.PI / 180);
       var dx = (p1[1] - p0[1]) * kx * 111320, dy = (p1[0] - p0[0]) * 110540, nrm = Math.hypot(dx, dy) || 1, ux = -dy / nrm, uy = dx / nrm;
       var offs = [250, 500, 900], cands = [];
       offs.forEach(function (o) { [1, -1].forEach(function (sd) {
@@ -1443,6 +1476,7 @@
   function renderNatWarn() {
     var el = $('#nat-warn'), r = RT.route, msg = '';
     if (r && S.route.flagNat && r.nat && r.nat.length) msg += 'Le tracé semble emprunter ' + r.nat.map(function (n) { return (n.label === 'nationale' ? 'une route nationale' : 'la ' + n.label) + ' (≈ ' + G.fmtDist(n.dist) + ')'; }).join(', ') + '. Déplacez un repère pour l’éviter si besoin. ';
+    if (r && r.off) msg += 'Dont ' + G.fmtDist(r.off) + ' à vol d’oiseau (en pointillés) entre des points hors sentier et le chemin le plus proche. ';
     if (r && r.tunnel) msg += 'Un passage en tunnel est inévitable sur ce tracé (aucun autre chemin trouvé) : à vérifier sur place.';
     if (!msg) { el.hidden = true; return; }
     el.hidden = false; el.innerHTML = ic('alert') + '<span>' + msg + '</span>';
@@ -2551,7 +2585,7 @@
 
   // API interne pour doc.js
   window.SM = {
-    hikeDraw: hikeDraw, hikeFailed: function () { return false; },
+    ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
