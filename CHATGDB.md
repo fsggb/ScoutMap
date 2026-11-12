@@ -2,7 +2,7 @@
 # Fiche de connaissances ChatGDB (format : ScoutHub/docs/projet-chatgdb.md, §5).
 # ChatGDB lit ce fichier pour répondre aux questions sur les applications de ce dépôt.
 depot: fsggb/ScoutMap
-maj: 2026-11-11
+maj: 2026-11-12
 ---
 
 # ScoutMap : Cartes IGN (orientation et raids)
@@ -35,3 +35,6 @@ Base : `https://fsggb.github.io/ScoutMap/` suivi de paramètres. Tout est option
 - `itineraire=Lyon|Villeurbanne|45.7,4.9` : crée un itinéraire (de 2 à 12 étapes séparées par `|`, noms de lieux ou coordonnées). `boucle=1` ramène au départ. `titre=Sortie%20du%20samedi` nomme le projet.
 Exemple : `https://fsggb.github.io/ScoutMap/?itineraire=Annecy|Talloires|Menthon-Saint-Bernard&boucle=1&titre=Sortie%20du%20lac&fond=plan`
 Les liens sont expérimentaux : si un lieu est introuvable, la carte l'indique et l'utilisateur peut corriger à la main.
+
+- `#projet=<JSON en base64url>` (après l'adresse) ouvre un travail complet (itinéraire, azimuts, grand jeu) : c'est le format utilisé par le bouton « Modifier » des pages web exportées. Pour préparer un itinéraire simple, préférer `?itineraire=...`.
+- Au démarrage, l'accueil propose : ouvrir un fichier, créer un itinéraire, des azimuts ou un grand jeu, et reprendre un travail enregistré dans le navigateur.
