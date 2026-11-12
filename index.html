@@ -41,6 +41,8 @@
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.2-2.8 4"/><circle cx="12" cy="17.6" r=".6"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="i-export" viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"/><path d="M4 5v14" opacity=".35"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></symbol>
   <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
@@ -78,7 +80,7 @@
   <nav class="menus" id="menus" aria-label="Menu principal">
     <button class="menu-btn" data-menu="file" aria-haspopup="true">Fichier</button>
     <button class="menu-btn" data-menu="edit" aria-haspopup="true">Édition</button>
-    <button class="menu-btn" data-menu="create" aria-haspopup="true">Créer</button>
+    <button class="menu-btn" data-menu="create" aria-haspopup="true">Outils</button>
     <button class="menu-btn" data-menu="view" aria-haspopup="true">Affichage</button>
     <button class="menu-btn" data-menu="help" aria-haspopup="true">Aide</button>
   </nav>
@@ -95,10 +97,12 @@
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Outils">
-    <button class="rail-btn" data-rail="route" title="Itinéraire à pied (I)"><svg class="ic"><use href="#i-route"/></svg><span>Itinéraire</span></button>
-    <button class="rail-btn" data-rail="az" title="Azimuts : course d’orientation (A)"><svg class="ic"><use href="#i-compass"/></svg><span>Azimuts</span></button>
-    <button class="rail-btn" data-rail="game" title="Grand jeu : zones, flèches, textes (G)"><svg class="ic"><use href="#i-flag"/></svg><span>Grand jeu</span></button>
+    <button class="rail-btn" data-rail="home" title="Accueil : changer de type de travail"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
+    <span class="rail-line"></span>
+    <button class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
     <span class="rail-sp"></span>
+    <button class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
+    <button class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
     <button class="rail-btn" id="rail-toggle" title="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg><span>Panneau</span></button>
   </nav>
 
@@ -118,7 +122,6 @@
         <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
         <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
       </div>
-      <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
 
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
       <div class="gbar" id="gbar">
@@ -173,24 +176,14 @@
       <ol class="wps" id="wps"></ol>
       <p class="empty" id="wps-empty">Cliquez sur la carte pour poser le départ, puis les étapes.</p>
       <p class="note" id="wps-help">Cliquez un point pour le sélectionner (surbrillance sur la carte), <kbd>Suppr</kbd> pour le retirer, glissez la poignée pour changer l’ordre de passage.</p>
+      <hr class="pane-sep">
       <div class="btnrow">
         <button class="btn-ghost" id="route-reverse"><svg class="ic"><use href="#i-swap"/></svg>Inverser le sens</button>
         <button class="btn-ghost" id="route-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
         <button class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer l’itinéraire</button>
       </div>
       <div class="stats" id="route-stats" hidden></div>
-      <div class="alert warn" id="nat-warn" hidden></div>
-      <div class="alert warn" id="back-warn" hidden></div>
-      <details class="opts">
-        <summary>Paramètres de l’itinéraire</summary>
-        <label class="check"><input type="checkbox" id="opt-motorway"> Éviter les autoroutes</label>
-        <label class="check"><input type="checkbox" id="opt-free"> Ordre de passage libre <small>(cherche la boucle la plus courte par les points choisis)</small></label>
-        <label class="check"><input type="checkbox" id="opt-church"> Poser sur l’église d’un village <small>(quand la carte est assez dézoomée)</small></label>
-        <label class="check"><input type="checkbox" id="opt-noback"> Éviter de repasser par le même chemin <small>(pas d’aller-retour)</small></label>
-        <label class="check"><input type="checkbox" id="opt-national"> Signaler les routes nationales <small>(indicatif)</small></label>
-        <label class="field row-inline"><span>Allure de marche</span><span class="num"><input id="speed" type="number" min="1" max="8" step="0.5" value="5"> km/h</span></label>
-        <p class="note">Le calcul d’itinéraire de la Géoplateforme exclut les autoroutes mais ne permet pas d’exclure les nationales : elles sont seulement signalées, quand le service en donne le numéro.</p>
-      </details>
+      <div id="nat-warn" hidden></div><div id="back-warn" hidden></div>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
       <div id="tracks-box" hidden><h3 class="sub">Traces importées</h3><ul class="layers" id="layer-list"></ul></div>
       <p class="status" id="route-status" role="status"></p>
@@ -201,17 +194,13 @@
       <div class="pane-head"><h2 class="pane-title">Azimuts</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
-      <div class="two">
-        <label class="field"><span>Unité</span><select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
-        <label class="field"><span>Référence</span><select id="az-ref"><option value="true">Nord géographique</option><option value="mag">Nord magnétique</option></select></label>
-      </div>
-      <label class="field row-inline" id="decl-row" hidden><span>Déclinaison magnétique</span><span class="num"><input id="az-decl" type="number" step="0.1" value="0"> ° (Est +)</span></label>
-      <p class="note" id="decl-note" hidden>Azimut magnétique = azimut géographique − déclinaison. Relevez la valeur dans la marge de votre carte IGN ; la convergence des méridiens est ignorée.</p>
+
       <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
       <fieldset class="aim"><legend>Placer une étape par azimut et distance</legend>
         <div class="two"><label class="field"><span>Azimut</span><input id="aim-az" type="number" step="any" placeholder="0"></label><label class="field"><span>Distance (m)</span><input id="aim-d" type="number" min="0" step="any" placeholder="500"></label></div>
         <button class="btn-ghost block" id="aim-add"><svg class="ic"><use href="#i-target"/></svg>Placer depuis le dernier point</button>
       </fieldset>
+      <hr class="pane-sep">
       <div class="btnrow">
         <button class="btn-ghost" id="az-close"><svg class="ic"><use href="#i-loop"/></svg>Fermer le circuit</button>
         <button class="btn-ghost" id="az-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
@@ -219,6 +208,40 @@
       </div>
       <div class="stats" id="az-stats" hidden></div>
           <button class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
+    </section>
+
+    <section class="pane" data-pane="notif" hidden>
+      <h2 class="pane-title">Alertes</h2>
+      <p class="help">Les informations importantes sur votre travail en cours apparaissent ici : tracé qui repasse au même endroit, route nationale, tunnel, distance maximale dépassée, points hors sentier…</p>
+      <ul class="notes" id="notes-list"></ul>
+      <p class="empty" id="notes-empty">Aucune alerte pour le moment.</p>
+    </section>
+
+    <section class="pane" data-pane="settings" hidden>
+      <h2 class="pane-title">Paramètres</h2>
+      <div data-set="route" hidden>
+        <h3 class="sub">Itinéraire</h3>
+        <label class="check"><input type="checkbox" id="opt-motorway"> Éviter les autoroutes</label>
+        <label class="check"><input type="checkbox" id="opt-free"> Ordre de passage libre <small>(cherche la boucle la plus courte par les points choisis)</small></label>
+        <label class="check"><input type="checkbox" id="opt-church"> Poser sur l’église d’un village <small>(quand la carte est assez dézoomée)</small></label>
+        <label class="check"><input type="checkbox" id="opt-noback"> Éviter de repasser par le même chemin <small>(pas d’aller-retour)</small></label>
+        <label class="check"><input type="checkbox" id="opt-national"> Signaler les routes nationales <small>(indicatif)</small></label>
+        <label class="field row-inline"><span>Allure de marche</span><span class="num"><input id="speed" type="number" min="1" max="8" step="0.5" value="5"> km/h</span></label>
+        <p class="note">Le calcul d’itinéraire de la Géoplateforme exclut les autoroutes mais ne permet pas d’exclure les nationales : elles sont seulement signalées, quand le service en donne le numéro.</p>
+      </div>
+      <div data-set="az" hidden>
+        <h3 class="sub">Azimuts</h3>
+      <div class="two">
+        <label class="field"><span>Unité</span><select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
+        <label class="field"><span>Référence</span><select id="az-ref"><option value="true">Nord géographique</option><option value="mag">Nord magnétique</option></select></label>
+      </div>
+      <label class="field row-inline" id="decl-row" hidden><span>Déclinaison magnétique</span><span class="num"><input id="az-decl" type="number" step="0.1" value="0"> ° (Est +)</span></label>
+      <p class="note" id="decl-note" hidden>Azimut magnétique = azimut géographique − déclinaison. Relevez la valeur dans la marge de votre carte IGN ; la convergence des méridiens est ignorée.</p>
+      </div>
+      <div data-set="game" hidden>
+        <h3 class="sub">Grand jeu</h3>
+      <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
+      </div>
     </section>
 
     <section class="pane" data-pane="sim" hidden>
@@ -346,10 +369,16 @@
     <h1>Que voulez-vous faire ?</h1>
     <p class="home-sub">Un outil de la Fédération des Scouts et Guides Godefroy de Bouillon pour préparer les raids : itinéraires, azimuts et grand jeu, sur de vraies cartes imprimables.</p>
     <div class="home-grid">
-      <button class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Un travail enregistré (.json ou page web .html) ou une trace GPX, KML, GeoJSON.</small></button>
+      <button class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Une page web enregistrée (.html) ou une trace GPX, KML, GeoJSON.</small></button>
       <button class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Créer un itinéraire</b><small>Parcours ou boucle à pied, profil d’altitude, feuille de route.</small></button>
       <button class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Créer des azimuts</b><small>Course d’orientation : azimuts, contre-azimuts, distances.</small></button>
       <button class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Créer un grand jeu</b><small>Zones, flèches, croix et textes de couleur sur la carte.</small></button>
+    </div>
+    <div class="home-tutos"><span>Tutoriels vidéo</span>
+      <button class="tuto-chip" data-tuto="global" type="button"><svg class="ic"><use href="#i-play"/></svg>Global</button>
+      <button class="tuto-chip" data-tuto="route" type="button"><svg class="ic"><use href="#i-play"/></svg>Itinéraire</button>
+      <button class="tuto-chip" data-tuto="az" type="button"><svg class="ic"><use href="#i-play"/></svg>Azimuts</button>
+      <button class="tuto-chip" data-tuto="game" type="button"><svg class="ic"><use href="#i-play"/></svg>Grand jeu</button>
     </div>
     <h2 class="proj-h">Vos travaux dans ce navigateur</h2>
     <ul class="proj-rows" id="proj-rows"></ul>
@@ -359,12 +388,15 @@
 
 <dialog id="dlg-tuto" class="dlg-wide">
   <button class="dlg-x" id="tuto-close" type="button" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
-  <h2>Tutoriel vidéo</h2>
-  <video id="tuto-video" controls preload="none" playsinline poster="assets/tuto-poster.png"></video>
+  <h2>Tutoriels vidéo</h2>
+  <div class="tuto-tabs" id="tuto-tabs">
+    <button data-t="global" class="on">Tutoriel global</button><button data-t="route">Itinéraire</button><button data-t="az">Azimuts</button><button data-t="game">Grand jeu</button>
+  </div>
+  <video id="tuto-video" controls preload="none" playsinline poster="assets/tuto-poster-global.png"></video>
   <div class="tuto-info">
     <p class="tuto-desc">Quelques minutes pour découvrir ScoutMap : itinéraire, azimuts, grand jeu, enregistrement et impression.</p>
     <div class="tuto-row">
-      <a class="btn-ghost" href="assets/tuto-scoutmap.mp4" target="_blank" rel="noopener"><svg class="ic"><use href="#i-export"/></svg>Ouvrir dans un nouvel onglet</a>
+      <a class="btn-ghost" id="tuto-newtab" href="assets/tuto-global.mp4" target="_blank" rel="noopener"><svg class="ic"><use href="#i-export"/></svg>Ouvrir dans un nouvel onglet</a>
       <div class="tuto-contact"><span>Une question, un problème, une idée d’amélioration ?</span><a href="mailto:service-informatique@fsggb.fr">service-informatique@fsggb.fr</a></div>
     </div>
   </div>
