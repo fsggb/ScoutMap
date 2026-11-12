@@ -282,7 +282,7 @@
       '<div class="d-tag">ScoutMap<br>FSGGB' + (pg ? '<br><b>Page ' + pg + '</b>' : '') + '</div></header>';
   }
   function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>' + creditText() + footDate() + '</span></footer>'; }
-  function creditText() { return 'Fond : ' + SM.LAYERS[S.base].label + (S.mode === 'game' && S.game.shapes.some(function (s) { return s.kind === 'stamp'; }) ? ' · Icônes : game-icons.net (CC BY 3.0)' : ''); }
+  function creditText() { return 'Fond : ' + SM.LAYERS[S.base].label + (S.mode === 'game' && S.game.shapes.some(function (s) { return s.kind === 'stamp'; }) ? ' · Icônes : game-icons.net (CC BY 3.0)' + (S.game.shapes.some(function (s) { return s.kind === 'stamp' && /^om:/.test(s.icon); }) ? ' · Illustrations : OpenMoji (CC BY-SA 4.0)' : '') : ''); }
   function footDate() { var i = SM.layerDate && SM.layerDate(SM.S.base); return i && i.iso ? ' (données IGN mises à jour le ' + new Date(i.iso + 'T12:00:00').toLocaleDateString('fr-FR') + ')' : ''; }
   function newSheet(c, pw, ph, pm) {
     var el = document.createElement('article');
