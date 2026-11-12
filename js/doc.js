@@ -23,11 +23,11 @@
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
   // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
-  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false };
+  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false, title: '' };
   var BT = 0, ABORT = { abort: true };
   var FRAMES = { A4: [210, 297], A3: [297, 420] };
   function config() {
-    return { type: 'combo', title: '', paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet,
+    return { type: 'combo', title: PRM.title, paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet,
       overview: true, profile: true, notes: true,
       tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
@@ -66,6 +66,15 @@
       '<svg viewBox="0 0 100 52">' + '<rect width="100" height="52" fill="#e9efe3"/>' + (tf ? poly(lines, tf, '#000761', 2) : '') + '</svg>' +
       '<div class="th-rows"><i></i><i></i><i></i><i></i></div><div class="th-two"><span><em>Notes</em><i></i><i></i></span><span><em>☎ Urgences</em><i></i><i></i></span></div></div>';
   }
+  function pointsOf(items) {
+    var out = [];
+    items.forEach(function (it) { if (it.type === 'route') it.data.wps.forEach(function (w) { out.push([w.lat, w.lon]); }); else if (it.type === 'az') it.data.pts.forEach(function (q) { out.push(q); }); });
+    return out;
+  }
+  function dots(items, tf) {
+    var pts = pointsOf(items); if (!pts.length) return poly(lonlat(items), tf, '#000761', 2);
+    return pts.map(function (q, i) { var t = tf(q); return '<circle cx="' + t[0].toFixed(1) + '" cy="' + t[1].toFixed(1) + '" r="' + (i === 0 ? 3.4 : 2.6) + '" fill="' + (i === 0 ? '#1a7f37' : '#000761') + '" stroke="#fff" stroke-width="1"/>'; }).join('');
+  }
   function thumbMaps(items, pl) {
     var lines = lonlat(items), pts = [];
     if (pl) pl.pages.forEach(function (pg) { pts.push(pg.sw, pg.ne); });
@@ -76,7 +85,7 @@
       var a = tf(pg.sw), b = tf(pg.ne), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
       s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#c6a24e" fill-opacity=".28" stroke="' + (pg.orient === 'portrait' ? '#7a3db8' : '#000761') + '" stroke-width="1.2"/>';
     });
-    s += poly(lines, tf, '#b4232c', 1.8);
+    s += PRM.line ? poly(lines, tf, '#b4232c', 1.8) : dots(items, tf);
     if (lab) pl.pages.forEach(function (pg) {
       var a = tf(pg.sw), b = tf(pg.ne);
       s += '<text x="' + ((a[0] + b[0]) / 2).toFixed(1) + '" y="' + ((a[1] + b[1]) / 2 + 3).toFixed(1) + '" font-size="8" font-weight="700" text-anchor="middle" fill="#000761" stroke="#fff" stroke-width="2.2" paint-order="stroke">F' + pg.n + '</text>';
@@ -85,7 +94,7 @@
   }
   function thumbOne(items) {
     var lines = lonlat(items), tf = projector(lines, null, 170, 112, 14); if (!tf) return '';
-    return '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#e9efe3"/><rect x="6" y="6" width="158" height="100" fill="none" stroke="#161830" stroke-width="1.2"/>' + poly(lines, tf, '#000761', 2) + '</svg>';
+    return '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#e9efe3"/><rect x="6" y="6" width="158" height="100" fill="none" stroke="#161830" stroke-width="1.2"/>' + (PRM.line ? poly(lines, tf, '#000761', 2) : dots(items, tf)) + '</svg>';
   }
   function seg(id, opts, cur) {
     return '<div class="seg" data-k="' + id + '">' + opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>';
@@ -118,14 +127,21 @@
     if (k === 'paper') PRM.paper = v; else if (k === 'tscale') PRM.tscale = +v; else if (k === 'line') PRM.line = v === '1';
     renderChoices();
   });
+  $('#pdf-name').addEventListener('input', function () { PRM.title = this.value; });
   function openPdf() {
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
     if (!PRM._init) { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; PRM._init = true; }
+    if (!PRM.title) { var rn = items.filter(function (x) { return x.type === 'route'; })[0]; PRM.title = (rn && rn.name) || S.name || ''; }
+    $('#pdf-name').value = PRM.title;
     renderChoices();
     var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
   }
   $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
-  $('#pdf-ok').addEventListener('click', function () { $('#dlg-pdf').close(); buildDoc(config()); });
+  $('#pdf-ok').addEventListener('click', function () {
+    $('#dlg-pdf').close();
+    var t = PRM.title.trim(); if (t && SM.S.route.wps.length) { SM.S.route.name = t; var rn = $('#route-name'); if (rn) rn.value = t; SM.persist(); }
+    buildDoc(config());
+  });
 
   // ---------- Carte du parcours sur plusieurs feuilles ----------
   // Lignes à couvrir : le tracé de chaque calque (et, pour un grand jeu, toute l'emprise du dessin).
@@ -286,7 +302,7 @@
     if (pl && pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
     closeMaps();
     $('#page-style').textContent = '@page pp{size:' + c.paper + ' portrait;margin:0}@page pl{size:' + c.paper + ' landscape;margin:0}@page{size:' + c.paper + ' portrait;margin:0}';
-    var firstName = (rf[0] && rf[0].name) || (items[0] && items[0].name) || S.name || 'Itinéraire'; $('#doc-title').value = firstName;
+    var firstName = c.title || (rf[0] && rf[0].name) || (items[0] && items[0].name) || S.name || 'Itinéraire'; $('#doc-title').value = firstName;
     $('#doc-pages').innerHTML = '<div class="doc-loading" id="doc-loading"><i class="spin"></i><span>Chargement des feuilles…</span></div>'; $('#doc-side').innerHTML = '';
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
@@ -300,7 +316,7 @@
         step('Feuille de route…', function () {
           if (it.type === 'route') return roadmapPages(c, it, P, pm);
           var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
-          return azSheet({ type: 'simple', title: '', overview: true, profile: true, notes: true, paper: c.paper }, it, sh, P[0] - 2 * pm, rf.length);
+          return azSheet({ type: 'simple', title: c.title, overview: true, profile: true, notes: true, paper: c.paper }, it, sh, P[0] - 2 * pm, rf.length);
         });
       });
     }
@@ -314,7 +330,7 @@
     if (pl) {
       var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
         off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
-        title: items.length === 1 ? items[0].name : (S.name || 'Parcours') };
+        title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
       step('Planche d’assemblage…', function () { return indexSheet(pl, items, o); });
       pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, items, o); }); });
     }
@@ -493,7 +509,7 @@
     var d = it.data, r = it.res, uid = String(d.id), cw = P[0] - 2 * pm, loop = SM.loopOf(d);
     var s1 = newSheet(null, P[0], P[1], pm), s2 = newSheet(null, P[0], P[1], pm);
     s1.className += ' rf pp'; s2.className += ' rf pp';
-    var title = it.name || 'Itinéraire';
+    var title = c.title || it.name || 'Itinéraire';
     if (!r) { s1.innerHTML = head(title, 'Itinéraire non calculé', '1 / 2') + '<p class="d-warn">Cet itinéraire n’a pas encore de tracé calculé.</p>' + foot(); s2.remove(); return Promise.resolve(); }
     return SM.profileFor(r.line).then(function (p) {
       var rows = stepsTable(d, r, p), sub = esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · '));
