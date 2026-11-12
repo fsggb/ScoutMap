@@ -954,6 +954,15 @@ body.doc-open .home{display:none!important}
 .gl i{width:26px;border-radius:5px;border:0}
 .gdet summary small{font-weight:500;color:var(--muted)}
 
+.gcal-zone{margin:0 0 10px;padding:7px 10px;border-radius:10px;background:#eef0fb;font-size:12.5px;color:#33364d}.gcal-zone small{color:var(--muted)}
+.gcal-list{display:grid;gap:10px}
+.gcal{padding:11px 12px;border:1.5px solid var(--line-2);border-radius:13px;background:#fff;display:grid;gap:8px}.gcal.on{border-color:var(--navy)}
+.gcal-h{display:grid;gap:2px}.gcal-h b{color:var(--navy);font-size:14px}.gcal-h small{color:var(--muted);font-size:12px;line-height:1.3}
+.gcal-row{display:flex;align-items:center;gap:8px}.gcal-op{flex:1;display:grid;gap:2px;font-size:11.5px;color:var(--muted)}.gcal-op input{width:100%;accent-color:var(--navy)}
+.gcal .ibtn.off{opacity:.45}.gcal-n{color:var(--muted);font-size:11.5px}
+.gcal-cv{pointer-events:none}
+
+.th-cal{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;height:100%;padding:8px}.th-cal i{font-style:normal;font-size:12px;font-weight:700;color:var(--navy);padding:4px 9px;border-radius:8px;background:#fbf6e8;border:1.5px dashed #b9a875}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
