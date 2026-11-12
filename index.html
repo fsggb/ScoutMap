@@ -288,7 +288,7 @@
         <section class="pop-sec" data-tab="info" hidden>
           <p class="note first">Informations ajoutées par-dessus le fond, à combiner comme vous voulez.</p>
           <div class="ov-grid" id="ov-grid"></div>
-          <button class="text-btn" id="ov-none">Tout retirer</button>
+          <button class="btn-ghost" id="ov-none"><svg class="ic"><use href="#i-x"/></svg>Tout retirer</button>
         </section>
         <section class="pop-sec" data-tab="sharp" hidden>
           <p class="note first">Précision du fond de carte à l’écran et à l’impression.</p>
@@ -407,6 +407,7 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
+    <input class="doc-title" id="doc-title" type="text" maxlength="100" placeholder="Nom de l’itinéraire" aria-label="Nom de l’itinéraire (modifiable)" title="Nom de l’itinéraire : modifié sur toutes les pages">
     <div class="doc-bar-txt"><b>Aperçu avant impression</b><small><i class="spin" id="doc-spin" hidden></i><span id="doc-status"></span></small></div>
     <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>

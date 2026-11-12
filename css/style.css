@@ -698,6 +698,20 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .viewer .stage{position:absolute;inset:0}
 .viewer .brand{pointer-events:none}
 .hk-lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:700 11px/1 var(--ui);color:#e0368a;background:rgba(255,255,255,.92);border:1.5px solid #e0368a;border-radius:4px;padding:1px 4px;letter-spacing:.02em}
+.doc-title{flex:1;min-width:140px;max-width:380px;padding:8px 12px;border:1.5px solid var(--line-2);border-radius:10px;font:600 14px var(--ui);color:var(--navy);background:#fff}
+.doc-title:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px rgba(198,162,78,.3)}
+.nlines .nl{height:8mm;border-bottom:1px solid #c8ccdc;line-height:8mm}
+.d-bottom{grid-template-columns:.72fr 1.5fr!important}
+.rp-head,.rp-row{display:grid;grid-template-columns:1.5fr 1fr;gap:12px}
+.rp-head{font-size:8.5pt;color:#6a6d80;margin-bottom:1px}
+.rp-row{align-items:end;border-bottom:1px solid #dcdfec;padding:5px 0;height:8.5mm}
+.rp-row .fl{min-width:0}
+.rt td.arr{text-align:center}
+.rt th.arr{text-align:center}
+.rt td.arr span{display:block;margin:3px 0}
+#ov-none{margin-top:12px;width:100%;justify-content:center}
+body.doc-open .home{display:none!important}
+.rt.dense td{height:10.5mm;padding:3px 8px}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
