@@ -2567,18 +2567,42 @@
       layersList().forEach(function (l) { var x = layerBounds(l.key); if (x && x.isValid()) b = b ? b.extend(x) : L.latLngBounds(x.getSouthWest(), x.getNorthEast()); });
       if (b) fit(b, b.getNorthEast().equals(b.getSouthWest()) ? { maxZoom: 16 } : { padding: [70, 70], maxZoom: 17 }); else toast('Rien à cadrer : posez d’abord des points.');
     });
-    $('#locate').addEventListener('click', function () {
+    // Ma position en continu : un 1er clic démarre le suivi (la carte suit les déplacements), un clic quand la carte suit l'arrête ;
+    // si on déplace la carte à la main, le suivi continue mais la carte ne bouge plus : un clic la recentre.
+    var watchId = null, follow = false, circ = null, dot = null, firstFix = true, lastHeading = null;
+    var btn = $('#locate');
+    function paint() {
+      btn.classList.toggle('on', watchId !== null); btn.classList.toggle('free', watchId !== null && !follow);
+      btn.title = watchId === null ? 'Ma position : afficher et suivre mes déplacements' : follow ? 'Arrêter le suivi de ma position' : 'Recentrer la carte sur ma position';
+      btn.setAttribute('aria-pressed', watchId !== null ? 'true' : 'false');
+    }
+    function stop() { if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null; follow = false; gLoc.clearLayers(); circ = dot = null; paint(); }
+    function onFix(pos) {
+      var c = [pos.coords.latitude, pos.coords.longitude], acc = pos.coords.accuracy || 0;
+      if (!dot) {
+        circ = L.circle(c, { radius: acc, color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.1, interactive: false }).addTo(gLoc);
+        dot = L.marker(c, { interactive: false, zIndexOffset: 4000, icon: L.divIcon({ className: 'pin-wrap', html: '<div class="loc-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(gLoc);
+      } else { circ.setLatLng(c); circ.setRadius(acc); dot.setLatLng(c); }
+      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(25000, c[0])), { animate: true }); toast('Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.'); }
+      else if (follow) map.panTo(c, { animate: true, duration: 0.6 });
+      lastHeading = pos.coords.heading;
+    }
+    function onErr(e) {
+      if (e && e.code === 1) { toast('Position refusée : autorisez la localisation dans votre navigateur.'); stop(); }
+      else if (watchId !== null && firstFix) toast('Je cherche encore votre position… (en extérieur, c’est plus rapide)');
+    }
+    btn.addEventListener('click', function () {
       if (!navigator.geolocation) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
-      toast('Recherche de votre position…');
-      navigator.geolocation.getCurrentPosition(function (pos) {
-        var c = [pos.coords.latitude, pos.coords.longitude];
-        gLoc.clearLayers();
-        L.circle(c, { radius: pos.coords.accuracy, color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.1, interactive: false }).addTo(gLoc);
-        L.marker(c, { interactive: false, icon: L.divIcon({ className: 'pin-wrap', html: '<div class="loc-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(gLoc);
-        map.setView(c, Math.max(map.getZoom(), zoomFor(25000, c[0])), { animate: true });
-        toast('Position trouvée (précision ≈ ' + Math.round(pos.coords.accuracy) + ' m).');
-      }, function () { toast('Position refusée ou indisponible : autorisez la localisation dans votre navigateur.'); }, { enableHighAccuracy: true, timeout: 15000 });
+      if (watchId !== null) {
+        if (follow) { stop(); toast('Suivi de votre position arrêté.'); return; }
+        follow = true; paint(); if (dot) map.panTo(dot.getLatLng(), { animate: true }); return;
+      }
+      toast('Recherche de votre position…'); firstFix = true; follow = true;
+      watchId = navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+      paint();
     });
+    // un déplacement manuel de la carte (souris ou doigt) libère la carte, mais le point continue de bouger
+    map.on('dragstart', function () { if (watchId !== null && follow) { follow = false; paint(); } });
   })();
 
   // ---------- Liens d'action : la carte se prépare depuis l'adresse (utilisé par ChatGDB et par n'importe quel lien) ----------

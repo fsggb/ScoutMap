@@ -841,6 +841,10 @@ body.doc-open .home{display:none!important}
 .u-gap{height:calc(8.5pt * 1.25 + 1px)}
 .rt thead th{background:var(--navy)!important}
 .d-bottom .d-urg{display:flex;flex-direction:column}.d-bottom .d-urg .u-row{flex:1;align-items:center}
+#locate.on{background:#2563eb;color:#fff;border-color:#2563eb}
+#locate.on.free{background:#fff;color:#2563eb;box-shadow:0 0 0 2px #2563eb}
+.loc-dot{animation:locpulse 2s ease-out infinite}
+@keyframes locpulse{0%{box-shadow:0 0 0 2px #2563eb,0 0 0 2px rgba(37,99,235,.5),0 2px 8px rgba(0,0,0,.4)}100%{box-shadow:0 0 0 2px #2563eb,0 0 0 16px rgba(37,99,235,0),0 2px 8px rgba(0,0,0,.4)}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
