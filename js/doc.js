@@ -124,7 +124,7 @@
     }).join('');
     $('#pdf-set').innerHTML =
       '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>' +
-      '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>' +
+      '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle ' + seg('tscale', (S.mode === 'game' ? [[5000, '1 : 5 000']] : []).concat([[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']]), PRM.tscale) + '</label>' +
       '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
     var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk);
     $('#pdf-ok').disabled = !any; $('#pdf-empty').hidden = items.length > 0;
@@ -141,7 +141,7 @@
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
     if (PRM._init !== S.mode) {
       PRM._init = S.mode; PRM.title = '';
-      if (S.mode === 'game') { PRM.roadmap = false; PRM.maps = false; PRM.onesheet = tilesOk; }      // un jeu : en général une seule carte d'ensemble
+      if (S.mode === 'game') { PRM.roadmap = false; PRM.maps = false; PRM.onesheet = tilesOk; if (S.game.scale && [5000, 10000, 25000, 50000].indexOf(S.game.scale) >= 0) PRM.tscale = S.game.scale; }      // un jeu : en général une seule carte d'ensemble
       else { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; }
     }
     if (!PRM.title) { var rn = items.filter(function (x) { return x.type === S.mode; })[0]; PRM.title = (rn && rn.name) || S.name || ''; }
@@ -218,7 +218,7 @@
     o = o || {}; var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
-      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
+      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); if (d.parch) m.getContainer().classList.add('parch'); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
       else if (it.type === 'meas' && d.pts.length > 1) {
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });
@@ -278,7 +278,7 @@
       '<div class="d-tag">ScoutMap<br>FSGGB' + (pg ? '<br><b>Page ' + pg + '</b>' : '') + '</div></header>';
   }
   function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>' + creditText() + footDate() + '</span></footer>'; }
-  function creditText() { return 'Fond : ' + SM.LAYERS[S.base].label; }
+  function creditText() { return 'Fond : ' + SM.LAYERS[S.base].label + (S.mode === 'game' && S.game.shapes.some(function (s) { return s.kind === 'stamp'; }) ? ' · Icônes : game-icons.net (CC BY 3.0)' : ''); }
   function footDate() { var i = SM.layerDate && SM.layerDate(SM.S.base); return i && i.iso ? ' (données IGN mises à jour le ' + new Date(i.iso + 'T12:00:00').toLocaleDateString('fr-FR') + ')' : ''; }
   function newSheet(c, pw, ph, pm) {
     var el = document.createElement('article');

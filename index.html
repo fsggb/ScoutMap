@@ -70,6 +70,7 @@
   <symbol id="i-g-line" viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/></symbol>
   <symbol id="i-g-arrow" viewBox="0 0 24 24"><path d="M4 20L19 5M19 5h-8M19 5v8"/></symbol>
   <symbol id="i-g-cross" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+  <symbol id="i-g-stamp" viewBox="0 0 24 24"><path d="M6 21V4M6 5h12l-2.5 4L18 13H6"/></symbol>
   <symbol id="i-g-text" viewBox="0 0 24 24"><path d="M5 7V4h14v3M12 4v16M9 20h6"/></symbol>
   <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c3 .1 5 2.3 5 5.3"/></symbol>
   <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></symbol>
@@ -115,11 +116,31 @@
       <h2 class="pane-title">Grand jeu</h2>
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
       <div class="gtabs" id="gtabs" role="tablist">
+        <button type="button" role="tab" data-gtab="themes">Thèmes</button>
         <button type="button" role="tab" data-gtab="tools">Outils</button>
         <button type="button" role="tab" data-gtab="style">Style</button>
         <button type="button" role="tab" data-gtab="list">Éléments <span class="count" id="gs-count"></span></button>
       </div>
-      <div data-gtabp="tools">
+      <div data-gtabp="themes" hidden>
+        <h3 class="sub">1 · Échelle du jeu</h3>
+        <p class="gtab-help">À choisir en premier : elle règle le zoom et la taille des éléments (en millimètres sur le papier à cette échelle). Modifiable ensuite.</p>
+        <div class="gscale" id="gscale"></div>
+        <h3 class="sub">2 · Thème</h3>
+        <div class="gthemes" id="gthemes"></div>
+        <div id="gtheme-bg" hidden>
+          <h3 class="sub">3 · Fond de carte</h3>
+          <div class="gbase" id="gbase"></div>
+          <label class="check"><input type="checkbox" id="gparch"> Effet parchemin (teinte ancienne et bords vieillis, aussi à l’impression)</label>
+        </div>
+        <h3 class="sub">Éléments du thème <span class="count" id="gth-name"></span></h3>
+        <div class="gf-line" style="margin-bottom:8px"><span class="gf-l">Taille sur le papier</span><div class="gstep"><button type="button" id="gs-st-m" aria-label="Plus petit">−</button><output id="gs-st-size">11 mm</output><button type="button" id="gs-st-p" aria-label="Plus grand">+</button></div></div>
+        <div class="gstamps" id="gstamps"></div>
+        <h3 class="sub">Repères du jeu</h3>
+        <div class="gstamps" id="gcommon"></div>
+        <p class="gtab-help">Cliquez un élément, puis la carte autant de fois que voulu. <kbd>Échap</kbd> pour terminer. Double-clic sur un élément posé : le modifier.</p>
+        <p class="gcredit" id="gcredit"></p>
+      </div>
+      <div data-gtabp="tools" hidden>
       <p class="gtab-help">Choisissez un outil, puis dessinez sur la carte. <kbd>Échap</kbd>, clic droit ou double-clic : l’outil est lâché et on revient à la sélection.</p>
       <div class="gtools" id="gtools">
         <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
@@ -143,6 +164,10 @@
         <div class="gf-line" data-for="weight">
           <span class="gf-l" id="gf-weight-l">Épaisseur du trait</span>
           <div class="gstep"><button type="button" id="gs-weight-m" aria-label="Plus fin">−</button><output id="gs-weight-v">3 px</output><button type="button" id="gs-weight-p" aria-label="Plus épais">+</button></div>
+        </div>
+        <div class="gf-line" data-for="stampsize">
+          <span class="gf-l">Taille sur le papier</span>
+          <div class="gstep"><button type="button" id="gs-stamp-m" aria-label="Plus petit">−</button><output id="gs-stamp-v">11 mm</output><button type="button" id="gs-stamp-p" aria-label="Plus grand">+</button></div>
         </div>
         <div class="gf-line" data-for="dash">
           <span class="gf-l">Type de trait</span>

@@ -141,3 +141,8 @@ Bibliothèques (versions fixées, via cdnjs) : Leaflet 1.9.4, proj4js 2.12.1.
 - `js/doc.js` : feuilles de route et cartes à l'échelle (aperçu éditable, impression).
 
 Le workflow `.github/workflows/pages.yml` déploie sur GitHub Pages à chaque envoi sur `main`, à la demande, et chaque lundi à 3 h (vérification que les services Géoplateforme répondent, puis redéploiement).
+
+
+## Thèmes du Grand jeu
+Onglet **Thèmes** du panneau Grand jeu : 1) choisir l'**échelle** du jeu (zoom et taille des éléments, en millimètres sur le papier à cette échelle), 2) choisir un **thème** (Moyen Âge, Croisades, Pirates et mer, Résistance 1940-44, Première Guerre mondiale, Antiquité romaine, Far West, Vikings : fond de carte d'époque, couleurs, police), 3) ajuster le **fond** (Cassini, État-major, Carte 1950…) et l'**effet parchemin** (aussi à l'impression), 4) poser les **éléments** du thème (châteaux, tentes, drapeaux…) et les « repères du jeu ». Les éléments se déplacent, se renomment, changent de couleur et de taille comme les autres formes.
+Les icônes viennent de [game-icons.net](https://game-icons.net) (CC BY 3.0 : Lorc, Delapouite, Skoll, Cathelineau, Quoting, Sbed, HeavenlyDog) ; les données sont dans `js/themes.js` (généré, chargé à la demande).
