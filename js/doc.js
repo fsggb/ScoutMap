@@ -22,74 +22,104 @@
   }
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
-  // Réglages de l'aperçu (modifiables en direct dans la barre d'outils)
-  var PRM = { type: 'simple', paper: 'A4', orient: 'portrait', scale: 'view', tscale: 25000, line: true, roadmap: true };
-  var BT = 0, buildTimer = null, ABORT = { abort: true };
+  // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
+  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false };
+  var BT = 0, ABORT = { abort: true };
+  var FRAMES = { A4: [210, 297], A3: [297, 420] };
   function config() {
-    var items = pickables(), t = PRM.type;
-    return {
-      type: t, title: '', paper: PRM.paper, orient: PRM.orient, scale: PRM.scale, overview: true, profile: true, notes: true, items: items, showLine: PRM.line,
-      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: PRM.orient, mix: PRM.orient === 'auto', roadmap: PRM.roadmap }
-    };
+    return { type: 'combo', title: '', paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet,
+      overview: true, profile: true, notes: true,
+      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
-  function openPdf(type) {
-    var list = pickables(), sheetOk = list.some(sheetCapable), tilesOk = geomLines(list).length > 0;
-    var ok = { simple: sheetOk, detail: sheetOk, map: list.length > 0, tiles: tilesOk };
-    $$('#doc-types .dcard').forEach(function (b) { var on = ok[b.dataset.type]; b.disabled = !on; b.classList.toggle('dis', !on); });
-    $('#pdf-empty').hidden = list.length > 0;
-    if (type && ok[type]) { start(type); return; }
-    $$('#pdf-paper-seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.v === PRM.paper); });
-    var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
+  // ----- Vignettes de la première fenêtre (dessinées à partir des vraies données)
+  function lonlat(items) { return geomLines(items).filter(function (l) { return l && l.length; }); }
+  function projector(lines, extra, W, H, pad) {
+    var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
+    function add(p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); }
+    lines.forEach(function (l) { l.forEach(add); }); (extra || []).forEach(add);
+    if (!isFinite(la0)) return null;
+    var k = Math.cos((la0 + la1) / 2 * Math.PI / 180), w = Math.max(1e-6, (lo1 - lo0) * k), h = Math.max(1e-6, la1 - la0);
+    var s = Math.min((W - 2 * pad) / w, (H - 2 * pad) / h), ox = (W - w * s) / 2, oy = (H - h * s) / 2;
+    return function (p) { return [ox + (p[1] - lo0) * k * s, H - oy - (p[0] - la0) * s]; };
   }
-  $$('#doc-types .dcard').forEach(function (b) { b.addEventListener('click', function () { if (!b.disabled) { $('#dlg-pdf').close(); start(b.dataset.type); } }); });
-  $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
-  $('#pdf-paper-seg').addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return; PRM.paper = b.dataset.v;
-    $$('#pdf-paper-seg button').forEach(function (x) { x.classList.toggle('on', x === b); });
-  });
-  function start(type) {
-    PRM.type = type; PRM.line = true; PRM.roadmap = true;
-    PRM.orient = type === 'tiles' ? 'auto' : type === 'map' ? 'landscape' : 'portrait';
-    PRM.scale = type === 'map' && S.mode === 'game' ? 'fit' : 'view';
-    renderTools(); rebuild(0);
+  function poly(lines, tf, col, wd) {
+    return lines.map(function (l) {
+      var step = Math.max(1, Math.floor(l.length / 120));
+      return '<polyline points="' + l.filter(function (_, i) { return i % step === 0; }).map(function (q) { var t = tf(q); return t[0].toFixed(1) + ',' + t[1].toFixed(1); }).join(' ') + '" fill="none" stroke="' + col + '" stroke-width="' + wd + '" stroke-linejoin="round" stroke-linecap="round"/>';
+    }).join('');
+  }
+  function fitScaleFor(items, paper) {
+    var pts = []; lonlat(items).forEach(function (l) { l.forEach(function (q) { pts.push(q); }); });
+    if (!pts.length) return null;
+    var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
+    pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+    var wm = (lo1 - lo0) * 111320 * Math.cos((la0 + la1) / 2 * Math.PI / 180), hm = (la1 - la0) * 110540, P = FRAMES[paper], land = wm >= hm;
+    var aw = (land ? P[1] : P[0]) - 20, ah = (land ? P[0] : P[1]) - 20 - 34;
+    var need = Math.max(wm / (aw / 1000), hm / (ah / 1000));
+    for (var i = 0; i < FIT_SCALES.length; i++) if (FIT_SCALES[i] >= need) return { scale: FIT_SCALES[i], land: land };
+    return { scale: FIT_SCALES[FIT_SCALES.length - 1], land: land };
+  }
+  function thumbRoadmap(items) {
+    var r = items.filter(function (p) { return p.type === 'route'; })[0], lines = r ? lonlat([r]) : lonlat(items.filter(sheetCapable)), tf = projector(lines, null, 100, 52, 5);
+    var km = r && r.res ? G.fmtDist(r.res.dist) : '';
+    return '<div class="th-page"><i class="th-bar"></i><div class="th-kp"><b>' + (km || 'Distance') + '</b><b>' + (r ? r.data.wps.length + ' points' : '') + '</b></div>' +
+      '<svg viewBox="0 0 100 52">' + '<rect width="100" height="52" fill="#e9efe3"/>' + (tf ? poly(lines, tf, '#000761', 2) : '') + '</svg>' +
+      '<div class="th-rows"><i></i><i></i><i></i><i></i></div><div class="th-two"><span><em>Notes</em><i></i><i></i></span><span><em>☎ Urgences</em><i></i><i></i></span></div></div>';
+  }
+  function thumbMaps(items, pl) {
+    var lines = lonlat(items), pts = [];
+    if (pl) pl.pages.forEach(function (pg) { pts.push(pg.sw, pg.ne); });
+    var tf = projector(lines, pts, 170, 112, 6); if (!tf) return '';
+    var s = '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#e9efe3"/>';
+    if (pl) pl.pages.forEach(function (pg) {
+      var a = tf(pg.sw), b = tf(pg.ne), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
+      s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#c6a24e" fill-opacity=".18" stroke="' + (pg.orient === 'portrait' ? '#7a3db8' : '#000761') + '" stroke-width="1"/>';
+    });
+    return s + poly(lines, tf, '#000761', 2) + '</svg>';
+  }
+  function thumbOne(items) {
+    var lines = lonlat(items), tf = projector(lines, null, 170, 112, 14); if (!tf) return '';
+    return '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#e9efe3"/><rect x="6" y="6" width="158" height="100" fill="none" stroke="#161830" stroke-width="1.2"/>' + poly(lines, tf, '#000761', 2) + '</svg>';
   }
   function seg(id, opts, cur) {
     return '<div class="seg" data-k="' + id + '">' + opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>';
   }
-  function renderTools() {
-    var t = PRM.type, h = '', hasLine = pickables().some(function (p) { return p.type !== 'game'; });
-    h += '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>';
-    if (t === 'map' || t === 'tiles') h += '<label>Sens ' + seg('orient', (t === 'tiles' ? [['auto', 'Auto']] : []).concat([['portrait', 'Portrait'], ['landscape', 'Paysage']]), PRM.orient) + '</label>';
-    if (t === 'map') {
-      var cur = SM.niceScale(SM.curScale()), o = '<option value="view"' + (PRM.scale === 'view' ? ' selected' : '') + '>Vue actuelle (1 : ' + SM.sp(cur) + ')</option><option value="fit"' + (PRM.scale === 'fit' ? ' selected' : '') + '>Ajusté au tracé</option>';
-      SM.SCALES.forEach(function (s) { o += '<option value="' + s + '"' + (String(PRM.scale) === String(s) ? ' selected' : '') + '>1 : ' + SM.sp(s) + '</option>'; });
-      h += '<label>Échelle <select data-k="scale">' + o + '</select></label>';
-    }
-    if (t === 'tiles') h += '<label>Échelle ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>';
-    if ((t === 'map' || t === 'tiles') && hasLine) h += '<label>Tracé ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
-    if (t === 'tiles' && pickables().some(sheetCapable)) h += '<label class="chk"><input type="checkbox" data-k="roadmap"' + (PRM.roadmap ? ' checked' : '') + '> Avec la feuille de route</label>';
-    h += '<span class="doc-sum" id="doc-sum"></span>';
-    $('#doc-tools').innerHTML = h;
-    updateSummary();
+  function renderChoices() {
+    var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0, c = config();
+    if (!sheetOk) PRM.roadmap = false; if (!tilesOk) { PRM.maps = false; PRM.onesheet = false; }
+    var pl = tilesOk ? tilesPlan(items, c.tiles) : null, fit = tilesOk ? fitScaleFor(items, PRM.paper) : null;
+    var n = pl ? pl.pages.length : 0;
+    var cards = [
+      { k: 'roadmap', on: PRM.roadmap, ok: sheetOk, t: 'Feuille de route', th: sheetOk ? thumbRoadmap(items) : '', cap: 'Une page A4 : distance, dénivelé, étapes, notes et numéros d’urgence. Modifiable avant impression.' },
+      { k: 'maps', on: PRM.maps, ok: tilesOk, t: 'Cartes de l’itinéraire', th: thumbMaps(items, pl), cap: tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : seules les feuilles traversées par le tracé') : '' },
+      { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : '' }
+    ];
+    $('#doc-types').innerHTML = cards.map(function (x) {
+      return '<label class="dcard' + (x.ok ? '' : ' dis') + (x.on ? ' on' : '') + '"><input type="checkbox" data-k="' + x.k + '"' + (x.on ? ' checked' : '') + (x.ok ? '' : ' disabled') + '>' +
+        '<span class="dc-tick">' + ic('check') + '</span><div class="dc-th">' + x.th + '</div><b>' + x.t + '</b><small>' + esc(x.cap) + '</small></label>';
+    }).join('');
+    $('#pdf-set').innerHTML =
+      '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>' +
+      '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle des cartes ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>' +
+      '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
+    var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk);
+    $('#pdf-ok').disabled = !any; $('#pdf-empty').hidden = items.length > 0;
   }
-  $('#doc-tools').addEventListener('click', function (e) {
+  $('#doc-types').addEventListener('change', function (e) { var k = e.target.dataset.k; if (k) { PRM[k] = e.target.checked; renderChoices(); } });
+  $('#pdf-set').addEventListener('click', function (e) {
     var b = e.target.closest('.seg button'); if (!b) return;
     var k = b.parentNode.dataset.k, v = b.dataset.v;
-    if (k === 'paper') PRM.paper = v; else if (k === 'orient') PRM.orient = v; else if (k === 'tscale') PRM.tscale = +v; else if (k === 'line') PRM.line = v === '1';
-    renderTools(); rebuild(450);
+    if (k === 'paper') PRM.paper = v; else if (k === 'tscale') PRM.tscale = +v; else if (k === 'line') PRM.line = v === '1';
+    renderChoices();
   });
-  $('#doc-tools').addEventListener('change', function (e) {
-    if (e.target.dataset.k === 'scale') { PRM.scale = e.target.value; rebuild(450); }
-    else if (e.target.dataset.k === 'roadmap') { PRM.roadmap = e.target.checked; rebuild(450); }
-  });
-  function rebuild(delay) { clearTimeout(buildTimer); buildTimer = setTimeout(function () { buildDoc(config()); }, delay); }
-  function updateSummary() {
-    var el = $('#doc-sum'); if (!el) return;
-    if (PRM.type !== 'tiles') { el.textContent = ''; return; }
-    var c = config(), pl = tilesPlan(c.items, c.tiles);
-    el.textContent = pl ? pl.pages.length + ' feuille' + (pl.pages.length > 1 ? 's' : '') + ' ' + PRM.paper + (pl.mixed ? ' (' + pl.nLandscape + ' paysage + ' + pl.nPortrait + ' portrait)' : '') : 'Aucun tracé à imprimer';
-    el.className = 'doc-sum' + (pl && pl.pages.length > 40 ? ' bad' : '');
+  function openPdf() {
+    var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
+    if (!PRM._init) { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; PRM._init = true; }
+    renderChoices();
+    var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
   }
+  $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
+  $('#pdf-ok').addEventListener('click', function () { $('#dlg-pdf').close(); buildDoc(config()); });
 
   // ---------- Carte du parcours sur plusieurs feuilles ----------
   // Lignes à couvrir : le tracé de chaque calque (et, pour un grand jeu, toute l'emprise du dessin).
@@ -211,6 +241,7 @@
 
   function buildDoc(c) {
     var tok = ++BT;
+    if (c.type === 'combo') { buildCombo(c, tok); return; }
     if (c.type === 'tiles') { buildTilesDoc(c, tok); return; }
     closeMaps();
     var P = PAPER[c.paper], pw = c.orient === 'landscape' ? P[1] : P[0], ph = c.orient === 'landscape' ? P[0] : P[1], pm = 10;
@@ -235,9 +266,76 @@
       return Promise.all(docMaps.map(function (m) { return m._ready; }));
     }).then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
+  // ----- Document complet : feuille de route, carte générale, puis les cartes de l'itinéraire (index + feuilles F1, F2…)
+  function setProgress(done, total, msg) {
+    var f = total ? done / total : 0;
+    $('#doc-prog-i').style.width = Math.round(f * 100) + '%'; $('#doc-prog').hidden = done >= total;
+    $('#doc-status').textContent = msg || '';
+  }
+  function buildCombo(c, tok) {
+    var items = c.items, rf = c.roadmap ? items.filter(sheetCapable) : [], prm = c.tiles, P = PAPER[c.paper], pm = 10;
+    var pl = c.maps ? tilesPlan(items, prm) : null;
+    if (c.maps && !pl) { SM.toast('Aucun tracé à imprimer sur plusieurs feuilles.'); return; }
+    if (pl && pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
+    closeMaps();
+    $('#page-style').textContent = '@page pp{size:' + c.paper + ' portrait;margin:0}@page pl{size:' + c.paper + ' landscape;margin:0}@page{size:' + c.paper + ' portrait;margin:0}';
+    $('#doc-pages').innerHTML = ''; $('#doc-side').innerHTML = '';
+    $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
+    origTitle = origTitle || document.title;
+    var total = rf.length + (c.onesheet ? 1 : 0) + (pl ? pl.pages.length + 1 : 0), done = 0;
+    setBusy(true); setProgress(0, total, 'Préparation du document…');
+    var chain = Promise.resolve();
+    function step(msg, fn) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setProgress(done, total, msg); return fn(); }).then(function () { done++; }); }
+    if (rf.length) {
+      chain = chain.then(function () { return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
+      rf.forEach(function (it) {
+        step('Feuille de route…', function () {
+          var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
+          var cc = { type: 'simple', title: '', overview: true, profile: true, notes: true, paper: c.paper };
+          return it.type === 'route' ? routeSheet(cc, it, sh, P[0] - 2 * pm, rf.length) : azSheet(cc, it, sh, P[0] - 2 * pm, rf.length);
+        });
+      });
+    }
+    if (c.onesheet) {
+      step('Carte générale…', function () {
+        var fit = fitScaleFor(items, c.paper), land = fit ? fit.land : true, pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
+        var sh = newSheet(null, pw, ph, pm); sh.className += ' rf ' + (land ? 'pl' : 'pp');
+        buildMapDoc({ title: '', scale: 'fit', items: items, showLine: c.showLine }, sh, pw - 2 * pm, ph - 2 * pm);
+      });
+    }
+    if (pl) {
+      var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
+        off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
+        title: items.length === 1 ? items[0].name : (S.name || 'Parcours') };
+      step('Planche d’assemblage…', function () { return indexSheet(pl, items, o); });
+      pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, items, o); }); });
+    }
+    var sizes = '';
+    $('#page-style').textContent += sizes;
+    chain.then(function () { return Promise.all(docMaps.map(function (m) { return m._ready; })); })
+      .then(function () { if (tok !== BT) return; setProgress(total, total, ''); setBusy(false); buildThumbs(tok); })
+      .catch(function (e) { if (e === ABORT) return; setBusy(false); setProgress(total, total, ''); SM.toast(e && e.message || 'Document incomplet.'); });
+  }
+  // Miniatures latérales (copie réduite de chaque feuille), cliquables
+  function buildThumbs(tok) {
+    var side = $('#doc-side'); side.innerHTML = '';
+    $$('#doc-pages .sheet').forEach(function (sh, i) {
+      if (tok !== BT) return;
+      var W = 128, w = sh.offsetWidth, h = sh.offsetHeight, s = W / w;
+      var b = document.createElement('button'); b.className = 'dthumb'; b.type = 'button'; b.title = 'Aller à la page ' + (i + 1);
+      b.style.width = W + 'px'; b.style.height = Math.round(h * s) + 'px';
+      var cl = sh.cloneNode(true); cl.removeAttribute('id'); cl.removeAttribute('contenteditable');
+      $$('[id]', cl).forEach(function (x) { x.removeAttribute('id'); });
+      cl.style.cssText += ';transform:scale(' + s + ');transform-origin:0 0;position:absolute;left:0;top:0;margin:0;box-shadow:none;pointer-events:none;width:' + w + 'px;height:' + h + 'px;min-height:0';
+      b.appendChild(cl);
+      var n = document.createElement('i'); n.textContent = String(i + 1); b.appendChild(n);
+      b.addEventListener('click', function () { sh.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      side.appendChild(b);
+    });
+  }
+
   function setBusy(b, msg) {
-    var btn = $('#doc-print'); btn.disabled = b; $('#doc-pdf').disabled = b;
-    btn.innerHTML = b ? (msg || 'Chargement des cartes…') : ic('printer') + 'Imprimer';
+    $('#doc-print').disabled = b; $('#doc-pdf').disabled = b;
   }
   function titleFor(c, it, n) { return c.title ? (n > 1 ? c.title + ' – ' + it.name : c.title) : it.name; }
 
@@ -339,9 +437,19 @@
     sheet.querySelector('.d-foot-wrap').outerHTML = foot();
   }
 
+  // Bas de page : notes (colonne large) et numéros d'urgence (colonne étroite)
+  var PH = '<svg class="ph" viewBox="0 0 24 24" width="13" height="13"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z" fill="currentColor"/></svg>';
+  function bottomBlock() {
+    var rows = [['Urgences européennes', '112'], ['SAMU', '15'], ['Responsable du raid', ''], ['Camp de base / direction', '']];
+    return '<section class="d-sec d-bottom"><div class="d-notes"><h2>Notes</h2><div class="lines"><br><br><br></div></div>' +
+      '<div class="d-urg"><h2>' + PH + ' Numéros d’urgence</h2>' + rows.map(function (r) {
+        return '<div class="u-row"><span>' + PH + '<span class="u-n">' + esc(r[0]) + '</span></span><b>' + esc(r[1] || '…………………') + '</b></div>'; }).join('') + '</div></section>';
+  }
+
   function routeSheet(c, it, sheet, cw, count) {
     var d = it.data, r = it.res, detail = c.type === 'detail', loop = SM.loopOf(d), h = '', uid = String(it.data.id);
     if (!r) { sheet.innerHTML = head(titleFor(c, it, count), 'Itinéraire non calculé') + '<p class="d-warn">Cet itinéraire n’a pas encore de tracé calculé : ouvrez-le dans ScoutMap puis relancez l’export.</p>' + foot(); return Promise.resolve(); }
+    var mp = null, bnd = null;
     return SM.profileFor(r.line).then(function (p) {
       var rows = stepsTable(d, r, p), sub = ['À pied', loop ? 'Boucle' : 'Aller simple', today()];
       h += head(titleFor(c, it, count), esc(sub.join(' · ')));
@@ -355,7 +463,9 @@
       if (detail && d.flagNat && r.nat && r.nat.length) h += '<p class="d-warn">Attention : le tracé semble emprunter ' + r.nat.map(function (n) { return n.label === 'nationale' ? 'une route nationale' : 'la ' + esc(n.label); }).join(', ') + '.</p>';
       if (c.overview) h += '<section class="d-sec"><h2>Vue d’ensemble</h2><div class="d-mapbox" id="dov' + uid + '" contenteditable="false"></div></section>';
       if (c.profile && p) h += '<section class="d-sec"><h2>Profil d’altitude</h2><div class="d-svgbox" contenteditable="false"><svg id="dsvg' + uid + '"></svg></div><p class="d-note">Distance en abscisse, altitude en ordonnée (source : altimétrie IGN, tracé lissé).</p></section>';
-      h += '<section class="d-sec"><h2>Étapes</h2><table class="d-tbl"><thead><tr><th>Point</th><th>Lieu</th>' + (detail ? '<th class="r">Alt.</th>' : '') + '<th class="r">Depuis le précédent</th><th class="r">Cumul</th><th class="fill">Date et heure d’arrivée</th></tr></thead><tbody>' +
+      var dense = rows.length > 16 ? ' vdense' : rows.length > 9 ? ' dense' : '';
+      var budget = { ov: detail ? 80 : 62, pr: detail ? 46 : 36 };
+      h += '<section class="d-sec"><h2>Étapes</h2><table class="d-tbl' + dense + '"><thead><tr><th>Point</th><th>Lieu</th>' + (detail ? '<th class="r">Alt.</th>' : '') + '<th class="r">Depuis le précédent</th><th class="r">Cumul</th><th class="fill">Date et heure d’arrivée</th></tr></thead><tbody>' +
         rows.map(function (x) {
           return '<tr><td><b>' + esc(x.lab) + '</b></td><td>' + esc(x.name) + '<br><span class="d-note" style="margin:0">' + esc(x.sub) + '</span></td>' + (detail ? '<td class="r">' + (x.alt == null ? '–' : Math.round(x.alt) + ' m') + '</td>' : '') +
             '<td class="r">' + (x.leg ? G.fmtDist(x.leg) : '–') + '</td><td class="r">' + (x.cum ? G.fmtDist(x.cum) : '–') + '</td><td class="fill"></td></tr>';
@@ -370,23 +480,39 @@
         });
         h += '</section>';
       }
-      if (c.notes) h += '<section class="d-sec d-notes"><h2>Notes</h2><div class="lines"><br><br><br><br></div></section>';
+      if (c.notes) h += bottomBlock();
       h += foot();
       sheet.innerHTML = h;
       var ov = $('#dov' + uid, sheet);
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, (detail ? 80 : 68) * MM)), Math.max(1, SM.wantOff()));
-        var pts = drawItems(m, [it]), b = boundsOf(pts);
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, budget.ov * MM)), Math.max(1, SM.wantOff()));
+        var pts = drawItems(m, [it]), b = boundsOf(pts); mp = m; bnd = b;
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
       }
       var sv = $('#dsvg' + uid, sheet);
       if (sv && p) {
-        var wpx = Math.floor(cw * MM), hpx = Math.round((detail ? 46 : 38) * MM);
+        var wpx = Math.floor(cw * MM), hpx = Math.round(budget.pr * MM);
         var marks = rows.length <= 14 ? rows.map(function (x) { return { d: x.d, z: x.alt == null ? 0 : x.alt, t: x.lab, c: x.cls === 'start' ? '#1a7f37' : x.cls === 'end' ? '#b4232c' : '#000761' }; }) : [];
         sv.setAttribute('width', wpx); sv.setAttribute('height', hpx);
         SM.renderProfileSvg(sv, p, wpx, hpx, 'dpg' + uid, marks);
       }
+      // Tout doit tenir sur une page : si ça déborde, on compacte le tableau puis on réduit la carte et le profil.
+      (function squeeze() {
+        var pagePx = (PAPER[c.paper] || PAPER.A4)[1] * MM, tbl = sheet.querySelector('.d-tbl'), wp = Math.floor(cw * MM);
+        var mh = ov ? ov.offsetHeight : 0, ph = sv && p ? +sv.getAttribute('height') : 0;
+        function over() { return sheet.scrollHeight - pagePx; }
+        function setMap(hh) { ov.style.height = hh + 'px'; mp.invalidateSize(); if (bnd) mp.fitBounds(bnd, { animate: false, padding: [30, 30], maxZoom: 16 }); mh = hh; }
+        function setProf(hh) { sv.setAttribute('height', hh); SM.renderProfileSvg(sv, p, wp, hh, 'dpg' + uid, marks); ph = hh; }
+        var stage = 0, guard = 0;
+        while (over() > 1 && guard++ < 14) {
+          var o = over();
+          if (stage === 0) { if (tbl) tbl.classList.add('dense'); stage = 1; }
+          else if (stage === 1) { if (ov && mh > 120) setMap(Math.max(120, mh - o * 0.6)); if (sv && p && over() > 1 && ph > 80) setProf(Math.max(80, ph - Math.max(0, over()))); stage = 2; }
+          else if (stage === 2) { if (tbl) { tbl.classList.remove('dense'); tbl.classList.add('vdense'); } stage = 3; }
+          else { if (ov && mh > 70) setMap(Math.max(70, mh - over())); if (sv && p && over() > 1 && ph > 60) setProf(Math.max(60, ph - over())); break; }
+        }
+      })();
     });
   }
 
@@ -400,7 +526,7 @@
       if (p) h += '<section class="d-sec"><h2>Profil d’altitude</h2><div class="d-svgbox" contenteditable="false"><svg id="dsvg' + uid + '"></svg></div></section>';
       h += '<section class="d-sec"><h2>Azimuts</h2><p class="d-note" style="margin:0 0 4px">' + (a.ref === 'mag' ? 'Nord magnétique, déclinaison ' + a.decl + '°' : 'Nord géographique') + ' · unité : ' + { deg: 'degrés', grd: 'grades', mil: 'millièmes' }[a.unit] + '</p>' +
         '<table class="d-tbl"><thead><tr><th>Segment</th><th class="r">Azimut</th><th class="r">Contre-azimut</th><th class="r">Distance</th><th class="r">Cumul</th></tr></thead><tbody>' + azRows(d) + '</tbody></table></section>';
-      if (c.notes) h += '<section class="d-sec d-notes"><h2>Notes</h2><div class="lines"><br><br><br><br></div></section>';
+      if (c.notes) h += bottomBlock();
       sheet.innerHTML = h + foot();
       var ov = $('#dov' + uid, sheet);
       if (ov) {
@@ -416,10 +542,10 @@
 
   // ---------- Barre d'aperçu ----------
   function closeDoc() {
-    closeMaps(); $('#doc').hidden = true; document.body.classList.remove('doc-open'); document.title = origTitle;
+    closeMaps(); $('#doc-side').innerHTML = ''; $('#doc').hidden = true; document.body.classList.remove('doc-open'); document.title = origTitle;
     setTimeout(function () { SM.map.invalidateSize(); }, 50);
   }
-  $('#doc-back').addEventListener('click', closeDoc);
+  $('#doc-back').addEventListener('click', function () { BT++; closeDoc(); openPdf(); });
   function doPrint(pdf) {
     var h1 = $('.sheet h1'); origTitle = origTitle || document.title;
     document.title = (h1 && h1.textContent.trim()) || 'ScoutMap';
@@ -429,7 +555,7 @@
   $('#doc-print').addEventListener('click', function () { doPrint(false); });
   $('#doc-pdf').addEventListener('click', function () { doPrint(true); });
   window.addEventListener('afterprint', function () { document.title = 'ScoutMap'; });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) closeDoc(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) { BT++; closeDoc(); openPdf(); } });
 
   SM.openPdf = openPdf;
 })();
