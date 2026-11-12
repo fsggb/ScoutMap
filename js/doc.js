@@ -69,13 +69,19 @@
   function thumbMaps(items, pl) {
     var lines = lonlat(items), pts = [];
     if (pl) pl.pages.forEach(function (pg) { pts.push(pg.sw, pg.ne); });
-    var tf = projector(lines, pts, 170, 112, 6); if (!tf) return '';
-    var s = '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#e9efe3"/>';
+    var tf = projector(lines, pts, 170, 112, 8); if (!tf) return '';
+    var s = '<svg viewBox="0 0 170 112" class="th-svg"><rect width="170" height="112" fill="#f1efe6"/>';
+    var lab = pl && pl.pages.length <= 24;
     if (pl) pl.pages.forEach(function (pg) {
       var a = tf(pg.sw), b = tf(pg.ne), x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
-      s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#c6a24e" fill-opacity=".18" stroke="' + (pg.orient === 'portrait' ? '#7a3db8' : '#000761') + '" stroke-width="1"/>';
+      s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#c6a24e" fill-opacity=".28" stroke="' + (pg.orient === 'portrait' ? '#7a3db8' : '#000761') + '" stroke-width="1.2"/>';
     });
-    return s + poly(lines, tf, '#000761', 2) + '</svg>';
+    s += poly(lines, tf, '#b4232c', 1.8);
+    if (lab) pl.pages.forEach(function (pg) {
+      var a = tf(pg.sw), b = tf(pg.ne);
+      s += '<text x="' + ((a[0] + b[0]) / 2).toFixed(1) + '" y="' + ((a[1] + b[1]) / 2 + 3).toFixed(1) + '" font-size="8" font-weight="700" text-anchor="middle" fill="#000761" stroke="#fff" stroke-width="2.2" paint-order="stroke">F' + pg.n + '</text>';
+    });
+    return s + '</svg>';
   }
   function thumbOne(items) {
     var lines = lonlat(items), tf = projector(lines, null, 170, 112, 14); if (!tf) return '';
@@ -100,7 +106,7 @@
     }).join('');
     $('#pdf-set').innerHTML =
       '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>' +
-      '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle des cartes ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>' +
+      '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>' +
       '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
     var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk);
     $('#pdf-ok').disabled = !any; $('#pdf-empty').hidden = items.length > 0;
