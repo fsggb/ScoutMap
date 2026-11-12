@@ -6,6 +6,8 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 **Site : https://fsggb.github.io/ScoutMap/**
 
 ## Simplification (novembre 2026)
+- **Sentiers GR / GRP / PR** : dessinés en rose par-dessus la carte à partir des données OpenStreetMap (Overpass) : trait plein pour les GR, tirets longs pour les GR de Pays, pointillés pour les PR, avec le nom du GR sur le tracé. Imprimés avec les cartes. Si le service est indisponible, bascule silencieuse sur les tuiles de secours (Waymarked Trails).
+- **Aide** : bouton « ? » en haut (tutoriel vidéo) ; menu Aide : vidéo dans un nouvel onglet et contact du service informatique (service-informatique@fsggb.fr).
 - **Accueil et travaux enregistrés** : au démarrage, quatre cartes (Ouvrir un fichier, Créer un itinéraire, des azimuts, un grand jeu) et la liste des travaux enregistrés automatiquement dans le navigateur (ouvrir, télécharger, supprimer ; avertissement : effacés si on vide les données du navigateur).
 - **Fichiers** : « Enregistrer le travail » (.json, entièrement modifiable : points, azimuts, formes, traces), « Exporter en page web » (.html autonome, lecture seule : carte, profil, impression ; bouton **Modifier** qui rouvre le travail dans ScoutMap via `#projet=<JSON en base64url>`), « Enregistrer en GPX » (trace lisible par toutes les applications, non modifiable dans ScoutMap). « Ouvrir un fichier » lit le .json, le .html exporté, le GPX, le KML et le GeoJSON.
 - **Feuille de route en deux pages** : page 1 (chiffres, carte, profil, numéros d'urgence, responsables à remplir) et page 2 (en-tête synchronisé, tableau des étapes avec distance, cumul, altitude, D+ et date/heure à remplir, notes, « Bon raid ! »).
