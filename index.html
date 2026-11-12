@@ -115,15 +115,27 @@
       <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
 
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
+      <div class="gbar" id="gbar">
+        <button class="gchip" data-pop="fill" title="Couleur de remplissage et transparence"><span class="gc-dot" id="gc-fill"></span>Remplissage</button>
+        <button class="gchip" data-pop="stroke" title="Couleur, épaisseur et pointillés du contour"><span class="gc-dot ring" id="gc-stroke"></span>Contour</button>
+        <button class="gchip" data-pop="text" title="Texte, taille, couleur, gras, souligné"><b class="gc-a">A</b>Texte</button>
+      </div>
       <div class="gstyle" id="gstyle">
+        <div class="gpop" data-pop="fill">
         <div class="grow" data-for="fill"><span class="gl">Remplissage</span><div class="swatches" id="sw-fill"></div><input type="color" id="gs-fill" aria-label="Couleur de remplissage"></div>
         <div class="grow" data-for="alpha"><span class="gl">Transparence <b id="gs-alpha-v">65 %</b></span><input type="range" id="gs-alpha" min="0" max="100" step="5" aria-label="Opacité du remplissage"><small class="gh">0 % = transparent · 100 % = plein</small></div>
+        </div>
+        <div class="gpop" data-pop="stroke">
         <div class="grow" data-for="stroke"><span class="gl">Contour</span><div class="swatches" id="sw-stroke"></div><input type="color" id="gs-stroke" aria-label="Couleur du contour"></div>
         <div class="grow" data-for="weight"><span class="gl">Épaisseur <b id="gs-weight-v">3 px</b></span><input type="range" id="gs-weight" min="1" max="12" step="1" aria-label="Épaisseur du trait"></div>
         <label class="check" data-for="dash"><input type="checkbox" id="gs-dash"> Trait en pointillés</label>
+        </div>
+        <div class="gpop" data-pop="text">
         <div class="grow" data-for="text"><span class="gl">Texte</span><textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte (Entrée pour un retour à la ligne)"></textarea></div>
         <div class="grow" data-for="size"><span class="gl">Taille du texte <b id="gs-size-v">18 px</b></span><input type="range" id="gs-size" min="10" max="60" step="1" aria-label="Taille du texte"></div>
         <div class="grow" data-for="fontcolor"><span class="gl">Couleur du texte</span><input type="color" id="gs-fontcolor" aria-label="Couleur du texte"></div>
+        <div class="grow" data-for="textstyle"><span class="gl">Mise en forme</span><div class="tfmt"><button type="button" id="gs-bold" title="Gras"><b>G</b></button><button type="button" id="gs-italic" title="Italique"><i>I</i></button><button type="button" id="gs-underline" title="Souligné"><u>S</u></button></div></div>
+        </div>
       </div>
       <div class="btnrow" id="gs-actions">
         <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
