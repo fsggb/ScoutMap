@@ -14,3 +14,7 @@ Un chef crée un jeu en direct depuis **Grand jeu ▸ Partager en direct…** : 
 2. Authentication ▸ Méthode de connexion ▸ **Anonyme** : activer.
 3. Realtime Database ▸ Créer (Belgique, mode verrouillé), puis **Règles** : coller `docs/firebase-rules.json`.
 4. Renseigner `window.SM_FIREBASE = { … }` dans `js/firebase-config.js` (avec `databaseURL`).
+
+## Azimuts et avatars
+- **Azimuts :** le bouton « Partager en direct… » existe aussi dans l'application Azimuts : les autres chefs voient le parcours (points, azimuts, distances, profil) et les positions ; chaque chef peut se placer à un poste.
+- **Avatars :** dans l'onglet « Chefs », « Mon avatar » permet de choisir une icône (celles du thème du jeu) et une couleur ; elles servent de marqueur de position et d'image dans la discussion.
