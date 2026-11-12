@@ -755,6 +755,26 @@ body.doc-open .home{display:none!important}
 #dlg-tuto .tuto-info{margin-top:12px}
 #dlg-tuto .tuto-row{padding:10px 14px}
 #dlg-tuto a.btn-ghost{text-decoration:none;color:var(--navy);font-weight:600}
+.rail-line{height:1px;background:var(--line);margin:4px 6px}
+.rail-btn{position:relative}
+.rail-badge{position:absolute;right:6px;top:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#c0262d;color:#fff;font-style:normal;font-size:10.5px;font-weight:800;display:grid;place-items:center}
+.rail-badge[hidden]{display:none}
+.pane-sep{border:0;border-top:1.5px solid var(--line-2);margin:14px 0 12px}
+.notes{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.notes li{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:12px;font-size:13.5px;line-height:1.4}
+.notes li .ic{flex:none;margin-top:2px}
+.notes .note-warn{background:#fff4e0;color:#6b4300}
+.notes .note-bad{background:#fdeaea;color:#8c1d1d}
+#nat-warn,#back-warn{display:none!important}
+[data-pane=settings] .sub{margin:16px 0 8px}
+.tuto-tabs{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+.tuto-tabs button{padding:6px 13px;border:1.5px solid var(--line-2);border-radius:999px;background:#fff;color:#4d5069;font-weight:600;font-size:13px;cursor:pointer}
+.tuto-tabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+#dlg-tuto video{height:min(calc(100vh - 380px),460px)!important}
+.home-tutos{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:18px 0 0;color:#6a6d80;font-size:13px}
+.tuto-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1.5px solid #d9d5c6;border-radius:999px;background:rgba(255,255,255,.7);color:var(--navy);font-weight:600;font-size:12.5px;cursor:pointer}
+.tuto-chip .ic{width:13px;height:13px}
+.tuto-chip:hover{border-color:var(--gold);background:#fff}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

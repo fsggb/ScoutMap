@@ -6,6 +6,8 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 **Site : https://fsggb.github.io/ScoutMap/**
 
 ## Simplification (novembre 2026)
+- **Trois applications, plus d'onglets croisés** : la barre de gauche montre Accueil (retour à l'accueil pour changer de type de travail), l'application en cours, puis en bas **Alertes** (compteur rouge : tracé qui repasse au même endroit, distance à vol d'oiseau, tunnel, route nationale, distance maximale, erreurs), **Réglages** (paramètres de l'itinéraire, unités des azimuts, options du grand jeu) et Panneau. Ils s'ouvrent à la place des outils du panneau. Séparateur avant les boutons d'action de la liste des points.
+- **Tutoriels vidéo** : un global et un par application (itinéraire, azimuts, grand jeu), accessibles par le « ? », le menu Aide et des pastilles discrètes sur l'accueil.
 - **Ouverture de fichiers** : le sélecteur accepte les pages web .html exportées, les GPX, KML, GeoJSON et les anciens .json ; le bouton d'import du panneau est retiré (Fichier > Ouvrir, ou glisser-déposer). Anti-répétition : un autre chemin n'est retenu que s'il ajoute au plus 200 m.
 - **Verrou Édition / Verrouillé** (stylo / cadenas, en haut du panneau Itinéraire et Azimuts) à la place du bandeau bleu : en Édition un clic sur la carte pose un point ; verrouillé, la carte ne fait que se déplacer. Un travail ouvert démarre verrouillé.
 - **Enregistrer / Exporter** : « Enregistrer » (Ctrl+S) crée la page web .html, qui se rouvre dans ScoutMap et se partage ; « Exporter » crée la trace GPX pour les autres applications ; « Imprimer » et « Enregistrer en PDF ». Plus de fichier .json (ouvert encore s'il en existe).
