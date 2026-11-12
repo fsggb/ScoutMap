@@ -746,6 +746,7 @@ body.doc-open .home{display:none!important}
 .tuto-contact a{font-weight:650;color:var(--navy)}
 #dlg-tuto .dlg-actions{margin-top:14px}
 @media (max-width:640px){.tuto-contact{text-align:left}}
+.link-lbl span{position:absolute;transform:translate(-50%,-135%);white-space:nowrap;font:700 11px/1 var(--ui);color:var(--navy);background:rgba(255,255,255,.93);border:1.5px solid var(--navy);border-radius:5px;padding:2px 5px}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
