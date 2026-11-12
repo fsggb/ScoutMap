@@ -806,17 +806,35 @@
       });
     });
   }
+  // Placement d'un point : village / hameau / col / sommet proche, sinon chemin le plus proche ; très zoomé, le point reste où l'on clique.
   function snapToChurch(w) {
-    if (!w || S.route.snapChurch === false) return Promise.resolve();
-    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom()), R = Math.min(1250, Math.max(45, 24 * mpp));
-    if (mpp < 0.55) return Promise.resolve();  // jusqu'au zoom ≈ 17 ; au-delà, on vise précisément
+    if (!w || S.route.snapChurch === false || w.noSnap) return Promise.resolve();
+    var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    if (mpp < 0.55) return Promise.resolve();                       // très zoomé : on respecte le clic
+    var R = Math.min(1250, Math.max(100, 24 * mpp)), o = { lat: w.lat, lon: w.lon };
     return villageCenter(w.lat, w.lon, R).then(function (res) {
+      if (res) return { lat: res.p.lat, lon: res.p.lon, what: res.what };
+      return poiAround('lieu-dit habité', w.lat, w.lon, R).then(function (h) {
+        h.sort(function (x, y) { return x.d - y.d; });
+        if (h.length) return { lat: h[0].lat, lon: h[0].lon, what: 'le hameau' };
+        return Promise.all([poiAround('col', w.lat, w.lon, Math.min(R, 400)), poiAround('sommet', w.lat, w.lon, Math.min(R, 300))]).then(function (r) {
+          var all = r[0].map(function (x) { x.k = 'le col'; return x; }).concat(r[1].map(function (x) { x.k = 'le sommet'; return x; })).sort(function (x, y) { return x.d - y.d; });
+          if (all.length) return { lat: all[0].lat, lon: all[0].lon, what: all[0].k };
+          return nearestRoadPoint(w.lat, w.lon).then(function (rd) { return rd && rd.d <= Math.max(R, 150) ? { lat: rd.lat, lon: rd.lon, what: 'le chemin le plus proche' } : null; });
+        });
+      });
+    }).then(function (res) {
       var i = S.route.wps.indexOf(w); if (i < 0 || !res) return;
-      var c = res.p; if (w.lat === c.lat && w.lon === c.lon) return;
-      w.lat = c.lat; w.lon = c.lon; w.place = undefined; w.church = true;
+      if (L.latLng(w.lat, w.lon).distanceTo(L.latLng(res.lat, res.lon)) < 8) return;
+      w.orig = o; w.moved = true; w.lat = res.lat; w.lon = res.lon; w.place = undefined;
       renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
-      toast('Point posé sur ' + res.what + '.');
+      toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.');
     }).catch(function () {});
+  }
+  function restoreWp(i) {
+    var w = S.route.wps[i]; if (!w || !w.orig) return;
+    w.lat = w.orig.lat; w.lon = w.orig.lon; w.moved = false; w.noSnap = true; w.rescued = false; w.place = undefined; delete w.orig;
+    renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
   }
   // ----- Ordre de passage libre : pour une boucle, on cherche l'ordre le plus court (distance à vol d'oiseau) en gardant le départ.
   function bestOrder(w, loop) {
@@ -1041,7 +1059,7 @@
     Promise.all(cands.map(snapPoint)).then(function (rs) {
       if (tok !== RT.rtTok) return;
       var moved = [];
-      rs.forEach(function (r, k) { if (r) { var x = cands[k]; x.lat = r.lat; x.lon = r.lon; x.place = undefined; moved.push(r.what); } });
+      rs.forEach(function (r, k) { if (r) { var x = cands[k]; if (!x.orig) x.orig = { lat: x.lat, lon: x.lon }; x.lat = r.lat; x.lon = r.lon; x.place = undefined; x.moved = true; moved.push(r.what); } });
       if (!moved.length) { setRouteStatus('Itinéraire impossible : aucun chemin à proximité de ces points. Rapprochez-les d’une route ou d’un chemin.', true); return; }
       toast('Point déplacé sur ' + moved[0] + '.');
       renderRouteMarkers(); renderWpList(); persist(); fillPlaces(S.route); computeRoute();
@@ -1060,12 +1078,13 @@
       })(legQueue.shift());
     }
   }
-  function fetchLeg(a, b, via) {
-    var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, pf(a), via ? pf(via) : '', pf(b)].join('|');
+  var CST_AUTO = '{"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}', CST_TUN = '{"constraintType":"banned","key":"wayType","operator":"=","value":"tunnel"}';
+  function fetchLeg(a, b, via, relaxed) {
+    var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, relaxed ? 'r' : 't', pf(a), via ? pf(via) : '', pf(b)].join('|');
     if (legCache[key]) return legCache[key];
     var url = GP + '/navigation/itineraire?resource=bdtopo-valhalla&profile=pedestrian&optimization=' + S.route.opt +
       '&start=' + pf(a) + '&end=' + pf(b) + (via ? '&intermediates=' + encodeURIComponent(pf(via)) : '') +
-      (S.route.avoidMotorway ? '&constraints=' + encodeURIComponent('{"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}') : '') +
+      (function () { var c = []; if (S.route.avoidMotorway) c.push(CST_AUTO); if (!relaxed) c.push(CST_TUN); return c.length ? '&constraints=' + encodeURIComponent(c.join('|')) : ''; })() +
       '&geometryFormat=geojson&getSteps=true&getBbox=false&crs=EPSG:4326&timeUnit=second&distanceUnit=meter&waysAttributes=name';
     var pr = new Promise(function (resolve, reject) {
       runLeg(function () {
@@ -1080,7 +1099,12 @@
             resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m });
           }).catch(function (e) { if (++tries < 5 && !/Erreur 4|introuvable|impossible|no path/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 700 * tries); }).then(go); throw e; });
         }
-        return go().catch(function (e) { delete legCache[key]; reject(e); });
+        return go().catch(function (e) {
+          delete legCache[key];
+          // aucun chemin sans tunnel (passage souterrain obligatoire) : on réessaie en les autorisant
+          if (!relaxed && /no path|Erreur 4/i.test(e.message || '')) return fetchLeg(a, b, via, true).then(resolve, reject);
+          reject(e);
+        });
       });
     });
     legCache[key] = pr; return pr;
@@ -1165,7 +1189,7 @@
       var lk = leg + ':' + legs[leg].dist.toFixed(0); if (seen[lk]) { step(idx + 1); return; } seen[lk] = 1;
       var a = w[leg], b = w[leg + 1], p0 = u.pts[0], p1 = u.pts[u.pts.length - 1], kx = Math.cos(mid[0] * Math.PI / 180);
       var dx = (p1[1] - p0[1]) * kx * 111320, dy = (p1[0] - p0[0]) * 110540, nrm = Math.hypot(dx, dy) || 1, ux = -dy / nrm, uy = dx / nrm;
-      var offs = [400, 900, 1800], cands = [];
+      var offs = [250, 500, 900], cands = [];
       offs.forEach(function (o) { [1, -1].forEach(function (sd) {
         cands.push({ lat: mid[0] + uy * o * sd / 110540, lon: mid[1] + ux * o * sd / (111320 * kx) });
       }); });
@@ -1174,7 +1198,7 @@
         if (tok !== RT.rtTok || tag !== S.route.id) return;
         var pick = null, score = oldTot - 0.5 * u.len;
         rs.forEach(function (r) {
-          if (!r || r.dist > oldDist * 2 + 800) return;
+          if (!r || r.dist > oldDist + Math.max(400, oldDist * 0.15)) return;   // un détour reste modeste : pas de boucles supplémentaires
           var test = legs.slice(); test[leg] = r;
           var tot = retrace(assemble(test).line).total, sc = tot + 0.5 * (r.dist - oldDist);
           if (tot <= oldTot - 0.5 * u.len && sc < (pick ? pick.sc : Infinity)) pick = { r: r, sc: sc };
@@ -1679,6 +1703,7 @@
       { t: 'Renommer…', i: 'edit', a: function () { renameWp(i); } },
       { t: 'Supprimer ce point', i: 'trash', k: 'Suppr', danger: true, a: function () { removeWp(i); } }
     ];
+    if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
     if (i === 0 && n >= 2 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });
     if (i < n - 1 && !loop) m.push({ t: 'En faire l’arrivée', i: 'pin', a: function () { moveWp(i, n - 1); } });
@@ -2075,6 +2100,13 @@
   function removeLast() {
     if (S.rail === 'route') $('#route-undo').click(); else if (S.rail === 'az') $('#az-undo').click(); else if (S.rail === 'meas') $('#meas-undo').click();
   }
+  function openTuto() {
+    var v = $('#tuto-video'); if (!v.getAttribute('src')) v.setAttribute('src', 'assets/tuto-scoutmap.mp4');
+    openDlg('dlg-tuto');
+  }
+  $('#btn-tuto').addEventListener('click', openTuto);
+  $('#tuto-close').addEventListener('click', function () { var v = $('#tuto-video'); v.pause(); $('#dlg-tuto').close(); });
+  $('#dlg-tuto').addEventListener('close', function () { $('#tuto-video').pause(); });
   var MENUS = {
     file: [
       { t: 'Nouveau projet', i: 'file', a: function () { resetAll(true); } },
@@ -2112,6 +2144,7 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
+      { t: 'Tutoriel vidéo', i: 'play', a: openTuto },
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
       { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
     ]

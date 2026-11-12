@@ -80,6 +80,7 @@
   </nav>
   <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
   <div class="mb-right">
+    <button class="btn-ghost sm light" id="btn-tuto" title="Voir le tutoriel vidéo"><svg class="ic"><use href="#i-play"/></svg><span>Tutoriel</span></button>
     <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
     <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
@@ -115,15 +116,27 @@
       <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
 
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
+      <div class="gbar" id="gbar">
+        <button class="gchip" data-pop="fill" title="Couleur de remplissage et transparence"><span class="gc-dot" id="gc-fill"></span>Remplissage</button>
+        <button class="gchip" data-pop="stroke" title="Couleur, épaisseur et pointillés du contour"><span class="gc-dot ring" id="gc-stroke"></span>Contour</button>
+        <button class="gchip" data-pop="text" title="Texte, taille, couleur, gras, souligné"><b class="gc-a">A</b>Texte</button>
+      </div>
       <div class="gstyle" id="gstyle">
+        <div class="gpop" data-pop="fill">
         <div class="grow" data-for="fill"><span class="gl">Remplissage</span><div class="swatches" id="sw-fill"></div><input type="color" id="gs-fill" aria-label="Couleur de remplissage"></div>
         <div class="grow" data-for="alpha"><span class="gl">Transparence <b id="gs-alpha-v">65 %</b></span><input type="range" id="gs-alpha" min="0" max="100" step="5" aria-label="Opacité du remplissage"><small class="gh">0 % = transparent · 100 % = plein</small></div>
+        </div>
+        <div class="gpop" data-pop="stroke">
         <div class="grow" data-for="stroke"><span class="gl">Contour</span><div class="swatches" id="sw-stroke"></div><input type="color" id="gs-stroke" aria-label="Couleur du contour"></div>
         <div class="grow" data-for="weight"><span class="gl">Épaisseur <b id="gs-weight-v">3 px</b></span><input type="range" id="gs-weight" min="1" max="12" step="1" aria-label="Épaisseur du trait"></div>
         <label class="check" data-for="dash"><input type="checkbox" id="gs-dash"> Trait en pointillés</label>
+        </div>
+        <div class="gpop" data-pop="text">
         <div class="grow" data-for="text"><span class="gl">Texte</span><textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte (Entrée pour un retour à la ligne)"></textarea></div>
         <div class="grow" data-for="size"><span class="gl">Taille du texte <b id="gs-size-v">18 px</b></span><input type="range" id="gs-size" min="10" max="60" step="1" aria-label="Taille du texte"></div>
         <div class="grow" data-for="fontcolor"><span class="gl">Couleur du texte</span><input type="color" id="gs-fontcolor" aria-label="Couleur du texte"></div>
+        <div class="grow" data-for="textstyle"><span class="gl">Mise en forme</span><div class="tfmt"><button type="button" id="gs-bold" title="Gras"><b>G</b></button><button type="button" id="gs-italic" title="Italique"><i>I</i></button><button type="button" id="gs-underline" title="Souligné"><u>S</u></button></div></div>
+        </div>
       </div>
       <div class="btnrow" id="gs-actions">
         <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
@@ -323,17 +336,20 @@
   <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
 </dialog>
 
+<dialog id="dlg-tuto" class="dlg-wide">
+  <h2>Tutoriel vidéo</h2>
+  <video id="tuto-video" controls preload="none" playsinline poster="assets/fsggb.png"></video>
+  <p class="dlg-sub" id="tuto-note">Deux à quatre minutes pour découvrir ScoutMap : itinéraire, azimuts, grand jeu et impression.</p>
+  <div class="dlg-actions"><button class="btn-primary" id="tuto-close">Fermer</button></div>
+</dialog>
+
 <dialog id="dlg-pdf" class="dlg-wide">
   <h2>Que voulez-vous imprimer ?</h2>
-  <div class="dcards" id="doc-types">
-    <button class="dcard" data-type="simple"><span class="dc-ic"><svg class="ic"><use href="#i-file"/></svg></span><b>Feuille de route</b><small>L’essentiel sur une page : distance, dénivelé, étapes</small></button>
-    <button class="dcard" data-type="detail"><span class="dc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Feuille de route détaillée</b><small>Avec consignes de guidage, altitudes et durées</small></button>
-    <button class="dcard" data-type="map"><span class="dc-ic"><svg class="ic"><use href="#i-map"/></svg></span><b>Carte à l’échelle</b><small>Ce que vous voyez à l’écran, sur une seule feuille</small></button>
-    <button class="dcard" data-type="tiles"><span class="dc-ic"><svg class="ic"><use href="#i-layers"/></svg></span><b>Carte du parcours</b><small>Plusieurs feuilles A4 ou A3, le moins possible</small></button>
-  </div>
-  <div class="dpaper"><span>Format du papier</span><div class="seg" id="pdf-paper-seg"><button data-v="A4" class="on">A4</button><button data-v="A3">A3</button></div></div>
+  <p class="dlg-sub">Cochez ce que vous voulez : tout s’imprime à la suite.</p>
+  <div class="dcards" id="doc-types"></div>
+  <div class="pdf-set" id="pdf-set"></div>
   <p class="pdf-empty" id="pdf-empty" hidden>Tracez d’abord quelque chose sur la carte pour pouvoir l’imprimer.</p>
-  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button></div>
+  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok"><svg class="ic"><use href="#i-eye"/></svg>Voir l’aperçu</button></div>
 </dialog>
 
 <dialog id="dlg-video">
@@ -372,11 +388,14 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
-    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small>Cliquez dans le document pour modifier un texte.</small></div>
-    <div class="doc-tools" id="doc-tools"></div>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small id="doc-status"></small></div>
     <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>
-  <div class="doc-scroll"><div id="doc-pages"></div></div>
+  <div class="doc-prog" id="doc-prog" hidden><i id="doc-prog-i"></i></div>
+  <div class="doc-body">
+    <nav class="doc-side" id="doc-side" aria-label="Pages"></nav>
+    <div class="doc-scroll"><div id="doc-pages"></div></div>
+  </div>
 </div>
 <style id="page-style"></style>
 
