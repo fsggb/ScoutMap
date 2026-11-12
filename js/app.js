@@ -471,9 +471,20 @@
     RT.tool = t;
     var c = map.getContainer();
     c.classList.toggle('tool-draw', t !== 'pan' && t !== 'game'); c.classList.toggle('tool-pan', t === 'pan'); c.classList.toggle('tool-game', t === 'game');
-    renderRouteMarkers(); renderAz(); updateHint();
+    renderRouteMarkers(); renderAz(); updateHint(); updateEditUi();
     if (window.SM && SM.game && SM.game.onTool) SM.game.onTool(t);
   }
+  // Verrou : en mode Édition (stylo) un clic sur la carte pose un point ; verrouillé (cadenas), la carte ne fait que se déplacer.
+  function updateEditUi() {
+    var on = RT.tool !== 'pan';
+    $$('[data-edit]').forEach(function (b) {
+      b.classList.toggle('on', on);
+      b.innerHTML = ic(on ? 'edit' : 'lock') + '<span>' + (on ? 'Édition' : 'Verrouillé') + '</span>';
+      b.title = on ? 'Édition : un clic sur la carte pose un point. Cliquez ici pour verrouiller (la carte ne fait alors que se déplacer).' : 'Verrouillé : cliquer sur la carte ne pose rien. Cliquez ici pour modifier.';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+  $$('[data-edit]').forEach(function (b) { b.addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); }); });
   function updateRailMode() {
   }
   function setMode(m) {
@@ -560,9 +571,15 @@
     var b = e.target.closest('button[data-a]'), li = e.target.closest('li[data-id]'); if (!b || !li) return;
     var id = +li.dataset.id, ent = projList().filter(function (x) { return x.id === id; })[0]; if (!ent) return;
     if (b.dataset.a === 'open') { loadProject(ent.data, ent.id); }
-    else if (b.dataset.a === 'dl') { download(safeName(ent.name) + '.scoutmap.json', JSON.stringify(ent.data, null, 1), 'application/json'); }
+    else if (b.dataset.a === 'dl') { exportHtml(ent.data, ent.name); }
     else if (b.dataset.a === 'del') { if (confirm('Supprimer « ' + ent.name + ' » de ce navigateur ?')) { projStore(projList().filter(function (x) { return x.id !== id; })); renderHome(); } }
   });
+  $('#wps-toggle').addEventListener('click', function () { S.wpsCollapsed = !S.wpsCollapsed; applyWpsCollapse(); persist(); });
+  function applyWpsCollapse() {
+    var c = !!S.wpsCollapsed;
+    ['#wps', '#wps-empty', '#wps-help'].forEach(function (s) { $(s).classList.toggle('collapsed', c); });
+    $('#wps-toggle').innerHTML = ic(c ? 'chev-down' : 'chev-up'); $('#wps-toggle').title = c ? 'Afficher la liste des points' : 'Réduire la liste des points';
+  }
   $('#hint-btn').addEventListener('click', function () { if (S.rail === 'game' && window.SM && SM.game) { SM.game.hintAction(); return; } setTool(RT.tool === 'pan' ? S.rail : 'pan'); });
 
   // ---------- Calques : modèle ----------
@@ -1757,12 +1774,12 @@
     RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
     select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
-    showHome(false); setRail(rail); setTool(VIEWER ? 'pan' : rail); persist();
+    showHome(false); setRail(rail); setTool('pan'); persist();
     var b = layerBounds(rail === 'route' ? 'route' : rail); if (b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
   }
   function downloadText(name, text, mime) { download(name, text, mime); }
-  function downloadProject() { download(safeName(projName()) + '.scoutmap.json', JSON.stringify(projData(true), null, 1), 'application/json'); }
-  function exportHtml() {
+  function exportHtml(dataOverride, nameOverride) {
+    var data = dataOverride && dataOverride.app ? dataOverride : projData(true), fname = (nameOverride || projName());
     var dir = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''), page = location.href.split('#')[0].split('?')[0];
     toast('Préparation de la page web…');
     function get(u, bin) { return fetch(u).then(function (r) { if (!r.ok) throw new Error('Fichier introuvable : ' + u); return bin ? r.blob() : r.text(); }); }
@@ -1779,12 +1796,12 @@
           var txt = res[+k].replace(/<\/script/g, '<\\/script');
           if (kind === 'CSS') return '<style>' + res[+k] + '</style>';
           var pre = '';
-          if (first) { first = false; pre = '<script id="scoutmap-data" type="application/json">' + JSON.stringify(projData(true)).replace(/</g, '\\u003c') + '</script>\n<script>window.SM_VIEWER=true;</script>\n'; }
+          if (first) { first = false; pre = '<script id="scoutmap-data" type="application/json">' + JSON.stringify(data).replace(/</g, '\\u003c') + '</script>\n<script>window.SM_VIEWER=true;</script>\n'; }
           return pre + '<script>' + txt + '</script>';
         });
         html = html.split('assets/fsggb.png').join(lg);
         html = html.replace('<head>', '<head>\n<!-- Page ScoutMap (FSGGB) : tous les éléments du raid sont dans <script id="scoutmap-data"> (JSON). Ouvrez ce fichier dans ScoutMap (Fichier > Ouvrir) pour le modifier. -->');
-        download(safeName(projName()) + '.html', html, 'text/html');
+        download(safeName(fname) + '.html', html, 'text/html');
         toast('Page web enregistrée : elle s’ouvre dans n’importe quel navigateur, sans outils d’édition.');
       });
     }).catch(function (e) { toast('Export impossible : ' + (e.message || 'erreur')); });
@@ -1815,7 +1832,7 @@
     var list = projList().sort(function (a, b) { return b.updated - a.updated; });
     $('#proj-rows').innerHTML = list.length ? list.map(function (e) {
       return '<li data-id="' + e.id + '"><button class="pr-open" data-a="open"><b>' + esc(e.name) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></button>' +
-        '<button class="ibtn" data-a="dl" title="Télécharger ce travail" aria-label="Télécharger">' + ic('download') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
+        '<button class="ibtn" data-a="dl" title="Enregistrer ce travail (page web .html)" aria-label="Télécharger">' + ic('download') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
     }).join('') : '<li class="pr-none">Aucun travail enregistré pour le moment : ils apparaîtront ici automatiquement.</li>';
   }
   function resetAll(ask) {
@@ -2398,11 +2415,10 @@
   var MENUS = {
     file: [
       { t: 'Accueil : mes travaux', i: 'home', a: function () { showHome(true); } },
-      { t: 'Ouvrir un fichier…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
+      { t: 'Ouvrir un fichier (page web, GPX, KML, GeoJSON)…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
       '-',
-      { t: 'Enregistrer le travail (fichier modifiable .json)', i: 'download', k: 'Ctrl+S', a: downloadProject },
-      { t: 'Exporter en page web (.html, à partager)', i: 'map', a: exportHtml },
-      { t: 'Enregistrer la trace en GPX (lecture seule)', i: 'download', a: openExport },
+      { t: 'Enregistrer (page web .html : se rouvre ici, se partage)', i: 'download', k: 'Ctrl+S', a: function () { exportHtml(); } },
+      { t: 'Exporter la trace en GPX (autres applications)', i: 'export', a: openExport },
       '-',
       { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
       { t: 'Enregistrer en PDF…', i: 'download', a: function () { openPdf(); } }
@@ -2472,7 +2488,7 @@
     if (VIEWER && !(mod && e.key.toLowerCase() === 'p')) return;
     if (document.body.classList.contains('doc-open') || document.querySelector('dialog[open]')) return;
     if (mod && e.key.toLowerCase() === 'p') { e.preventDefault(); openPdf(); return; }
-    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); downloadProject(); return; }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); exportHtml(); return; }
     if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#file-gpx').click(); return; }
     if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redoAction(); else undoAction(); return; }
     if (mod && e.key.toLowerCase() === 'y' && !typing) { e.preventDefault(); redoAction(); return; }
@@ -2486,7 +2502,7 @@
   window.addEventListener('beforeunload', function () { if (VIEWER) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
 
   // ---------- Démarrage ----------
-  curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
+  applyWpsCollapse(); curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
   renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); renderStored(); showCoords(); updateScaleUI();
   $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== S.rail; });
   $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === S.rail || false); });
