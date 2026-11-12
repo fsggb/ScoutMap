@@ -966,6 +966,14 @@ body.doc-open .home{display:none!important}
 .gst.art{background:#fffdf4;border-color:#e4d9b3}.gst.art img{display:block}.gst-ph{display:block;width:46px;height:46px}
 .gstamp img{display:block;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
 .gl-sw img{width:100%;height:100%;object-fit:contain}
+.lv-me{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:10px;background:#f6f7fb;font-size:13px;color:#33364d}.lv-me span{flex:1}.lv-me small{color:var(--muted)}
+.lv-myav{width:34px;height:34px;border:0;border-radius:50%;color:#fff;font-weight:800;display:grid;place-items:center;cursor:pointer;padding:0}.lv-myav svg{width:70%;height:70%}
+.lv-p i svg,.lv-pin svg,.lv-av svg{width:68%;height:68%;display:block}
+.lv-av{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;color:#fff;font-style:normal;font-size:11px;font-weight:800;margin-right:5px;vertical-align:-5px}
+.lv-avc{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}.lv-avc button{width:28px;height:28px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line-2);cursor:pointer}.lv-avc button.on{box-shadow:0 0 0 3px var(--navy)}
+.lv-avg{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:260px;overflow:auto;margin-bottom:10px}
+.lv-avg button{aspect-ratio:1;border:2px solid transparent;border-radius:50%;cursor:pointer;display:grid;place-items:center;padding:0}.lv-avg button svg{width:62%;height:62%}.lv-avg button.on{box-shadow:0 0 0 3px var(--navy)}
+
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

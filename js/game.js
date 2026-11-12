@@ -685,6 +685,7 @@
     $('#gs-stamp-m').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.max(4, (s.mm || D().stampMm || 16) - 2)); });
     $('#gs-stamp-p').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.min(80, (s.mm || D().stampMm || 16) + 2)); });
     $('#gs-stamp-auto').addEventListener('click', function () { var s = selShape(); if (s) { delete s.mm; refreshStyle(s); SM.persist(); renderPane(); updateHandles(); } });
+    $('#gs-tex').addEventListener('change', function () { var s = selShape(); if (!s) return; if (this.value) s.tex = this.value; else delete s.tex; if (this.value && !(s.alpha > 0)) s.alpha = 0.4; refreshStyle(s); SM.persist(); renderPane(); });
     $('#gs-name').addEventListener('input', function () { var s = selShape(); if (s) { s.name = this.value; refreshStyle(s); screenLegend.update(); SM.persist(); renderList(); } });
     // sections repliables : une seule ouverte à la fois
     $$('.gdet').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) $$('.gdet').forEach(function (o) { if (o !== d) o.open = false; }); }); });
@@ -715,6 +716,7 @@
       if (f === 'fill') on = filled;
       else if (f === 'dash') on = !kind || (kind !== 'text' && kind !== 'cross' && kind !== 'stamp');
       else if (f === 'weight') on = kind !== 'stamp';
+      else if (f === 'tex') on = !!s && (s.kind === 'polygon' || s.kind === 'rect' || s.kind === 'circle');
       else if (f === 'stampsize') on = kind === 'stamp';
       else if (f === 'legendname') on = !!s && s.kind !== 'text';
       else if (f === 'stroke' && s && s.kind === 'stamp' && isArt(s.icon)) on = false;
@@ -730,6 +732,7 @@
     $('#gc-stroke').style.borderColor = src.stroke; $('#gb-stroke-v').textContent = colorName(src.stroke);
     $('#gs-weight-v').textContent = src.weight + ' px'; $('#gs-stamp-v').textContent = (src.mm || D().stampMm || 16) + ' mm' + (src.mm ? '' : ' (général)');
     if (s && document.activeElement !== $('#gs-name')) $('#gs-name').value = s.name || '';
+    if ($('#gs-tex')) $('#gs-tex').value = (s && s.tex) || '';
     $('#gs-stamp-auto').hidden = !(s && s.mm);
     var ga = $('#gactive'); if (ga) { var act = GT !== 'select'; ga.hidden = !act; if (act) $('#gactive-t').textContent = PRE ? (PRE.ln ? 'Ligne « ' + PRE.l + ' » : cliquez les points, double-clic ou clic droit pour terminer.' : 'Zone « ' + PRE.l + ' » : tracez-la sur la carte.') : (GT === 'stamp' && STAMP ? 'Pose de « ' + STAMP.l + ' » : cliquez sur la carte, ou cliquez-glissez pour choisir la taille.' : 'Outil « ' + (KINDS[GT] ? KINDS[GT].label : GT) + ' » actif.'); }
     $$('#gs-dash button').forEach(function (b) { b.classList.toggle('on', (b.dataset.d || '') === String(src.dash === true ? 'dash' : src.dash || '')); });
