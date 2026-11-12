@@ -650,6 +650,10 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .btn-ghost.light{color:#fff;border-color:rgba(255,255,255,.35);background:transparent}
 .btn-ghost.light:hover{background:rgba(255,255,255,.12)}
 @media (max-width:860px){#btn-tuto span{display:none}}
+.pdf-set{flex-wrap:nowrap!important;gap:10px 22px!important}
+.pdf-set label{gap:8px;white-space:nowrap}
+.pdf-set .seg button{padding:7px 10px!important}
+@media (max-width:860px){.pdf-set{flex-wrap:wrap!important}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
