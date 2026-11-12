@@ -649,7 +649,7 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 #dlg-tuto video{width:100%;max-height:68vh;background:#000;border-radius:12px;display:block}
 .btn-ghost.light{color:#fff;border-color:rgba(255,255,255,.35);background:transparent}
 .btn-ghost.light:hover{background:rgba(255,255,255,.12)}
-@media (max-width:860px){#btn-tuto span{display:none}}
+
 .pdf-set{flex-wrap:nowrap!important;gap:10px 22px!important}
 .pdf-set label{gap:8px;white-space:nowrap}
 .pdf-set .seg button{padding:7px 10px!important}
@@ -697,6 +697,7 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .viewer .app{display:block!important;position:relative}
 .viewer .stage{position:absolute;inset:0}
 .viewer .brand{pointer-events:none}
+.hk-lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:700 11px/1 var(--ui);color:#e0368a;background:rgba(255,255,255,.92);border:1.5px solid #e0368a;border-radius:4px;padding:1px 4px;letter-spacing:.02em}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
