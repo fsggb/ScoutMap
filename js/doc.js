@@ -7,7 +7,7 @@
   var MM = 96 / 25.4;                       // pixels CSS par millimètre
   var PAPER = { A4: [210, 297], A3: [297, 420] };
   var FIT_SCALES = [2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2500000, 5000000];
-  var docMaps = [], origTitle = document.title;
+  var docMaps = [], origTitle = document.title, MAPSEQ = 0;
 
   function today() { return new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' }); }
 
@@ -30,11 +30,11 @@
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
   // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
-  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false, title: '' };
+  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false, calq: false, title: '' };
   var BT = 0, ABORT = { abort: true };
   var FRAMES = { A4: [210, 297], A3: [297, 420] };
   function config() {
-    return { type: 'combo', title: PRM.title, paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet,
+    return { type: 'combo', title: PRM.title, paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet, calq: PRM.calq,
       overview: true, profile: true, notes: true,
       tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
@@ -117,6 +117,8 @@
       { k: 'maps', on: PRM.maps, ok: tilesOk && !big, t: W().maps, th: thumbMaps(items, pl), cap: big ? 'Zone trop étendue pour des cartes détaillées à cette échelle (environ ' + big + ' feuilles). Choisissez une échelle plus petite, ou la carte générale.' : tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : ' + W().cover) : '' },
       { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : '' }
     ];
+    var nsep = S.mode === 'game' ? (S.game.calques || []).filter(function (l) { return l.sep; }).length : 0;
+    if (nsep) cards.push({ k: 'calq', on: PRM.calq, ok: true, t: 'Calques à part', th: '<div class="th-cal">' + (S.game.calques || []).filter(function (l) { return l.sep; }).map(function (l) { return '<i>' + esc(l.name) + '</i>'; }).join('') + '</div>', cap: nsep + ' feuille' + (nsep > 1 ? 's' : '') + ' sans fond de carte, une par calque, à la même échelle : à superposer ou à coller.' });
     cards = cards.filter(function (x) { return !x.hide; }); $('#doc-types').style.gridTemplateColumns = 'repeat(' + cards.length + ',1fr)';
     $('#doc-types').innerHTML = cards.map(function (x) {
       return '<label class="dcard' + (x.ok ? '' : ' dis') + (x.on ? ' on' : '') + '"><input type="checkbox" data-k="' + x.k + '"' + (x.on ? ' checked' : '') + (x.ok ? '' : ' disabled') + '>' +
@@ -126,7 +128,7 @@
       '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>' +
       '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle ' + seg('tscale', (S.mode === 'game' ? [[5000, '1 : 5 000']] : []).concat([[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']]), PRM.tscale) + '</label>' +
       '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
-    var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk);
+    var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk) || (PRM.calq && nsep > 0);
     $('#pdf-ok').disabled = !any; $('#pdf-empty').hidden = items.length > 0;
   }
   $('#doc-types').addEventListener('change', function (e) { var k = e.target.dataset.k; if (k) { PRM[k] = e.target.checked; renderChoices(); } });
@@ -141,6 +143,7 @@
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
     if (PRM._init !== S.mode) {
       PRM._init = S.mode; PRM.title = '';
+      PRM.calq = S.mode === 'game' && (S.game.calques || []).some(function (l) { return l.sep; });
       if (S.mode === 'game') { PRM.roadmap = false; PRM.maps = false; PRM.onesheet = tilesOk; if (S.game.scale && [5000, 10000, 25000, 50000].indexOf(S.game.scale) >= 0) PRM.tscale = S.game.scale; }      // un jeu : en général une seule carte d'ensemble
       else { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; }
     }
@@ -198,6 +201,7 @@
     el.style.width = wpx + 'px'; el.style.height = hpx + 'px';
     var m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
       keyboard: false, touchZoom: false, tap: false, zoomSnap: 0, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, maxZoom: 19, minZoom: 3 });
+    if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
       var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
       function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(res, res); } }
@@ -218,7 +222,7 @@
     o = o || {}; var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
-      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); SM.game.addLegend(d, m); if (d.parch) m.getContainer().classList.add('parch'); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
+      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); if (SM.calques) SM.calques.addTo(m, d); SM.game.addLegend(d, m); if (d.parch) m.getContainer().classList.add('parch'); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
       else if (it.type === 'meas' && d.pts.length > 1) {
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });
@@ -332,7 +336,8 @@
     $('#doc-pages').innerHTML = '<div class="doc-loading" id="doc-loading"><i class="spin"></i><span>Chargement des feuilles…</span></div>'; $('#doc-side').innerHTML = '';
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
-    var total = rf.length + (c.onesheet ? 1 : 0) + (pl ? pl.pages.length + 1 : 0), done = 0;
+    var cals = (c.calq && S.mode === 'game' ? (S.game.calques || []).filter(function (l) { return l.sep; }) : []);
+    var total = rf.length + (c.onesheet ? 1 : 0) + cals.length + (pl ? pl.pages.length + 1 : 0), done = 0;
     setBusy(true); setProgress(0, total, 'Préparation du document…');
     var chain = Promise.resolve();
     function step(msg, fn) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setProgress(done, total, msg); return fn(); }).then(function () { done++; if (tok === BT) addThumbs(tok, false); }); }
@@ -353,6 +358,13 @@
         buildMapDoc({ title: '', scale: 'fit', items: items, showLine: c.showLine }, sh, pw - 2 * pm, ph - 2 * pm);
       });
     }
+    cals.forEach(function (l) {
+      step('Calque « ' + l.name + ' » à part…', function () {
+        var b = l.bounds, land = (b.e - b.w) * Math.cos((b.s + b.n) / 2 * Math.PI / 180) >= (b.n - b.s), pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
+        var sh = newSheet(null, pw, ph, pm); sh.className += ' rf ' + (land ? 'pl' : 'pp');
+        buildMapDoc({ title: l.name + (c.title ? ' — ' + c.title : ''), scale: 'fit', prefer: S.game.scale, items: [], only: l, showLine: false }, sh, pw - 2 * pm, ph - 2 * pm);
+      });
+    });
     if (pl) {
       var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
         off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
@@ -482,16 +494,18 @@
   }
 
   function buildMapDoc(c, sheet, cw, chh) {
-    var off = Math.max(2, SM.wantOff()), mapH = Math.floor(chh - 34), id = 'dmap';
+    var off = Math.max(2, SM.wantOff()), mapH = Math.floor(chh - 34), id = 'dmap' + (++MAPSEQ);
     var names = c.items.map(function (p) { return p.name; });
     var title = c.title || (names.length === 1 ? names[0] : S.name || 'Carte');
     sheet.innerHTML = '<div class="d-head-wrap"></div><div class="d-mapfull"><div class="d-mapbox" id="' + id + '" contenteditable="false"></div></div><div class="d-foot-wrap"></div>';
-    var el = $('#' + id), m = makeMap(el, Math.floor(cw * MM), Math.floor(mapH * MM), off);
-    var pts = drawItems(m, c.items, { noLine: !c.showLine }), bounds = boundsOf(pts), center, scale;
+    var el = sheet.querySelector('#' + id), m = makeMap(el, Math.floor(cw * MM), Math.floor(mapH * MM), off, c.only ? { nobase: true } : null), pts;
+    if (c.only) { var cb = c.only.bounds; pts = [[cb.s, cb.w], [cb.n, cb.e]]; SM.calques.addOnly(m, c.only, S.game.scale); el.style.background = '#fbf6e8'; }
+    else pts = drawItems(m, c.items, { noLine: !c.showLine });
+    var bounds = boundsOf(pts), center, scale;
     if (c.scale === 'fit' && bounds) {
       var cc = bounds.getCenter(); m.setView(cc, 10, { animate: false });
       var bz = m.getBoundsZoom(bounds, false, L.point(24, 24)); scale = null;
-      for (var i = 0; i < FIT_SCALES.length; i++) if (SM.zoomFor(FIT_SCALES[i], cc.lat) <= bz + 1e-6) { scale = FIT_SCALES[i]; break; }
+      for (var i = 0; i < FIT_SCALES.length; i++) { if (c.prefer && FIT_SCALES[i] < c.prefer) continue; if (SM.zoomFor(FIT_SCALES[i], cc.lat) <= bz + 1e-6) { scale = FIT_SCALES[i]; break; } }
       center = cc;
       if (!scale) { m.fitBounds(bounds, { animate: false, padding: [24, 24] }); scale = SM.niceScale(SM.scaleAt(m.getZoom(), cc.lat)); }
     } else if (c.scale === 'view' || !c.scale || c.scale === 'fit') { center = SM.map.getCenter(); scale = SM.niceScale(SM.curScale()); }

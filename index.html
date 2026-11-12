@@ -117,6 +117,7 @@
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
       <div class="gtabs" id="gtabs" role="tablist">
         <button type="button" role="tab" data-gtab="tools">Poser</button>
+        <button type="button" role="tab" data-gtab="layers">Calques</button>
         <button type="button" role="tab" data-gtab="style">Style</button>
         <button type="button" role="tab" data-gtab="list">Liste <span class="count" id="gs-count"></span></button>
       </div>
@@ -149,6 +150,11 @@
         </details>
         <label class="check"><input type="checkbox" id="gs-keep"> Poser plusieurs fois de suite</label>
         <p class="gtab-help">Un clic pose l’élément ; <b>cliquez-glissez</b> pour choisir sa taille. Échap, clic droit ou double-clic : on revient à la sélection.</p>
+      </div>
+      <div data-gtabp="layers" hidden>
+        <p class="gtab-help">Des calques dessinés <b>à partir des données réelles</b> (IGN) : reliefs, forêts, rivières. Ils se posent sur n’importe quel fond de carte, se règlent en transparence et peuvent s’imprimer sur leur propre feuille.</p>
+        <p class="gcal-zone" id="gcal-zone"></p>
+        <div class="gcal-list" id="gcal-list"></div>
       </div>
       <div data-gtabp="style" hidden>
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
@@ -537,6 +543,7 @@
 <script src="js/game.js?v=__V__"></script>
 <script src="js/paginate.js?v=__V__"></script>
 <script src="js/doc.js?v=__V__"></script>
+<script src="js/calques.js?v=__V__"></script>
 <script src="js/vendor/qrcode.min.js"></script>
 <script src="js/firebase-config.js?v=__V__"></script>
 <script src="js/live.js?v=__V__"></script>

@@ -263,7 +263,7 @@
   // ---------- Rendu du calque en cours ----------
   function selectTool() { return RT.tool === 'game' && GT === 'select'; }
   function render() {
-    applyParch(); screenLegend.update(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
+    applyParch(); screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
     drawDraft();
@@ -843,7 +843,7 @@
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
   function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); map.getContainer().classList.remove('parch'); }
 
-  SM.game = { wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();
