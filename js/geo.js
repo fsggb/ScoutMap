@@ -137,6 +137,49 @@
     return '<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="ScoutMap FSGGB" xmlns="http://www.topografix.com/GPX/1/1">\n' +
       '  <metadata><name>' + esc(name) + '</name><time>' + new Date().toISOString() + '</time></metadata>\n' + body + '</gpx>\n';
   }
+  // Lecture de KML et de GeoJSON (en plus du GPX) : renvoie { tracks: [{ name, coords, ele }], wpts: [{ lat, lon, name }] }.
+  function parseKml(text, fallbackName) {
+    var doc = new DOMParser().parseFromString(text, 'text/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('Fichier KML illisible.');
+    var tracks = [], wpts = [];
+    function coordsOf(el) {
+      var out = [], ele = [];
+      (el.textContent || '').trim().split(/\s+/).forEach(function (s) {
+        var a = s.split(',').map(parseFloat); if (isFinite(a[0]) && isFinite(a[1])) { out.push([a[1], a[0]]); ele.push(isFinite(a[2]) ? a[2] : null); }
+      });
+      return { c: out, e: ele };
+    }
+    Array.prototype.forEach.call(doc.getElementsByTagName('Placemark'), function (pm) {
+      var n = pm.getElementsByTagName('name')[0], name = n ? n.textContent.trim() : '';
+      Array.prototype.forEach.call(pm.getElementsByTagName('LineString'), function (ls) {
+        var r = coordsOf(ls.getElementsByTagName('coordinates')[0] || ls); if (r.c.length > 1) tracks.push({ name: name || fallbackName || 'Trace', coords: r.c, ele: r.e.every(function (v) { return v != null; }) ? r.e : null });
+      });
+      Array.prototype.forEach.call(pm.getElementsByTagName('Point'), function (pt) {
+        var r = coordsOf(pt.getElementsByTagName('coordinates')[0] || pt); if (r.c.length) wpts.push({ lat: r.c[0][0], lon: r.c[0][1], name: name });
+      });
+    });
+    return { tracks: tracks, wpts: wpts };
+  }
+  function parseGeoJson(text, fallbackName) {
+    var j; try { j = JSON.parse(text); } catch (e) { throw new Error('Fichier GeoJSON illisible.'); }
+    var tracks = [], wpts = [];
+    function line(cs, name) { var c = cs.filter(function (p) { return p.length >= 2; }).map(function (p) { return [p[1], p[0]]; }); if (c.length > 1) tracks.push({ name: name || fallbackName || 'Trace', coords: c, ele: null }); }
+    function geom(g, name) {
+      if (!g) return;
+      if (g.type === 'LineString') line(g.coordinates, name);
+      else if (g.type === 'MultiLineString') g.coordinates.forEach(function (l) { line(l, name); });
+      else if (g.type === 'Polygon') g.coordinates.forEach(function (l) { line(l, name); });
+      else if (g.type === 'MultiPolygon') g.coordinates.forEach(function (pl) { pl.forEach(function (l) { line(l, name); }); });
+      else if (g.type === 'Point') wpts.push({ lat: g.coordinates[1], lon: g.coordinates[0], name: name || '' });
+      else if (g.type === 'MultiPoint') g.coordinates.forEach(function (p) { wpts.push({ lat: p[1], lon: p[0], name: name || '' }); });
+      else if (g.type === 'GeometryCollection') (g.geometries || []).forEach(function (x) { geom(x, name); });
+    }
+    (j.type === 'FeatureCollection' ? j.features : j.type === 'Feature' ? [j] : [{ geometry: j, properties: {} }]).forEach(function (f) {
+      var pr = f.properties || {}; geom(f.geometry, pr.name || pr.nom || pr.title || '');
+    });
+    return { tracks: tracks, wpts: wpts };
+  }
+
   function parseGpx(text, fallbackName) {
     var doc = new DOMParser().parseFromString(text, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Fichier GPX illisible.');
@@ -172,6 +215,6 @@
     R: R, haversine: haversine, bearing: bearing, destination: destination, cumDist: cumDist, pathLength: pathLength,
     resample: resample, areaM2: areaM2, formatCoord: formatCoord, UNITS: UNITS, trueToUnit: trueToUnit,
     unitToTrue: unitToTrue, fmtAz: fmtAz, fmtDist: fmtDist, fmtDur: fmtDur, fmtArea: fmtArea,
-    esc: esc, trkXml: trkXml, wptXml: wptXml, gpxDoc: gpxDoc, parseGpx: parseGpx
+    esc: esc, trkXml: trkXml, wptXml: wptXml, gpxDoc: gpxDoc, parseGpx: parseGpx, parseKml: parseKml, parseGeoJson: parseGeoJson
   };
 })(window);
