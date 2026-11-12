@@ -27,7 +27,7 @@
   function typing() { var a = document.activeElement; return !!a && (/^(input|select|textarea)$/i.test(a.tagName) || a.isContentEditable); }
   function newShape(kind, pts) {
     var s = { id: SM.nid(), kind: kind, pts: pts, fill: STY.fill, alpha: STY.alpha, stroke: STY.stroke, linked: STY.linked, weight: STY.weight,
-      dash: !!STY.dash && (kind === 'line' || kind === 'arrow'), fontColor: STY.fontColor, size: STY.size, text: kind === 'text' ? 'Texte' : '' };
+      dash: !!STY.dash && (kind === 'line' || kind === 'arrow'), fontColor: STY.fontColor, size: STY.size, bold: !!STY.bold, italic: !!STY.italic, underline: !!STY.underline, text: kind === 'text' ? 'Texte' : '' };
     if (kind === 'circle') s.r = 0;
     return s;
   }
@@ -45,7 +45,7 @@
   function textIcon(s) {
     var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2);
     return L.divIcon({ className: 'g-icon', iconSize: [0, 0],
-      html: '<div class="gtext" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;border:' + bw + 'px solid ' + s.stroke + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
+      html: '<div class="gtext" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + s.stroke + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
   }
   function centroid(s) {
     var pts = s.kind === 'circle' ? [s.pts[0]] : s.pts, la = 0, lo = 0;
@@ -337,7 +337,7 @@
       var f = r.dataset.for, on = true;
       if (f === 'fill' || f === 'alpha') on = filled;
       else if (f === 'dash') on = !kind || (kind !== 'text' && kind !== 'cross');
-      else if (f === 'text' || f === 'size' || f === 'fontcolor') on = kind === 'text';
+      else if (f === 'text' || f === 'size' || f === 'fontcolor' || f === 'textstyle') on = kind === 'text';
       show(r, on);
     });
     $('#gstyle [data-for=fill] .gl').textContent = kind === 'text' ? 'Fond du texte' : 'Remplissage';
@@ -349,6 +349,14 @@
     $$('#sw-fill button').forEach(function (b) { b.classList.toggle('on', b.dataset.c.toLowerCase() === String(src.fill).toLowerCase()); });
     $$('#sw-stroke button').forEach(function (b) { b.classList.toggle('on', b.dataset.c.toLowerCase() === String(src.stroke).toLowerCase()); });
     show($('#gs-actions'), !!s);
+    // pastilles : seuls les réglages utiles à la forme sont proposés ; chacune ouvre son petit panneau
+    var gb = $('#gbar'), gs = $('#gstyle'); if (gb) {
+      $('#gbar [data-pop=fill]').hidden = !filled; $('#gbar [data-pop=text]').hidden = kind !== 'text';
+      var op = gs.dataset.open; if (op && $('#gbar [data-pop=' + op + ']').hidden) { delete gs.dataset.open; }
+      $$('#gbar .gchip').forEach(function (b) { b.classList.toggle('on', b.dataset.pop === gs.dataset.open); });
+      $('#gc-fill').style.background = rgba(src.fill, Math.max(0.35, src.alpha)); $('#gc-stroke').style.borderColor = src.stroke;
+      $('#gs-bold').classList.toggle('on', !!src.bold); $('#gs-italic').classList.toggle('on', !!src.italic); $('#gs-underline').classList.toggle('on', !!src.underline);
+    }
     renderList();
   }
   // Applique une propriété à la forme sélectionnée et mémorise-la pour les prochaines formes.
@@ -381,6 +389,12 @@
     $('#gs-weight').addEventListener('input', function () { setProp('weight', +this.value); });
     $('#gs-size').addEventListener('input', function () { setProp('size', +this.value); });
     $('#gs-dash').addEventListener('change', function () { setProp('dash', this.checked); });
+    $('#gbar').addEventListener('click', function (e) {
+      var b = e.target.closest('.gchip'); if (!b) return; var gs = $('#gstyle');
+      if (gs.dataset.open === b.dataset.pop) delete gs.dataset.open; else gs.dataset.open = b.dataset.pop;
+      renderPane();
+    });
+    ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).addEventListener('click', function () { var s = selShape(); setProp(k, !(s ? s[k] : STY[k])); }); });
     $('#gs-text').addEventListener('input', function () { var s = selShape(); if (s) { s.text = this.value; refreshStyle(s); SM.persist(); renderList(); } });
     $('#gtools').addEventListener('click', function (e) { var b = e.target.closest('button[data-gt]'); if (b) setGT(b.dataset.gt); });
     $('#gs-dup').addEventListener('click', function () { var s = selShape(); if (s) dupShape(s); });
