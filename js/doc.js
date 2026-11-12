@@ -515,22 +515,22 @@
       var rows = stepsTable(d, r, p), sub = esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · '));
       var walk = ((r.dist / 1000) / S.speed + (p ? p.asc / 400 : 0)) * 3600;
       // ---------- page 1
-      var h = head(title, sub, '1 / 2') + '<section class="d-kpis">' + kpi('Distance', G.fmtDist(r.dist)) + (p ? kpi('Dénivelé +', '+ ' + Math.round(p.asc) + ' m') + kpi('Dénivelé −', '− ' + Math.round(p.desc) + ' m') : '') +
-        kpi('Durée de marche', G.fmtDur(walk)) + kpi('Étapes', String(rows.length)) + '</section>';
+      var h = head(title, sub, '1 / 2') + '<section class="d-kpis">' + kpi('Distance', G.fmtDist(r.dist)) + (p ? kpi('Dénivelé', '+ ' + Math.round(p.asc) + ' m') : '') + kpi('Étapes', String(rows.length)) + '</section>';
       h += '<section class="d-sec"><h2>Vue d’ensemble</h2><div class="d-mapbox" id="rov' + uid + '" contenteditable="false"></div></section>';
       if (p) h += '<section class="d-sec"><h2>Profil d’altitude</h2><div class="d-svgbox" contenteditable="false"><svg id="rsv' + uid + '"></svg></div></section>';
       h += contactsBlock() + foot();
       s1.innerHTML = h;
       // ---------- page 2
       var sum = p ? 'Altitude de ' + Math.round(p.min) + ' à ' + Math.round(p.max) + ' m' : '';
-      var tb = '<table class="rt"><thead><tr><th class="c">N°</th><th>Étape</th><th class="r">Distance<br>de l’étape</th><th class="r">Total<br>parcouru</th><th class="r">Altitude</th><th class="r">D+ de<br>l’étape</th><th class="arr">Date et heure d’arrivée</th></tr></thead><tbody>' +
+      var tb = '<table class="rt"><thead><tr><th class="grp" colspan="3">Le point d’arrêt</th><th class="grp" colspan="2">Pour y arriver, depuis l’étape précédente</th><th class="arr" rowspan="2">Date et heure d’arrivée</th></tr>' +
+        '<tr><th class="c">N°</th><th>Nom de l’étape</th><th class="r">Altitude</th><th class="r">Distance</th><th class="r">Dénivelé</th></tr></thead><tbody>' +
         rows.map(function (x, i) {
           var up = p && i > 0 ? ascBetween(p, rows[i - 1].d, x.d) : null;
           return '<tr><td class="c"><span class="rb ' + x.cls + '">' + esc(x.lab) + '</span></td><td><b>' + esc(x.name) + '</b><br><span class="d-note" style="margin:0">' + esc(x.sub) + '</span></td>' +
-            '<td class="r">' + (x.leg ? G.fmtDist(x.leg) : '–') + '</td><td class="r">' + (x.cum ? G.fmtDist(x.cum) : '–') + '</td><td class="r">' + (x.alt == null ? '–' : Math.round(x.alt) + ' m') + '</td>' +
+            '<td class="r">' + (x.alt == null ? '–' : Math.round(x.alt) + ' m') + '</td><td class="r sep">' + (x.leg ? G.fmtDist(x.leg) : '–') + '</td>' +
             '<td class="r">' + (up == null ? '–' : '+ ' + Math.round(up) + ' m') + '</td><td class="arr"><span>le <i class="fl sm">&nbsp;</i> / <i class="fl sm">&nbsp;</i></span><span>à <i class="fl sm">&nbsp;</i> h <i class="fl sm">&nbsp;</i></span></td></tr>';
         }).join('') + '</tbody></table>';
-      s2.innerHTML = head(title, sub, '2 / 2') + (sum ? '<p class="d-note rt-sum">' + esc(sum) + ' · allure : ' + S.speed + ' km/h</p>' : '') +
+      s2.innerHTML = head(title, sub, '2 / 2') + (sum ? '<p class="d-note rt-sum">' + esc(sum) + '</p>' : '') +
         '<section class="d-sec"><h2>Les étapes</h2>' + tb + '</section>' +
         '<section class="d-sec d-notes"><h2>Notes</h2>' + noteLines(6) + '</section>' +
         '<div class="goodraid"><b>Bon raid !</b><span>Restez groupés, soyez prudents et profitez du paysage.</span></div>' + foot();
