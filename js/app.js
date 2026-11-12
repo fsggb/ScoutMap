@@ -1783,7 +1783,7 @@
   function safeName(s) { return (s || 'scoutmap').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'scoutmap'; }
   function b64e(s) { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function b64d(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
-  function loadProject(o, id) {
+  function loadProject(o, id, opts) {
     if (!o || o.app !== 'ScoutMap') throw new Error('Ce fichier n’est pas un travail ScoutMap.');
     S.pid = id || nid(); S.name = o.name || ''; $('#proj-name').value = S.name;
     S.route = Object.assign(freshRoute(null, 1), o.route || {}); S.route.wps = (o.route && o.route.wps) || [];
@@ -1797,7 +1797,7 @@
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
     select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
     showHome(false); setRail(rail); setTool('pan'); persist();
-    var b = layerBounds(rail === 'route' ? 'route' : rail); if (b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
+    var b = layerBounds(rail === 'route' ? 'route' : rail); if (!(opts && opts.keepView) && b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
   }
   function downloadText(name, text, mime) { download(name, text, mime); }
   function exportHtml(dataOverride, nameOverride) {
@@ -2544,11 +2544,11 @@
     var hash = location.hash || '';
     if (VIEWER) {
       document.body.classList.add('viewer'); showHome(false);
-      try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); }
+      if (!window.SM_LIVE_ROOM) { try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); } }
       S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
       $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho'].indexOf(b.dataset.base) < 0) b.hidden = true; });
       $$('#pop-tabs [data-tab=sharp]').forEach(function (b) { b.hidden = true; });
-      $('#btn-edit').hidden = false;
+      $('#btn-edit').hidden = !!window.SM_LIVE_ROOM;
       $('#btn-edit').addEventListener('click', function () { window.open(APP_URL + '#projet=' + b64e(JSON.stringify(projData(false))), '_blank'); });
       return;
     }
@@ -2653,7 +2653,7 @@
 
   // API interne pour doc.js
   window.SM = {
-    ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
+    loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
