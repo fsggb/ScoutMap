@@ -223,9 +223,95 @@
     var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
     Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
   }
+  // ---------- Sentiers GR / GRP / PR (données OpenStreetMap via Overpass), dessinés en rose ----------
+  // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
+  // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
+  var HK = { cells: {}, pend: {}, fail: 0, failed: false, group: L.layerGroup(), colour: '#e0368a', ends: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'] };
+  var HK_CELL = 0.2, HK_MINZ = 11;
+  function hkClass(tags) {
+    var ref = String(tags.ref || ''), name = String(tags.name || ''), sym = String(tags['osmc:symbol'] || '').toLowerCase(), net = tags.network || '';
+    if (/GRP|GR\s*®?\s*de\s*Pays/i.test(ref + ' ' + name)) return 'GRP';
+    if (/^GR\s*\d/i.test(ref) || ((net === 'nwn' || net === 'iwn') && sym.indexOf('red') >= 0)) return 'GR';
+    if (/^PR/i.test(ref) || (sym.indexOf('yellow') >= 0 && sym.indexOf('red') < 0)) return 'PR';
+    return null;
+  }
+  function hkQuery(s, w, n, e) {
+    var bb = '(' + s + ',' + w + ',' + n + ',' + e + ')';
+    return '[out:json][timeout:30];(rel["route"="hiking"]["ref"~"^(GR|PR)"]' + bb + ';rel["route"="hiking"]["osmc:symbol"~"red|yellow"]' + bb + ';);out tags geom' + bb + ';';
+  }
+  function hkParse(j) {
+    var out = [];
+    (j.elements || []).forEach(function (el) {
+      var cls = hkClass(el.tags || {}); if (!cls) return;
+      var ways = (el.members || []).filter(function (m) { return m.type === 'way' && m.geometry && m.geometry.length > 1; }).map(function (m) { return m.geometry.map(function (q) { return [q.lat, q.lon]; }); });
+      if (ways.length) out.push({ id: el.id, cls: cls, ref: String((el.tags || {}).ref || '').replace(/\s+/g, ' ').trim(), ways: ways });
+    });
+    return out;
+  }
+  function hkFetchCell(ci, cj) {
+    var key = ci + ',' + cj;
+    if (HK.cells[key]) return Promise.resolve();
+    if (HK.pend[key]) return HK.pend[key];
+    var s = ci * HK_CELL, w = cj * HK_CELL, q = hkQuery(s.toFixed(4), w.toFixed(4), (s + HK_CELL).toFixed(4), (w + HK_CELL).toFixed(4));
+    function tryEnd(k) {
+      if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
+      var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 28000);
+      return fetch(HK.ends[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
+        .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .catch(function () { clearTimeout(to); return tryEnd(k + 1); });
+    }
+    HK.pend[key] = tryEnd(0).then(function (j) { HK.cells[key] = hkParse(j); HK.fail = 0; delete HK.pend[key]; }, function () {
+      delete HK.pend[key];
+      if (++HK.fail >= 2 && !HK.failed) { HK.failed = true; applyLayers(); }   // bascule silencieuse sur les tuiles de secours
+    });
+    return HK.pend[key];
+  }
+  function hkCells(b) {
+    var out = [];
+    for (var i = Math.floor(b.getSouth() / HK_CELL); i <= Math.floor(b.getNorth() / HK_CELL); i++) for (var j = Math.floor(b.getWest() / HK_CELL); j <= Math.floor(b.getEast() / HK_CELL); j++) out.push([i, j]);
+    return out.length > 12 ? [] : out;
+  }
+  // Dessine les sentiers déjà chargés dans la carte (ou le groupe) donnée ; weight/labels selon le zoom.
+  function hkDraw(target, bounds, zoom, lbl) {
+    var seen = {}, nl = 0, wt = zoom >= 15 ? 4 : 3;
+    hkCells(bounds).forEach(function (c) {
+      (HK.cells[c[0] + ',' + c[1]] || []).forEach(function (r) {
+        var dash = r.cls === 'PR' ? '2 6' : r.cls === 'GRP' ? '12 5' : null;
+        r.ways.forEach(function (w) {
+          L.polyline(w, { color: '#fff', weight: wt + 2, opacity: 0.75, lineCap: 'butt', interactive: false }).addTo(target);
+          L.polyline(w, { color: HK.colour, weight: wt, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
+        });
+        if (lbl && r.ref && r.cls !== 'PR' && zoom >= 12 && !seen[r.id] && nl < 40) {
+          var best = r.ways.reduce(function (a, b2) { return b2.length > a.length ? b2 : a; }, r.ways[0]), mid = best[Math.floor(best.length / 2)];
+          if (bounds.contains(mid)) {
+            seen[r.id] = 1; nl++;
+            L.marker(mid, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target);
+          }
+        }
+      });
+    });
+  }
+  function hkRefresh() {
+    HK.group.clearLayers();
+    if (!S.ov.hiking || HK.failed) { if (map.hasLayer(HK.group)) map.removeLayer(HK.group); return; }
+    if (!map.hasLayer(HK.group)) HK.group.addTo(map);
+    var z = map.getZoom(); if (z < HK_MINZ) return;
+    var b = map.getBounds(), cells = hkCells(b);
+    hkDraw(HK.group, b, z, true);
+    var todo = cells.filter(function (c) { return !HK.cells[c[0] + ',' + c[1]]; });
+    if (todo.length) Promise.all(todo.map(function (c) { return hkFetchCell(c[0], c[1]); })).then(function () { if (S.ov.hiking && !HK.failed) hkRefresh(); });
+  }
+  var hkTimer; map.on('moveend zoomend', function () { clearTimeout(hkTimer); hkTimer = setTimeout(hkRefresh, 350); });
+  // Pour les documents imprimés : charge les cellules nécessaires puis dessine dans la carte du document.
+  function hikeDraw(m) {
+    if (!S.ov.hiking || HK.failed) return Promise.resolve();
+    var b = m.getBounds(), cells = hkCells(b);
+    return Promise.all(cells.map(function (c) { return hkFetchCell(c[0], c[1]); })).then(function () { if (!HK.failed) hkDraw(m, b, m.getZoom(), true); });
+  }
   function applyLayers() {
     Object.keys(LAYERS).forEach(function (k) {
       var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
+      if (k === 'hiking') on = on && HK.failed;   // tuiles de secours seulement si le service des sentiers est indisponible
       if (on) { if (!map.hasLayer(tiles[k])) tiles[k].addTo(map); } else if (map.hasLayer(tiles[k])) map.removeLayer(tiles[k]);
     });
     tiles[S.base].bringToBack();
@@ -234,7 +320,7 @@
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
     $('#base-note').hidden = !!LAYERS[S.base].ign;
-    renderDates();
+    renderDates(); hkRefresh();
     var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
     [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
   }
@@ -2278,7 +2364,8 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Tutoriel vidéo', i: 'play', a: openTuto },
+      { t: 'Tutoriel vidéo (nouvel onglet)', i: 'play', a: function () { window.open('assets/tuto-scoutmap.mp4', '_blank', 'noopener'); } },
+      { t: 'Contacter le service informatique : service-informatique@fsggb.fr', i: 'file', a: function () { window.location.href = 'mailto:service-informatique@fsggb.fr?subject=' + encodeURIComponent('ScoutMap'); } },
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
       { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
     ]
@@ -2426,6 +2513,7 @@
 
   // API interne pour doc.js
   window.SM = {
+    hikeDraw: hikeDraw, hikeFailed: function () { return HK.failed; },
     layerDate: layerDate,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
