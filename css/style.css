@@ -878,6 +878,19 @@ body.doc-open .home{display:none!important}
 
 .dlg-live{position:relative}.dlg-live .dlg-x{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#eef0f7;color:var(--navy);cursor:pointer}.dlg-live .dlg-x:hover{background:var(--gold)}
 .dlg-live h2{margin:0 36px 6px 0;color:var(--navy)}
+.lv-tabs{display:flex;gap:4px;padding:3px;border-radius:11px;background:#eceef7}
+.lv-tabs button{flex:1;padding:7px 6px;border:0;border-radius:8px;background:transparent;font-weight:650;font-size:13px;color:#4d5069;cursor:pointer}
+.lv-tabs button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,7,97,.18)}
+.lv-tabs .lv-tb{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;margin-left:3px;border-radius:9px;background:#c0262d;color:#fff;font-style:normal;font-size:10.5px;font-weight:800}
+.lv-tabs .lv-tb[hidden]{display:none}
+.lv-pane{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}.lv-pane[hidden]{display:none}
+.lv-people{max-height:260px}
+.lv-call{display:block;padding:8px 10px;border-radius:10px;background:#1a7f37;color:#fff!important;font-weight:700;font-size:13px;text-align:center;text-decoration:none}
+.lv-call[hidden]{display:none}
+.lv-msg a{color:#1d4ed8;font-weight:650;word-break:break-all}
+.lv-chat{max-height:300px}
+
+.lv-role{margin:0;padding:6px 9px;border-radius:9px;background:#fff8e1;color:#6b5311;font-size:12px;line-height:1.35}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
