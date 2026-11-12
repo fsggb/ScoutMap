@@ -20,6 +20,7 @@
   <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 17l9 5 9-5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-chev-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
@@ -38,6 +39,8 @@
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.2-2.8 4"/><circle cx="12" cy="17.6" r=".6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"/><path d="M4 5v14" opacity=".35"/></symbol>
   <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
@@ -155,7 +158,7 @@
     </section>
 
     <section class="pane" data-pane="route" hidden>
-      <h2 class="pane-title">Itinéraire à pied</h2>
+      <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
       <div class="seg full" id="route-mode"><button data-v="oneway">Aller simple</button><button data-v="loop">Boucle</button></div>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
@@ -166,7 +169,7 @@
         </div>
         <div class="gauge" id="gauge" hidden><div class="gauge-bar"><i id="gauge-fill"></i></div><div class="gauge-txt" id="gauge-txt"></div></div>
       </div>
-      <h3 class="sub">Points, dans l’ordre de passage <span class="count" id="wp-count"></span></h3>
+      <h3 class="sub sub-row">Points, dans l’ordre de passage <span class="count" id="wp-count"></span><button class="ibtn" id="wps-toggle" type="button" aria-label="Réduire la liste des points"></button></h3>
       <ol class="wps" id="wps"></ol>
       <p class="empty" id="wps-empty">Cliquez sur la carte pour poser le départ, puis les étapes.</p>
       <p class="note" id="wps-help">Cliquez un point pour le sélectionner (surbrillance sur la carte), <kbd>Suppr</kbd> pour le retirer, glissez la poignée pour changer l’ordre de passage.</p>
@@ -196,7 +199,7 @@
     </section>
 
     <section class="pane" data-pane="az" hidden>
-      <h2 class="pane-title">Azimuts</h2>
+      <div class="pane-head"><h2 class="pane-title">Azimuts</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
       <div class="two">
