@@ -124,28 +124,45 @@
       </div>
 
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
-      <div class="gbar" id="gbar">
-        <button class="gchip" data-pop="fill" title="Couleur de remplissage et transparence"><span class="gc-dot" id="gc-fill"></span>Remplissage</button>
-        <button class="gchip" data-pop="stroke" title="Couleur, épaisseur et pointillés du contour"><span class="gc-dot ring" id="gc-stroke"></span>Contour</button>
-        <button class="gchip" data-pop="text" title="Texte, taille, couleur, gras, souligné"><b class="gc-a">A</b>Texte</button>
+      <div class="gfmt" id="gstyle">
+        <div class="gf-cols">
+          <button type="button" class="gcol" id="gb-fill" data-pal="fill" data-for="fill" aria-haspopup="true"><span class="gcol-sw" id="gc-fill"></span><span class="gcol-t"><small id="gb-fill-l">Remplissage</small><b id="gb-fill-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
+          <button type="button" class="gcol" id="gb-stroke" data-pal="stroke" data-for="stroke" aria-haspopup="true"><span class="gcol-sw ring" id="gc-stroke"></span><span class="gcol-t"><small id="gb-stroke-l">Contour</small><b id="gb-stroke-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
+        </div>
+        <div class="gf-line" data-for="weight">
+          <span class="gf-l" id="gf-weight-l">Épaisseur du trait</span>
+          <div class="gstep"><button type="button" id="gs-weight-m" aria-label="Plus fin">−</button><output id="gs-weight-v">3 px</output><button type="button" id="gs-weight-p" aria-label="Plus épais">+</button></div>
+        </div>
+        <div class="gf-line" data-for="dash">
+          <span class="gf-l">Type de trait</span>
+          <div class="gdash" id="gs-dash">
+            <button type="button" data-d="" title="Trait continu"><svg viewBox="0 0 48 8"><path d="M2 4h44" stroke-linecap="round"/></svg></button>
+            <button type="button" data-d="dash" title="Tirets"><svg viewBox="0 0 48 8"><path d="M2 4h9M16 4h9M30 4h9M44 4h2" stroke-linecap="round"/></svg></button>
+            <button type="button" data-d="dot" title="Pointillés"><svg viewBox="0 0 48 8"><path d="M3 4h.1M10 4h.1M17 4h.1M24 4h.1M31 4h.1M38 4h.1M45 4h.1" stroke-linecap="round" stroke-width="3"/></svg></button>
+          </div>
+        </div>
+        <div class="gf-text" data-for="text">
+          <label class="gf-l" for="gs-text">Texte <small>(ou double-clic sur la carte)</small></label>
+          <textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte"></textarea>
+          <div class="gf-line">
+            <select id="gs-font" aria-label="Police"><option value="sans">Moderne</option><option value="serif">Classique</option><option value="hand">Manuscrite</option><option value="title">Titre</option><option value="mono">Machine</option></select>
+            <div class="gstep"><button type="button" id="gs-size-m" aria-label="Réduire le texte">A<small>−</small></button><output id="gs-size-v">18</output><button type="button" id="gs-size-p" aria-label="Agrandir le texte">A<small>+</small></button></div>
+          </div>
+          <div class="gtb" role="toolbar" aria-label="Mise en forme du texte">
+            <button type="button" class="gb-font" id="gb-font" data-pal="font" title="Couleur du texte" aria-haspopup="true"><b>A</b><i id="gc-font"></i></button>
+            <span class="gtb-sep"></span>
+            <button type="button" id="gs-bold" title="Gras"><b>G</b></button>
+            <button type="button" id="gs-italic" title="Italique"><i>I</i></button>
+            <button type="button" id="gs-underline" title="Souligné"><u>S</u></button>
+            <span class="gtb-sep"></span>
+            <button type="button" data-al="left" title="Aligné à gauche"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+            <button type="button" data-al="center" title="Centré"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+            <button type="button" data-al="right" title="Aligné à droite"><svg viewBox="0 0 24 24"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+          </div>
+        </div>
       </div>
-      <div class="gstyle" id="gstyle">
-        <div class="gpop" data-pop="fill">
-        <div class="grow" data-for="fill"><span class="gl">Remplissage</span><div class="swatches" id="sw-fill"></div><input type="color" id="gs-fill" aria-label="Couleur de remplissage"></div>
-        <div class="grow" data-for="alpha"><span class="gl">Transparence <b id="gs-alpha-v">65 %</b></span><input type="range" id="gs-alpha" min="0" max="100" step="5" aria-label="Opacité du remplissage"><small class="gh">0 % = transparent · 100 % = plein</small></div>
-        </div>
-        <div class="gpop" data-pop="stroke">
-        <div class="grow" data-for="stroke"><span class="gl">Contour</span><div class="swatches" id="sw-stroke"></div><input type="color" id="gs-stroke" aria-label="Couleur du contour"></div>
-        <div class="grow" data-for="weight"><span class="gl">Épaisseur <b id="gs-weight-v">3 px</b></span><input type="range" id="gs-weight" min="1" max="12" step="1" aria-label="Épaisseur du trait"></div>
-        <label class="check" data-for="dash"><input type="checkbox" id="gs-dash"> Trait en pointillés</label>
-        </div>
-        <div class="gpop" data-pop="text">
-        <div class="grow" data-for="text"><span class="gl">Texte</span><textarea id="gs-text" rows="2" maxlength="300" placeholder="Votre texte (Entrée pour un retour à la ligne)"></textarea></div>
-        <div class="grow" data-for="size"><span class="gl">Taille du texte <b id="gs-size-v">18 px</b></span><input type="range" id="gs-size" min="10" max="60" step="1" aria-label="Taille du texte"></div>
-        <div class="grow" data-for="fontcolor"><span class="gl">Couleur du texte</span><input type="color" id="gs-fontcolor" aria-label="Couleur du texte"></div>
-        <div class="grow" data-for="textstyle"><span class="gl">Mise en forme</span><div class="tfmt"><button type="button" id="gs-bold" title="Gras"><b>G</b></button><button type="button" id="gs-italic" title="Italique"><i>I</i></button><button type="button" id="gs-underline" title="Souligné"><u>S</u></button></div></div>
-        </div>
-      </div>
+      <div class="gpal" id="gpal" hidden></div>
+      <input type="color" id="gpal-custom" tabindex="-1" aria-hidden="true" style="position:fixed;left:-99px;opacity:0">
       <div class="btnrow" id="gs-actions">
         <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
         <button class="btn-ghost" id="gs-front" title="Mettre au premier plan"><svg class="ic"><use href="#i-up"/></svg></button>
@@ -405,7 +422,7 @@
 <dialog id="dlg-pdf" class="dlg-wide">
   <h2>Que voulez-vous imprimer ?</h2>
   <p class="dlg-sub">Cochez ce que vous voulez : tout s’imprime à la suite.</p>
-  <label class="pdf-name">Nom de l’itinéraire <input id="pdf-name" type="text" maxlength="100" placeholder="Ex. Raid des Pyrénées" autocomplete="off"></label>
+  <label class="pdf-name" id="pdf-name-l">Nom de l’itinéraire <input id="pdf-name" type="text" maxlength="100" placeholder="Ex. Raid des Pyrénées" autocomplete="off"></label>
   <div class="dcards" id="doc-types"></div>
   <div class="pdf-set" id="pdf-set"></div>
   <p class="pdf-empty" id="pdf-empty" hidden>Tracez d’abord quelque chose sur la carte pour pouvoir l’imprimer.</p>
@@ -438,6 +455,7 @@
     <dt><kbd>Ctrl</kbd> + <kbd>P</kbd></dt><dd>Imprimer / PDF</dd>
     <dt>Clic droit</dt><dd>Menu du point : retirer, inverser le sens, départ, étape, arrivée, coordonnées</dd>
     <dt>Double-clic</dt><dd>Terminer une zone du grand jeu</dd>
+    <dt>Double-clic sur un texte</dt><dd>Modifier le texte directement sur la carte (grand jeu) : Entrée valide, Échap annule</dd>
     <dt>Clic sur A</dt><dd>Ferme la boucle (itinéraire ou azimuts)</dd>
   </dl>
   <div class="dlg-actions"><button class="btn-primary" data-close-dlg>Fermer</button></div>

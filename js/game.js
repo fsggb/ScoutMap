@@ -9,8 +9,7 @@
     polygon: { label: 'Zone', icon: 'g-polygon' }, rect: { label: 'Rectangle', icon: 'g-rect' }, circle: { label: 'Cercle', icon: 'g-circle' },
     line: { label: 'Ligne', icon: 'g-line' }, arrow: { label: 'Flèche', icon: 'g-arrow' }, cross: { label: 'Croix', icon: 'g-cross' }, text: { label: 'Texte', icon: 'g-text' }
   };
-  var SWATCH = ['#c0262d', '#d97706', '#c6a24e', '#1a7f37', '#0e7490', '#2563eb', '#7a3db8', '#000761', '#12142b', '#ffffff'];
-  var STY = S.gameStyle;
+    var STY = S.gameStyle;
   var gHandles = L.layerGroup().addTo(map), gDraft = L.layerGroup().addTo(map);
   var GT = 'select', DR = null, SELID = null, live = {};
 
@@ -27,11 +26,11 @@
   function typing() { var a = document.activeElement; return !!a && (/^(input|select|textarea)$/i.test(a.tagName) || a.isContentEditable); }
   function newShape(kind, pts) {
     var s = { id: SM.nid(), kind: kind, pts: pts, fill: STY.fill, alpha: STY.alpha, stroke: STY.stroke, linked: STY.linked, weight: STY.weight,
-      dash: !!STY.dash && (kind === 'line' || kind === 'arrow'), fontColor: STY.fontColor, size: STY.size, bold: !!STY.bold, italic: !!STY.italic, underline: !!STY.underline, text: kind === 'text' ? 'Texte' : '' };
+      dash: (kind === 'text' || kind === 'cross') ? false : (STY.dash === true ? 'dash' : (STY.dash || false)), font: STY.font || 'sans', align: STY.align || 'center', fontColor: STY.fontColor, size: STY.size, bold: !!STY.bold, italic: !!STY.italic, underline: !!STY.underline, text: kind === 'text' ? 'Texte' : '' };
     if (kind === 'circle') s.r = 0;
     return s;
   }
-  function vstyle(s) { return { color: s.stroke, weight: s.weight, opacity: 1, fillColor: s.fill, fillOpacity: s.alpha, dashArray: s.dash ? '10 8' : null, lineJoin: 'round', lineCap: 'round' }; }
+  function vstyle(s) { return { color: s.stroke, weight: s.weight, opacity: 1, fillColor: s.fill, fillOpacity: s.alpha, dashArray: s.dash === 'dot' ? '1 9' : s.dash ? '10 8' : null, lineJoin: 'round', lineCap: 'round' }; }
   function arrowIcon(s, ang) {
     var sz = 14 + s.weight * 3;
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
@@ -42,10 +41,11 @@
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
       html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M4 4L20 20M20 4L4 20" stroke="#fff" stroke-width="' + (sw + 2.2) + '"/><path d="M4 4L20 20M20 4L4 20" stroke="' + s.stroke + '" stroke-width="' + sw + '"/></svg>' });
   }
+  var FONTS = { sans: 'Inter,Arial,sans-serif', serif: 'Georgia,"Times New Roman",serif', hand: '"Comic Sans MS","Segoe Print","Bradley Hand",cursive', title: 'Impact,"Arial Narrow Bold",sans-serif', mono: '"Courier New",Consolas,monospace' };
   function textIcon(s) {
     var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2);
     return L.divIcon({ className: 'g-icon', iconSize: [0, 0],
-      html: '<div class="gtext" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + s.stroke + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
+      html: '<div class="gtext" title="Double-clic : modifier le texte" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[s.font || 'sans'] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
   }
   function centroid(s) {
     var pts = s.kind === 'circle' ? [s.pts[0]] : s.pts, la = 0, lo = 0;
@@ -65,7 +65,7 @@
       if (o.stored) { if (o.click) l.on('click', o.click); if (o.ctx) l.on('contextmenu', o.ctx); if (o.tip && l.bindTooltip) l.bindTooltip(o.tip, { sticky: true }); }
       else {
         l.on('click', function (e) { L.DomEvent.stopPropagation(e); select(s.id); });
-        l.on('dblclick', function (e) { L.DomEvent.stop(e); select(s.id); if (s.kind === 'text') focusText(); });
+        l.on('dblclick', function (e) { L.DomEvent.stop(e); select(s.id); if (s.kind === 'text') editInline(s.id); });
         l.on('contextmenu', function (e) { L.DomEvent.stop(e); shapeCtx(s.id, e); });
       }
     }
@@ -235,7 +235,7 @@
     var keep = $('#gs-keep').checked;
     if (!keep) GT = 'select';
     SM.persist(); render(); SM.renderLayerList();
-    if (opt && opt.edit) focusText();
+    if (opt && opt.edit) setTimeout(function () { editInline(s.id); }, 30);
   }
   function addAt(kind, p) {
     if (S.mode !== 'game') SM.setMode('game');
@@ -277,6 +277,32 @@
   }
 
   // ---------- Textes ----------
+  // Édition directe sur la carte (double-clic) : Entrée valide, Maj+Entrée = nouvelle ligne, Échap annule.
+  function editInline(id) {
+    var ob = live[id], s = shapeById(id); if (!ob || !ob.marker || !s || s.kind !== 'text') return;
+    var el = ob.marker.getElement(), t = el && el.querySelector('.gtext'); if (!t || t.isContentEditable) return;
+    var drag = ob.marker.dragging && ob.marker.dragging.enabled(); if (drag) ob.marker.dragging.disable();
+    t.textContent = s.text || ''; t.contentEditable = 'true'; t.classList.add('editing'); t.removeAttribute('title'); t.focus();
+    var r = document.createRange(); r.selectNodeContents(t); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    var done = false;
+    function end(save) {
+      if (done) return; done = true;
+      t.removeEventListener('keydown', onKey); t.removeEventListener('blur', onBlur); t.removeEventListener('mousedown', stop); t.removeEventListener('dblclick', stop);
+      var v = t.innerText.replace(/\u00a0/g, ' ').replace(/\n+$/, '');
+      t.contentEditable = 'false'; t.classList.remove('editing'); window.getSelection().removeAllRanges();
+      if (save) s.text = v;
+      if (drag && ob.marker.dragging) ob.marker.dragging.enable();
+      refreshStyle(s); SM.persist(); renderPane();
+    }
+    function stop(e) { e.stopPropagation(); }
+    function onKey(e) {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); end(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); end(false); }
+    }
+    function onBlur() { end(true); }
+    t.addEventListener('keydown', onKey); t.addEventListener('blur', onBlur); t.addEventListener('mousedown', stop); t.addEventListener('dblclick', stop);
+  }
   function focusText() {
     if (!S.panelOpen || S.rail !== 'game') SM.setRail('game');
     setTimeout(function () { var t = $('#gs-text'); if (t) { t.focus(); t.select(); } }, 60);
@@ -294,7 +320,7 @@
   function shapeCtx(id, e) {
     select(id);
     var s = shapeById(id), ll = e.latlng, items = [];
-    if (s.kind === 'text') items.push({ t: 'Modifier le texte…', i: 'edit', a: focusText });
+    if (s.kind === 'text') items.push({ t: 'Modifier le texte (double-clic)', i: 'edit', a: function () { editInline(s.id); } });
     items.push({ t: 'Dupliquer', i: 'copy', a: function () { dupShape(s); } });
     items.push({ t: 'Mettre au premier plan', i: 'up', a: function () { reorder(s, true); } });
     items.push({ t: 'Mettre à l’arrière-plan', i: 'down', a: function () { reorder(s, false); } });
@@ -327,36 +353,35 @@
     }).join('');
   }
   function show(el, on) { if (el) el.hidden = !on; }
+  var NAMES = { '#ffffff': 'Blanc', '#000000': 'Noir', '#c0262d': 'Rouge', '#e8590c': 'Orange', '#e0a800': 'Jaune', '#2f9e44': 'Vert', '#0e7490': 'Turquoise', '#2563eb': 'Bleu', '#000761': 'Bleu marine', '#7a3db8': 'Violet', '#d6336c': 'Rose', '#12142b': 'Noir', '#c6a24e': 'Or', '#d97706': 'Orange', '#1a7f37': 'Vert' };
+  function colorName(c) { return NAMES[String(c).toLowerCase()] || String(c).toUpperCase(); }
   function renderPane() {
     if (!$('#gtools')) return;
     $$('#gtools button').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
     var s = selShape(), src = s || STY, kind = s ? s.kind : (GT !== 'select' ? GT : null);
     $('#gs-target').textContent = s ? 'Élément sélectionné : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style des prochaines : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style des prochaines formes');
-    var filled = !kind || kind === 'polygon' || kind === 'rect' || kind === 'circle' || kind === 'text';
+    var filled = !kind || kind === 'polygon' || kind === 'rect' || kind === 'circle' || kind === 'text', isT = kind === 'text';
     $$('#gstyle [data-for]').forEach(function (r) {
       var f = r.dataset.for, on = true;
-      if (f === 'fill' || f === 'alpha') on = filled;
+      if (f === 'fill') on = filled;
       else if (f === 'dash') on = !kind || (kind !== 'text' && kind !== 'cross');
-      else if (f === 'text' || f === 'size' || f === 'fontcolor' || f === 'textstyle') on = kind === 'text';
+      else if (f === 'text') on = isT;
       show(r, on);
     });
-    $('#gstyle [data-for=fill] .gl').textContent = kind === 'text' ? 'Fond du texte' : 'Remplissage';
-    $('#gstyle [data-for=stroke] .gl').textContent = kind === 'text' ? 'Bordure' : kind === 'cross' ? 'Couleur' : 'Contour';
-    $('#gs-fill').value = src.fill; $('#gs-stroke').value = src.stroke; $('#gs-alpha').value = Math.round(src.alpha * 100); $('#gs-alpha-v').textContent = Math.round(src.alpha * 100) + ' %';
-    $('#gs-weight').value = src.weight; $('#gs-weight-v').textContent = src.weight + ' px'; $('#gs-dash').checked = !!src.dash;
-    $('#gs-size').value = src.size; $('#gs-size-v').textContent = src.size + ' px'; $('#gs-fontcolor').value = src.fontColor;
+    $('#gb-fill-l').textContent = isT ? 'Fond' : 'Remplissage';
+    $('#gb-stroke-l').textContent = isT ? 'Bordure' : kind === 'cross' ? 'Couleur' : 'Contour';
+    $('#gf-weight-l').textContent = isT ? 'Épaisseur de la bordure' : kind === 'cross' ? 'Taille de la croix' : 'Épaisseur du trait';
+    $('#gc-fill').style.background = src.alpha > 0 ? rgba(src.fill, Math.max(0.35, src.alpha)) : '#fff';
+    $('#gc-fill').classList.toggle('none', !(src.alpha > 0));
+    $('#gb-fill-v').textContent = src.alpha > 0 ? colorName(src.fill) : 'Aucun';
+    $('#gc-stroke').style.borderColor = src.stroke; $('#gb-stroke-v').textContent = colorName(src.stroke);
+    $('#gs-weight-v').textContent = src.weight + ' px';
+    $$('#gs-dash button').forEach(function (b) { b.classList.toggle('on', (b.dataset.d || '') === String(src.dash === true ? 'dash' : src.dash || '')); });
+    $('#gs-size-v').textContent = src.size; $('#gc-font').style.background = src.fontColor; $('#gs-font').value = src.font || 'sans';
     if (s && document.activeElement !== $('#gs-text')) $('#gs-text').value = s.text || '';
-    $$('#sw-fill button').forEach(function (b) { b.classList.toggle('on', b.dataset.c.toLowerCase() === String(src.fill).toLowerCase()); });
-    $$('#sw-stroke button').forEach(function (b) { b.classList.toggle('on', b.dataset.c.toLowerCase() === String(src.stroke).toLowerCase()); });
+    ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).classList.toggle('on', !!src[k]); });
+    $$('.gtb [data-al]').forEach(function (b) { b.classList.toggle('on', b.dataset.al === (src.align || 'center')); });
     show($('#gs-actions'), !!s);
-    // pastilles : seuls les réglages utiles à la forme sont proposés ; chacune ouvre son petit panneau
-    var gb = $('#gbar'), gs = $('#gstyle'); if (gb) {
-      $('#gbar [data-pop=fill]').hidden = !filled; $('#gbar [data-pop=text]').hidden = kind !== 'text';
-      var op = gs.dataset.open; if (op && $('#gbar [data-pop=' + op + ']').hidden) { delete gs.dataset.open; }
-      $$('#gbar .gchip').forEach(function (b) { b.classList.toggle('on', b.dataset.pop === gs.dataset.open); });
-      $('#gc-fill').style.background = rgba(src.fill, Math.max(0.35, src.alpha)); $('#gc-stroke').style.borderColor = src.stroke;
-      $('#gs-bold').classList.toggle('on', !!src.bold); $('#gs-italic').classList.toggle('on', !!src.italic); $('#gs-underline').classList.toggle('on', !!src.underline);
-    }
     renderList();
   }
   // Applique une propriété à la forme sélectionnée et mémorise-la pour les prochaines formes.
@@ -370,6 +395,60 @@
     if (s) refreshStyle(s);
     SM.persist(); renderPane();
   }
+
+  // ---------- Nuancier (façon Word) : couleurs du thème et leurs nuances, « Aucune », « Autres couleurs » ----------
+  var BASES = ['#000000', '#c0262d', '#e8590c', '#e0a800', '#2f9e44', '#0e7490', '#2563eb', '#000761', '#7a3db8', '#d6336c'];
+  function mix(hex, t, w) {
+    var n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) { return Math.round(v + (w - v) * t); });
+    return '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+  }
+  function palette() {
+    var rows = [[], [], [], [], [], []];
+    BASES.forEach(function (c, i) {
+      var col = i === 0 ? ['#ffffff', '#f2f2f2', '#d0d0d0', '#a0a0a0', '#555555', '#000000'] : [c, mix(c, .8, 255), mix(c, .6, 255), mix(c, .4, 255), mix(c, .25, 0), mix(c, .5, 0)];
+      col.forEach(function (x, r) { rows[r].push(x); });
+    });
+    return rows;
+  }
+  var PAL = { prop: null, anchor: null };
+  function closePal() { var p = $('#gpal'); if (p) p.hidden = true; PAL.prop = null; $$('[data-pal]').forEach(function (b) { b.classList.remove('open'); }); }
+  function openPal(btn) {
+    var prop = btn.dataset.pal, p = $('#gpal');
+    if (PAL.prop === prop && !p.hidden) { closePal(); return; }
+    closePal(); PAL.prop = prop; btn.classList.add('open');
+    var s = selShape(), src = s || STY, key = prop === 'font' ? 'fontColor' : prop, cur = String(src[key]).toLowerCase(), isFill = prop === 'fill';
+    var title = prop === 'fill' ? (src.kind === 'text' || (s && s.kind === 'text') ? 'Couleur de fond' : 'Couleur de remplissage') : prop === 'stroke' ? 'Couleur du contour' : 'Couleur du texte';
+    p.innerHTML = '<div class="gpal-h">' + title + '</div>' +
+      (isFill ? '<button type="button" class="gpal-none' + (src.alpha <= 0 ? ' on' : '') + '" data-none>' + ic('x') + 'Aucun remplissage</button>' : '') +
+      '<div class="gpal-g">' + palette().map(function (row) { return row.map(function (c) { return '<button type="button" data-c="' + c + '" class="' + (c === cur ? 'on' : '') + '" style="background:' + c + '" title="' + colorName(c) + '" aria-label="' + colorName(c) + '"></button>'; }).join(''); }).join('') + '</div>' +
+      '<button type="button" class="gpal-more" data-more><span class="gpal-rb"></span>Autres couleurs…</button>' +
+      (isFill ? '<div class="gpal-a"><span>Transparence</span><input type="range" id="gp-alpha" min="0" max="100" step="5" value="' + Math.round(src.alpha * 100) + '" aria-label="Opacité"><b id="gp-alpha-v">' + Math.round(src.alpha * 100) + ' %</b></div><small>0 % = transparent · 100 % = plein</small>' : '');
+    p.hidden = false;
+    var r = btn.getBoundingClientRect(), w = p.offsetWidth, hh = p.offsetHeight;
+    p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+    p.style.top = (r.bottom + 6 + hh > window.innerHeight ? Math.max(8, r.top - hh - 6) : r.bottom + 6) + 'px';
+  }
+  function palSet(prop, c) {
+    var key = prop === 'font' ? 'fontColor' : prop;
+    setProp(key, c);
+    if (prop === 'fill') { var s = selShape(), src = s || STY; if (!(src.alpha > 0)) setProp('alpha', 0.4); }
+  }
+  (function wirePal() {
+    var p = $('#gpal'), cu = $('#gpal-custom');
+    p.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.c) { palSet(PAL.prop, b.dataset.c); closePal(); }
+      else if (b.hasAttribute('data-none')) { setProp('alpha', 0); closePal(); }
+      else if (b.hasAttribute('data-more')) { var s = selShape(), src = s || STY; cu.value = String(src[PAL.prop === 'font' ? 'fontColor' : PAL.prop]).slice(0, 7); cu.click(); }
+    });
+    p.addEventListener('input', function (e) { if (e.target.id === 'gp-alpha') { setProp('alpha', e.target.value / 100); $('#gp-alpha-v').textContent = e.target.value + ' %'; } });
+    cu.addEventListener('input', function () { if (PAL.prop) palSet(PAL.prop, cu.value); });
+    cu.addEventListener('change', closePal);
+    document.addEventListener('mousedown', function (e) { if (!p.hidden && !e.target.closest('#gpal') && !e.target.closest('[data-pal]')) closePal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !p.hidden) { closePal(); e.stopPropagation(); } }, true);
+    window.addEventListener('resize', closePal);
+    var side = $('#panel') || document.body; side.addEventListener('scroll', closePal, true);
+  })();
   function deleteSel() {
     var s = selShape(); if (!s) return false;
     D().shapes = D().shapes.filter(function (x) { return x !== s; }); SELID = null; SM.persist(); render(); SM.renderLayerList(); return true;
@@ -377,24 +456,16 @@
 
   // ---------- Câblage du panneau ----------
   (function wire() {
-    function swatches(id, prop) {
-      $('#' + id).innerHTML = SWATCH.map(function (c) { return '<button data-c="' + c + '" style="background:' + c + '" title="' + c + '" aria-label="Couleur ' + c + '"></button>'; }).join('');
-      $('#' + id).addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setProp(prop, b.dataset.c); });
-    }
-    swatches('sw-fill', 'fill'); swatches('sw-stroke', 'stroke');
-    $('#gs-fill').addEventListener('input', function () { setProp('fill', this.value); });
-    $('#gs-stroke').addEventListener('input', function () { setProp('stroke', this.value); });
-    $('#gs-fontcolor').addEventListener('input', function () { setProp('fontColor', this.value); });
-    $('#gs-alpha').addEventListener('input', function () { setProp('alpha', this.value / 100); });
-    $('#gs-weight').addEventListener('input', function () { setProp('weight', +this.value); });
-    $('#gs-size').addEventListener('input', function () { setProp('size', +this.value); });
-    $('#gs-dash').addEventListener('change', function () { setProp('dash', this.checked); });
-    $('#gbar').addEventListener('click', function (e) {
-      var b = e.target.closest('.gchip'); if (!b) return; var gs = $('#gstyle');
-      if (gs.dataset.open === b.dataset.pop) delete gs.dataset.open; else gs.dataset.open = b.dataset.pop;
-      renderPane();
-    });
-    ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).addEventListener('click', function () { var s = selShape(); setProp(k, !(s ? s[k] : STY[k])); }); });
+    $$('#gstyle [data-pal]').forEach(function (b) { b.addEventListener('click', function () { openPal(b); }); });
+    function cur(k) { var s = selShape(); return (s || STY)[k]; }
+    $('#gs-weight-m').addEventListener('click', function () { setProp('weight', Math.max(1, cur('weight') - 1)); });
+    $('#gs-weight-p').addEventListener('click', function () { setProp('weight', Math.min(14, cur('weight') + 1)); });
+    $('#gs-size-m').addEventListener('click', function () { setProp('size', Math.max(8, cur('size') - 2)); });
+    $('#gs-size-p').addEventListener('click', function () { setProp('size', Math.min(96, cur('size') + 2)); });
+    $('#gs-dash').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setProp('dash', b.dataset.d || false); });
+    $('#gs-font').addEventListener('change', function () { setProp('font', this.value); });
+    $$('.gtb [data-al]').forEach(function (b) { b.addEventListener('click', function () { setProp('align', b.dataset.al); }); });
+    ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).addEventListener('click', function () { setProp(k, !cur(k)); }); });
     $('#gs-text').addEventListener('input', function () { var s = selShape(); if (s) { s.text = this.value; refreshStyle(s); SM.persist(); renderList(); } });
     $('#gtools').addEventListener('click', function (e) { var b = e.target.closest('button[data-gt]'); if (b) setGT(b.dataset.gt); });
     $('#gs-dup').addEventListener('click', function () { var s = selShape(); if (s) dupShape(s); });
@@ -422,7 +493,7 @@
       case 'circle': return n === 0 ? 'Cercle : cliquez le centre.' : 'Cliquez pour fixer le rayon.';
       case 'arrow': return n === 0 ? 'Flèche : cliquez le départ.' : 'Cliquez la pointe de la flèche.';
       case 'cross': return 'Cliquez pour poser une croix.';
-      case 'text': return 'Cliquez pour poser une zone de texte, puis tapez-la dans le panneau.';
+      case 'text': return 'Cliquez pour poser une zone de texte, puis tapez-la directement sur la carte.';
     }
     return '';
   }
