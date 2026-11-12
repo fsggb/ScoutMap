@@ -715,6 +715,11 @@ body.doc-open .home{display:none!important}
 .pdf-name{display:flex;align-items:center;justify-content:center;gap:10px;margin:-4px 0 14px;font-weight:600;color:#33364d}
 .pdf-name input{width:min(380px,60%);padding:9px 12px;border:1.5px solid var(--line-2);border-radius:10px;font:600 14px var(--ui);color:var(--navy)}
 .pdf-name input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px rgba(198,162,78,.3)}
+.goodraid{border:0!important;padding:4px 0!important}
+.rt th.grp{text-align:center;background:#1c2380;font-size:8pt;font-weight:600;border-left:1px solid rgba(255,255,255,.3)}
+.rt thead tr:nth-child(2) th{background:#0a1070;font-size:8.5pt}
+.rt td.sep{border-left:1px solid #cfd3e6}
+.rt th.arr{vertical-align:middle}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
