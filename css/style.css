@@ -720,6 +720,19 @@ body.doc-open .home{display:none!important}
 .rt thead tr:nth-child(2) th{background:#0a1070;font-size:8.5pt}
 .rt td.sep{border-left:1px solid #cfd3e6}
 .rt th.arr{vertical-align:middle}
+/* plus de bandeau bleu sur la carte : le verrou Édition / Verrouillé le remplace ; plus de cartes de chiffres ni de consignes sous la liste */
+.toolhint{display:none!important}
+#route-stats,#steps-box{display:none!important}
+.pane-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
+.pane-head .pane-title{margin:0}
+.edit-toggle{display:flex;align-items:center;gap:7px;padding:7px 13px;border:1.5px solid var(--line-2);border-radius:999px;background:#fff;color:#4d5069;font-weight:650;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.edit-toggle .ic{width:16px;height:16px}
+.edit-toggle.on{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.edit-toggle:hover{border-color:var(--navy)}
+.sub-row{display:flex;align-items:center;gap:8px}
+.sub-row .ibtn{margin-left:auto}
+.wps.collapsed,#wps-empty.collapsed,#wps-help.collapsed{display:none!important}
+@media (max-width:860px){.pane>.pane-head{padding-right:40px}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
