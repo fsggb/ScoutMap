@@ -218,7 +218,7 @@
     o = o || {}; var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
-      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); if (d.parch) m.getContainer().classList.add('parch'); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
+      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); SM.game.addLegend(d, m); if (d.parch) m.getContainer().classList.add('parch'); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
       else if (it.type === 'meas' && d.pts.length > 1) {
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });

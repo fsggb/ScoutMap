@@ -11,7 +11,7 @@
   };
     var STY = S.gameStyle, VQ = (document.currentScript && document.currentScript.src.split('?')[1]) || '';
   var gHandles = L.layerGroup().addTo(map), gDraft = L.layerGroup().addTo(map);
-  var GT = 'select', DR = null, SELID = null, live = {};
+  var GT = 'select', DR = null, SELID = null, live = {}, PRE = null, ZSHAPE = 'polygon';
 
   // ---------- Utilitaires ----------
   function rgba(hex, a) {
@@ -32,10 +32,48 @@
   }
   function newStamp(el, p) {
     var th = themeById(D().theme);
-    return { id: SM.nid(), kind: 'stamp', pts: [p], icon: el.i, mm: STY.mm || 11, stroke: STY.iconColor || (th && th.color) || '#4a2c0f', fill: '#ffffff', alpha: 0, linked: false, weight: 3, dash: false,
-      text: el.l, fontColor: STY.iconText || (th && th.color) || '#12142b', size: 14, font: (th && th.font) || STY.font || 'arial', bold: true, italic: false, underline: false, align: 'center' };
+    return { id: SM.nid(), kind: 'stamp', pts: [p], icon: el.i, name: el.l, stroke: STY.iconColor || (th && th.color) || '#4a2c0f', fill: '#ffffff', alpha: 0, linked: false, weight: 3, dash: false,
+      text: '', fontColor: STY.iconText || (th && th.color) || '#12142b', size: 14, font: (th && th.font) || STY.font || 'arial', bold: true, italic: false, underline: false, align: 'center' };
   }
-  function vstyle(s) { return { color: s.stroke, weight: s.weight, opacity: 1, fillColor: s.fill, fillOpacity: s.alpha, dashArray: s.dash === 'dot' ? '1 9' : s.dash ? '10 8' : null, lineJoin: 'round', lineCap: 'round' }; }
+  // ---------- Terrains (zones à motif) et lignes décorées (rivière, route, muraille…) ----------
+  function shade(hex, f) {
+    var n = parseInt(String(hex).slice(1), 16) || 0, c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) { return Math.round(v * f); });
+    return '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+  }
+  var TEXG = {
+    forest: function (d) { return '<g fill="' + d + '" fill-opacity=".7"><circle cx="8" cy="9" r="5"/><circle cx="21" cy="20" r="5"/></g><path d="M8 14v4M21 25v3" stroke="' + d + '" stroke-width="1.6"/>'; },
+    water: function (d) { return '<path d="M0 8q3.5-4 7 0t7 0 7 0 7 0M0 22q3.5-4 7 0t7 0 7 0 7 0" fill="none" stroke="' + d + '" stroke-width="1.5" stroke-opacity=".8"/>'; },
+    marsh: function (d) { return '<path d="M6 10V4M3 10l3-6M9 10L6 4M20 24v-6M17 24l3-6M23 24l-3-6M0 17h5M12 14h6M16 4h6" stroke="' + d + '" stroke-width="1.3" fill="none" stroke-opacity=".85"/>'; },
+    sand: function (d) { return '<g fill="' + d + '" fill-opacity=".75"><circle cx="5" cy="6" r="1.3"/><circle cx="17" cy="4" r="1.1"/><circle cx="24" cy="13" r="1.3"/><circle cx="10" cy="17" r="1.2"/><circle cx="20" cy="24" r="1.3"/><circle cx="3" cy="25" r="1.1"/></g>'; },
+    grass: function (d) { return '<path d="M5 12l1-6M7 12l-1-6M18 25l1-6M20 25l-1-6M22 10l1-5M24 10l-1-5" stroke="' + d + '" stroke-width="1.3" fill="none" stroke-opacity=".85"/>'; },
+    rock: function (d) { return '<path d="M2 13l5-9 5 9zM15 25l6-10 6 10z" fill="none" stroke="' + d + '" stroke-width="1.5" stroke-opacity=".85"/>'; },
+    field: function (d) { return '<path d="M0 5h28M0 14h28M0 23h28" stroke="' + d + '" stroke-width="1.2" stroke-opacity=".7"/>'; }
+  };
+  function texId(s) { return 'gp-' + s.tex + '-' + String(s.fill).replace('#', '') + '-' + Math.round((s.alpha || 0) * 100); }
+  function ensureTex(l, s) {
+    var svg = l && l._renderer && l._renderer._container; if (!svg || !s.tex || !TEXG[s.tex]) return;
+    var id = texId(s); if (svg.querySelector('#' + id)) return;
+    var defs = svg.querySelector('defs');
+    if (!defs) { defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); svg.insertBefore(defs, svg.firstChild); }
+    defs.insertAdjacentHTML('beforeend', '<pattern id="' + id + '" patternUnits="userSpaceOnUse" width="28" height="28"><rect width="28" height="28" fill="' + s.fill + '" fill-opacity="' + Math.min(1, s.alpha || 0.35) + '"/>' + TEXG[s.tex](shade(s.fill, 0.5)) + '</pattern>');
+  }
+  function decoDefs(s) {
+    var w = s.weight, c = s.stroke;
+    switch (s.deco) {
+      case 'river': return { under: [{ color: shade(c, 0.7), weight: w + 2 }], over: [{ color: '#dbeafe', weight: Math.max(1, w * 0.3), opacity: 0.65 }] };
+      case 'road': return { under: [{ color: '#3d2a14', weight: w + 3 }], over: [{ color: '#f5e6c8', weight: Math.max(1, w * 0.35), opacity: 0.95, dashArray: '10 8' }] };
+      case 'wall': return { under: [{ color: '#2b2b2b', weight: w + 3 }], over: [{ color: '#2b2b2b', weight: w + 3, dashArray: '3 9', lineCap: 'butt' }] };
+      case 'rail': return { under: [{ color: '#222', weight: w }], over: [{ color: '#fff', weight: Math.max(1, w - 2), dashArray: '9 9', lineCap: 'butt' }] };
+      case 'trench': return { under: [{ color: '#2e1f0f', weight: w + 2 }], over: [{ color: '#b08d57', weight: Math.max(1, w - 2), dashArray: '3 5' }] };
+    }
+    return null;
+  }
+  function vstyle(s) {
+    var da = s.dash === 'dot' ? '1 9' : s.dash ? '10 8' : null;
+    if (s.deco === 'border') da = '12 6 3 6'; else if (s.deco === 'sea') da = '1 9'; else if (s.deco === 'path') da = '7 6';
+    var tex = s.tex && TEXG[s.tex];
+    return { color: s.stroke, weight: s.weight, opacity: 1, fillColor: tex ? 'url(#' + texId(s) + ')' : s.fill, fillOpacity: tex ? 1 : s.alpha, dashArray: da, lineJoin: 'round', lineCap: 'round' };
+  }
   function arrowIcon(s, ang) {
     var sz = 14 + s.weight * 3;
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
@@ -66,14 +104,15 @@
   }
   function stampPx(s, ll, map_) {
     var z = (map_ || map).getZoom(), mpp = 156543.03392 * Math.cos(ll.lat * Math.PI / 180) / Math.pow(2, z);
-    var m = (s.mm || 11) * (D().scale || 10000) / 1000;
-    return Math.max(16, Math.min(240, m / mpp));
+    var m = (s.mm || D().stampMm || 16) * (s._sc || D().scale || 10000) / 1000;
+    return Math.max(3, Math.min(2400, m / mpp));
   }
   function stampIcon(s, px) {
     var d = window.SM_ICONS && window.SM_ICONS[s.icon], sw = px < 30 ? 36 : 26;
     var svg = d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
       : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="' + esc(s.stroke) + '" opacity=".5"/></svg>';
-    var lab = s.text ? '<span class="gstamp-l" style="color:' + esc(s.fontColor) + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + '">' + esc(s.text).replace(/\n/g, '<br>') + '</span>' : '';
+    var cap = px < 22 ? '' : (s.text || (D().captions ? s.name : ''));
+    var lab = cap ? '<span class="gstamp-l" style="color:' + esc(s.fontColor) + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + '">' + esc(cap).replace(/\n/g, '<br>') + '</span>' : '';
     return L.divIcon({ className: 'g-icon', iconSize: [px, px], iconAnchor: [px / 2, px / 2], html: '<div class="gstamp" style="width:' + px + 'px;height:' + px + 'px">' + svg + lab + '</div>' });
   }
   var StampMarker = L.Marker.extend({
@@ -88,6 +127,42 @@
       this._px = px; this.setIcon(stampIcon(this._s, px));
     }
   });
+
+  // ---------- Légende : une ligne par type d'élément ou de zone nommé (écran et cartes imprimées) ----------
+  function swatch(s) {
+    var c = s.stroke, f = s.fill, a = s.alpha > 0 ? s.alpha : 0, da = s.dash ? ' stroke-dasharray="4 3"' : '';
+    if (s.kind === 'stamp') { var d = window.SM_ICONS && window.SM_ICONS[s.icon]; return d ? '<svg viewBox="0 0 512 512"><path d="' + d + '" fill="' + esc(c) + '"/></svg>' : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="' + esc(c) + '"/></svg>'; }
+    if (s.kind === 'line') return '<svg viewBox="0 0 24 14"><path d="M2 7h20" stroke="' + esc(c) + '" stroke-width="3" fill="none"' + da + '/></svg>';
+    if (s.kind === 'arrow') return '<svg viewBox="0 0 24 14"><path d="M2 7h17M14 2l6 5-6 5" stroke="' + esc(c) + '" stroke-width="2.5" fill="none"/></svg>';
+    if (s.kind === 'cross') return '<svg viewBox="0 0 24 14"><path d="M7 2l10 10M17 2L7 12" stroke="' + esc(c) + '" stroke-width="3" fill="none"/></svg>';
+    return '<svg viewBox="0 0 24 14"><rect x="1.5" y="1.5" width="21" height="11" rx="2" fill="' + esc(f) + '" fill-opacity="' + Math.max(a, 0.15) + '" stroke="' + esc(c) + '" stroke-width="1.6"' + da + '/></svg>';
+  }
+  function legendEntries(d) {
+    var seen = {}, out = [];
+    d.shapes.forEach(function (s) {
+      if (!s.name || s.kind === 'text') return;
+      var k = s.kind + '|' + (s.icon || '') + '|' + s.name + '|' + (s.kind === 'stamp' ? s.stroke : s.fill + s.stroke);
+      if (seen[k]) return; seen[k] = 1; out.push({ sw: swatch(s), name: s.name });
+    });
+    return out;
+  }
+  function legendHtml(d, collapsible) {
+    var es = legendEntries(d); if (!es.length) return '';
+    if (collapsible && d.legendOff) return '<div class="glegend-h" data-lg>Légende ▸</div>';
+    return '<div class="glegend-h"' + (collapsible ? ' data-lg' : '') + '>Légende' + (collapsible ? ' ▾' : '') + '</div><ul class="' + (es.length > 7 ? 'two' : '') + '">' + es.map(function (e) { return '<li><span class="gl-sw">' + e.sw + '</span><span>' + esc(e.name) + '</span></li>'; }).join('') + '</ul>';
+  }
+  var LegendCtl = L.Control.extend({
+    options: { position: 'bottomright' },
+    initialize: function (d, screen) { L.Control.prototype.initialize.call(this); this._d = d; this._screen = !!screen; },
+    onAdd: function () { var el = L.DomUtil.create('div', 'glegend'); this._el = el; L.DomEvent.disableClickPropagation(el); this.update(); return el; },
+    update: function () {
+      var d = this._d || D(), h = (this._screen && S.mode !== 'game') ? '' : legendHtml(d, this._screen);
+      this._el.innerHTML = h; this._el.style.display = h ? '' : 'none';
+    }
+  });
+  var screenLegend = new LegendCtl(null, true).addTo(map);
+  screenLegend.getContainer().addEventListener('click', function (e) { if (e.target.closest('[data-lg]')) { D().legendOff = !D().legendOff; SM.persist(); screenLegend.update(); } });
+  function addLegend(d, m) { var c = new LegendCtl(d, false); c.addTo(m); return c; }
 
   function centroid(s) {
     var pts = s.kind === 'circle' ? [s.pts[0]] : s.pts, la = 0, lo = 0;
@@ -114,11 +189,15 @@
     function add(l) { l.addTo(group); wire(l); ls.push(l); return l; }
     var st = Object.assign({ interactive: inter }, vstyle(s));
     switch (s.kind) {
-      case 'polygon': ob.main = add(L.polygon(s.pts, st)); break;
-      case 'rect': ob.main = add(L.rectangle(s.pts, st)); break;
-      case 'circle': ob.main = add(L.circle(s.pts[0], Object.assign({ radius: Math.max(1, s.r || 1) }, st))); break;
+      case 'polygon': ob.main = add(L.polygon(s.pts, st)); ensureTex(ob.main, s); break;
+      case 'rect': ob.main = add(L.rectangle(s.pts, st)); ensureTex(ob.main, s); break;
+      case 'circle': ob.main = add(L.circle(s.pts[0], Object.assign({ radius: Math.max(1, s.r || 1) }, st))); ensureTex(ob.main, s); break;
       case 'line': case 'arrow':
+        var dd = s.kind === 'line' && s.deco && decoDefs(s); ob.extra = [];
+        function addX(o) { var l = L.polyline(s.pts, Object.assign({ interactive: false, lineCap: 'round', lineJoin: 'round', opacity: 1, fill: false }, o)).addTo(group); ls.push(l); ob.extra.push(l); }
+        if (dd) dd.under.forEach(addX);
         ob.main = add(L.polyline(s.pts, Object.assign({}, st, { fill: false })));
+        if (dd) dd.over.forEach(addX);
         if (inter) ob.hit = add(L.polyline(s.pts, { color: '#000', opacity: 0.001, weight: s.weight + 14, lineCap: 'round', interactive: true }));
         if (s.kind === 'arrow' && s.pts.length > 1) {
           var a = s.pts[s.pts.length - 2], b = s.pts[s.pts.length - 1];
@@ -158,12 +237,14 @@
     else if (s.kind === 'rect') ob.main.setBounds(s.pts);
     else if (s.kind === 'circle') { ob.main.setLatLng(s.pts[0]); ob.main.setRadius(Math.max(1, s.r || 1)); }
     else if (s.kind === 'line' || s.kind === 'arrow') {
-      ob.main.setLatLngs(s.pts); if (ob.hit) ob.hit.setLatLngs(s.pts);
+      ob.main.setLatLngs(s.pts); if (ob.hit) ob.hit.setLatLngs(s.pts); (ob.extra || []).forEach(function (l) { l.setLatLngs(s.pts); });
       if (ob.head) { var a = s.pts[s.pts.length - 2], b = s.pts[s.pts.length - 1]; ob.head.setLatLng(b); ob.head.setIcon(arrowIcon(s, angleDeg(a, b))); }
     } else if (ob.marker) ob.marker.setLatLng(s.pts[0]);
   }
   function refreshStyle(s) {
     var ob = live[s.id]; if (!ob) return;
+    if (s.deco) { render(); return; }
+    if (s.tex && ob.main) ensureTex(ob.main, s);
     if (ob.main && ob.main.setStyle) ob.main.setStyle(vstyle(s));
     if (ob.hit) ob.hit.setStyle({ weight: s.weight + 14 });
     if (ob.head) { var a = s.pts[s.pts.length - 2], b = s.pts[s.pts.length - 1]; ob.head.setIcon(arrowIcon(s, angleDeg(a, b))); }
@@ -182,7 +263,7 @@
   // ---------- Rendu du calque en cours ----------
   function selectTool() { return RT.tool === 'game' && GT === 'select'; }
   function render() {
-    applyParch(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
+    applyParch(); screenLegend.update(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
     drawDraft();
@@ -225,6 +306,10 @@
         m.on('drag', function () { var q = m.getLatLng(); s.pts = [fixed.slice(), [q.lat, q.lng]]; geom(); });
         m.on('dragend', done);
       });
+    } else if (s.kind === 'stamp') {
+      var ob = live[s.id], half = (s.mm || D().stampMm || 16) * (D().scale || 10000) / 1000 / 2, sh = hmark(G.destination(s.pts[0], 90, half), 'round', 14);
+      sh.on('drag', function () { var dm = G.haversine(s.pts[0], [sh.getLatLng().lat, sh.getLatLng().lng]) * 2; s.mm = Math.max(4, Math.min(80, Math.round(dm / ((D().scale || 10000) / 1000)))); if (ob && ob.marker) ob.marker.refresh(); });
+      sh.on('dragend', function () { SM.persist(); renderPane(); updateHandles(); });
     } else if (s.kind === 'circle') {
       var rh = hmark(G.destination(s.pts[0], 90, s.r || 1), 'round', 13);
       rh.on('drag', function () { s.r = Math.max(2, G.haversine(s.pts[0], [rh.getLatLng().lat, rh.getLatLng().lng])); geom(); });
@@ -269,6 +354,10 @@
     else if (d.kind === 'rect' && d.pts.length >= 2) s = newShape('rect', d.pts.slice(0, 2));
     else if (d.kind === 'circle' && d.pts.length >= 2) { s = newShape('circle', [d.pts[0]]); s.r = Math.max(2, G.haversine(d.pts[0], d.pts[1])); }
     cancelDraft();
+    if (s && PRE) {
+      if (PRE.ln && s.kind === 'line') { s.stroke = PRE.f; s.weight = PRE.w; s.deco = PRE.x; s.dash = false; s.linked = false; s.name = PRE.l; }
+      else if (!PRE.ln && (s.kind === 'polygon' || s.kind === 'rect' || s.kind === 'circle')) { s.fill = PRE.f; s.stroke = shade(PRE.f, 0.75); s.alpha = PRE.a; s.dash = PRE.d ? 'dash' : false; s.linked = false; s.name = PRE.l; s.weight = 2; if (PRE.x) s.tex = PRE.x; }
+    }
     if (!s) { SM.toast('Forme incomplète : ajoutez des points.'); SM.persist(); return; }
     addShape(s);
   }
@@ -279,12 +368,6 @@
     if (!keep) { GT = 'select'; setTab('style'); }
     SM.persist(); render(); SM.renderLayerList();
     if (opt && opt.edit) editInline(s.id);
-  }
-  function addStamp(p) {
-    loadThemes().then(function () {
-      S.vis.game = true; SM.ensureVisible('game');
-      D().shapes.push(newStamp(STAMP, p)); SM.persist(); render(); SM.renderLayerList();      // l'outil reste actif : on peut en poser plusieurs ; Échap pour finir
-    });
   }
   function addAt(kind, p) {
     if (S.mode !== 'game') SM.setMode('game');
@@ -298,7 +381,7 @@
     var p = [e.latlng.lat, e.latlng.lng];
     if (GT === 'select') { select(null); return; }
     if (GT === 'cross') { addShape(newShape('cross', [p])); return; }
-    if (GT === 'stamp' && STAMP) { addStamp(p); return; }
+    if (GT === 'stamp' && STAMP) { if (Date.now() - lastDrag > 400) placeStamp(p); return; }
     if (GT === 'text') { addShape(newShape('text', [p]), { edit: true }); return; }
     if (!DR) DR = { kind: GT, pts: [], cur: null };
     if (GT === 'polygon') {
@@ -328,7 +411,8 @@
     return true;
   }
   function setGT(t) {
-    cancelDraft(); GT = t; if (t !== 'select' && t !== 'stamp') setTab('tools'); if (t !== 'stamp') { STAMP = null; renderThemes(); }
+    if (S.mode === 'game' && RT.tool !== 'game') SM.setRail('game');          // après la réouverture d'un jeu, les outils doivent toujours fonctionner
+    cancelDraft(); GT = t; if (t !== 'select' && t !== 'stamp') setTab('tools'); if (t !== 'stamp') { STAMP = null; renderThemes(); } if (t === 'select' || t === 'stamp') PRE = null;
     map.getContainer().classList.toggle('gt-select', t === 'select');
     render(); SM.persist();
   }
@@ -410,9 +494,8 @@
     }).join('');
   }
   // ---------- Thèmes ----------
-  var STAMP = null;
+  var STAMP = null, GCAT = 'all';
   var SCALES = [[2000, '1 : 2 000', 'Terrain de camp'], [5000, '1 : 5 000', 'Quartier, petit village'], [10000, '1 : 10 000', 'Commune'], [25000, '1 : 25 000', 'Secteur, vallée'], [50000, '1 : 50 000', 'Grande zone']];
-  var BASEOPT = [['cassini', 'Cassini'], ['cassiniroi', 'Cassini (roi)'], ['etat', 'État-major'], ['carte1950', 'Carte 1950'], ['otm', 'Topo actuelle']];
   function themeById(id) { return (window.SM_THEMES || []).filter(function (t) { return t.id === id; })[0]; }
   function applyParch() { var on = !!D().parch && S.mode === 'game'; map.getContainer().classList.toggle('parch', on); }
   function setScale(v) {
@@ -420,56 +503,175 @@
     var c = map.getCenter(); map.setView(c, SM.zoomFor(v, c.lat), { animate: true });
     render(); renderThemes();
   }
+  // Le thème se choisit à la création du jeu et ne change plus ensuite (le fond de carte, lui, reste modifiable avec le bouton « Fonds et infos »)
   function applyTheme(id) {
+    D().themeLocked = true;
+    if (id === 'perso') { D().theme = 'perso'; D().parch = false; SM.persist(); render(); renderThemes(); return; }
     var th = themeById(id); if (!th) return;
-    D().theme = id; D().parch = !!th.parch; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });   // un fond d'époque : pas de couches modernes (sentiers, cadastre…)
+    D().theme = id; D().parch = !!th.parch; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });
     if (SM.applyLayers) SM.applyLayers();
     STY.font = th.font; STY.iconColor = th.color; STY.iconText = th.color; STY.fill = th.fill; STY.stroke = th.fill; STY.fontColor = th.color; STY.linked = true;
     applyParch(); SM.persist(); render(); renderThemes(); renderPane();
-    SM.toast('Thème « ' + th.name + ' » appliqué : fond, couleurs et éléments.');
   }
+  function ico(id, color, px) { var d = window.SM_ICONS && window.SM_ICONS[id]; return d ? '<svg viewBox="0 0 512 512" width="' + (px || 34) + '" height="' + (px || 34) + '"><path d="' + d + '" fill="' + color + '"/></svg>' : ''; }
+  function themeList() { return (window.SM_THEMES || []).concat([{ id: 'perso', icon: 'delapouite/flag-objective', name: 'Personnalisé', color: '#12142b', desc: 'Sans thème imposé : vous gardez les repères et formes libres.', el: [] }]); }
+  function themeCards(sel) {
+    return themeList().map(function (t) {
+      var mini = (t.el || []).filter(function (e, i) { return i % 6 === 0; }).slice(0, 4).map(function (e) { return ico(e.i, t.color, 20); }).join('');
+      return '<button type="button" data-th="' + t.id + '" class="gth' + (sel === t.id ? ' on' : '') + '"><span class="gth-ic">' + ico(t.icon, t.color, 40) + '</span><b>' + esc(t.name) + '</b><small>' + esc(t.desc) + '</small><span class="gth-mini">' + mini + '</span></button>';
+    }).join('');
+  }
+  function scaleBtns(sel) { return SCALES.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join(''); }
+  function stampBtns(list, color) {
+    return list.map(function (e) {
+      return '<button type="button" class="gst' + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" title="' + esc(e.l) + '">' + ico(e.i, color, 44) + '<span>' + esc(e.l) + '</span></button>';
+    }).join('');
+  }
+  function zoneBtns(list) { return list.map(function (z) { return '<button type="button" class="gz' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '"><i style="background:' + z.f + ';opacity:' + (0.4 + z.a) + '"></i><span>' + esc(z.l) + '</span></button>'; }).join(''); }
+  function lineBtns(list) { return list.map(function (l) { return '<button type="button" class="gz gl" data-ln="' + l.k + '" title="' + esc(l.l) + '"><i style="background:' + l.f + ';height:' + Math.max(4, Math.min(9, l.w)) + 'px"></i><span>' + esc(l.l) + '</span></button>'; }).join(''); }
   function renderThemes() {
-    var box = $('#gthemes'); if (!box) return;
-    var sc = D().scale || 0;
-    $('#gscale').innerHTML = SCALES.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sc === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join('');
-    if (!window.SM_THEMES) { box.innerHTML = '<p class="gtab-help">Chargement des thèmes…</p>'; return; }
-    box.innerHTML = window.SM_THEMES.map(function (t) { return '<button type="button" data-th="' + t.id + '" class="gth' + (D().theme === t.id ? ' on' : '') + '"><i>' + t.emoji + '</i><b>' + esc(t.name) + '</b><small>' + esc(t.desc) + '</small></button>'; }).join('');
-    var th = themeById(D().theme);
-    $('#gtheme-bg').hidden = !th;
-    if (th) {
-      $('#gbase').innerHTML = BASEOPT.map(function (b) { return '<button type="button" data-b="' + b[0] + '" class="' + (S.base === b[0] ? 'on' : '') + '">' + b[1] + '</button>'; }).join('');
-      $('#gparch').checked = !!D().parch;
+    if (!$('#gstamps')) return;
+    var th = themeById(D().theme), perso = D().theme === 'perso';
+    // réglages du jeu (panneau Réglages)
+    if ($('#gscale')) {
+      $('#gscale').innerHTML = scaleBtns(D().scale || 0);
+      $('#gs-st-size').textContent = (D().stampMm || 16) + ' mm'; $('#gcaptions').checked = !!D().captions; $('#gparch').checked = !!D().parch;
+      $('#gtheme-info').textContent = th ? 'Thème : ' + th.name + '. Il se choisit à la création du jeu ; pour en changer, créez un nouveau grand jeu.' : perso ? 'Jeu personnalisé (sans thème).' : 'Aucun thème choisi pour ce jeu.';
+      $('#gtheme-choose').hidden = !!D().themeLocked;
+      $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ');
     }
-    function stamps(list, color) {
-      return list.map(function (e) {
-        var d = window.SM_ICONS[e.i] || '';
-        return '<button type="button" class="gst' + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" title="' + esc(e.l) + '"><svg viewBox="0 0 512 512"><path d="' + d + '" fill="' + color + '"/></svg><span>' + esc(e.l) + '</span></button>';
-      }).join('');
-    }
-    $('#gcommon').innerHTML = stamps(window.SM_COMMON || [], '#12142b');
-    $('#gstamps').innerHTML = th ? stamps(th.el, th.color) : '<p class="gtab-help">Choisissez un thème pour voir ses éléments.</p>';
+    // palette (onglet Poser)
+    var cats = th ? ['all'].concat(th.cats) : [];
+    $('#gcats').innerHTML = cats.map(function (c) { return '<button type="button" data-c="' + esc(c) + '" class="' + (GCAT === c ? 'on' : '') + '">' + (c === 'all' ? 'Tout' : esc(c)) + '</button>'; }).join('');
+    $('#gcats').hidden = !th;
+    var els = th ? th.el.filter(function (e) { return GCAT === 'all' || e.c === GCAT; }) : [];
+    $('#gstamps').innerHTML = th ? stampBtns(els, th.color) : '<p class="gtab-help">' + (window.SM_THEMES ? 'Jeu sans thème : utilisez les repères, les zones et les formes libres ci-dessous.' : 'Chargement…') + '</p>';
     $('#gth-name').textContent = th ? th.name : '';
-    $('#gs-st-size').textContent = (STY.mm || 11) + ' mm';
-    $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ');
+    $('#gcommon').innerHTML = stampBtns(window.SM_COMMON || [], '#12142b');
+    $('#gzones').innerHTML = zoneBtns((th ? th.z : []).concat(window.SM_ZONES || []));
+    $('#glines').innerHTML = lineBtns(th ? th.ln : []);
+    $$('#gzshape button').forEach(function (b) { b.classList.toggle('on', b.dataset.zs === ZSHAPE); });
+  }
+  // Pose d'un élément : un clic = taille générale ; clic-glissé = on étire pour choisir la taille
+  var DRG = null, drgMk = null, lastDrag = 0;
+  function mmFromPx(px, ll) { var mpp = 156543.03392 * Math.cos(ll.lat * Math.PI / 180) / Math.pow(2, map.getZoom()); return Math.max(4, Math.min(80, Math.round(px * mpp / ((D().scale || 10000) / 1000)))); }
+  function placeStamp(p, mm) {
+    if (!STAMP) return;
+    loadThemes().then(function () {
+      var el = STAMP, keep = $('#gs-keep').checked, s = newStamp(el, p);
+      if (mm) s.mm = mm;
+      S.vis.game = true; SM.ensureVisible('game'); D().shapes.push(s);
+      if (!keep) setGT('select');                       // l'outil se relâche après chaque pose (sauf « poser plusieurs fois de suite »)
+      SM.persist(); render(); SM.renderLayerList();
+    });
+  }
+  function stopDrag() { if (drgMk) { gDraft.removeLayer(drgMk); drgMk = null; } map.dragging.enable(); DRG = null; }
+  map.on('mousedown', function (e) {
+    if (S.mode !== 'game' || RT.tool !== 'game' || GT !== 'stamp' || !STAMP || (e.originalEvent && e.originalEvent.button)) return;
+    DRG = { ll: e.latlng, pt: e.containerPoint, moved: false }; map.dragging.disable();
+  });
+  map.on('mousemove', function (e) {
+    if (!DRG) return;
+    var px = e.containerPoint.distanceTo(DRG.pt) * 2; if (px < 14) return;
+    DRG.moved = true; DRG.px = px;
+    var fake = { icon: STAMP.i, stroke: STY.iconColor || '#4a2c0f', text: '', size: 14, fontColor: '#000', font: 'arial' };
+    if (drgMk) gDraft.removeLayer(drgMk);
+    drgMk = L.marker(DRG.ll, { icon: stampIcon(fake, Math.round(Math.min(px, 600))), interactive: false, opacity: 0.8 }).addTo(gDraft);
+  });
+  map.on('mouseup', function () {
+    if (!DRG) return;
+    var d = DRG; stopDrag();
+    if (d.moved && d.px) { lastDrag = Date.now(); placeStamp([d.ll.lat, d.ll.lng], mmFromPx(d.px, d.ll)); }
+  });
+  document.addEventListener('mouseup', function () { if (DRG) stopDrag(); });
+
+  // ---------- Assistant de création : échelle + thème, avec aperçu du rendu ----------
+  function wizard() {
+    loadThemes().then(function () {
+      var dlg = $('#dlg-gnew');
+      if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlg-gnew'; dlg.className = 'dlg-live gwiz'; document.body.appendChild(dlg); }
+      var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage' }, pm = null, pl = null, pmk = [], done = false;
+      var center = map.getCenter();
+      function sample(th) {
+        var out = [], seen = {};
+        (th && th.el || []).forEach(function (e) { if (!seen[e.c] && out.length < 4) { seen[e.c] = 1; out.push(e); } });
+        if (out.length < 4) (window.SM_COMMON || []).slice(0, 4 - out.length).forEach(function (e) { out.push(e); });
+        return out;
+      }
+      function preview() {
+        var th = themeById(pick.th), el = $('#gw-map', dlg); if (!el) return;
+        if (!pm) {
+          pm = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0, zoomAnimation: false });
+        }
+        var base = th ? th.base : S.base; if (!SM.LAYERS[base]) base = 'otm';
+        if (pl && pl._k !== base) { pm.removeLayer(pl); pl = null; }
+        if (!pl) { pl = SM.tile(base, 1).addTo(pm); pl._k = base; }
+        el.classList.toggle('parch', !!(th && th.parch));
+        var lat = center.lat; pm.setView(center, SM.zoomFor(pick.sc, lat), { animate: false });
+        pmk.forEach(function (m) { pm.removeLayer(m); }); pmk = [];
+        var w = el.clientWidth || 300, h = el.clientHeight || 300, spots = [[.27, .3], [.68, .27], [.34, .68], [.72, .7]];
+        sample(th).forEach(function (e, i) {
+          var ll = pm.containerPointToLatLng([w * spots[i][0], h * spots[i][1]]), color = th ? th.color : '#12142b';
+          var s = { icon: e.i, stroke: color, text: '', size: 12, fontColor: color, font: 'arial', _sc: pick.sc, mm: D().stampMm || 16 };
+          pmk.push(new StampMarker(ll, s, { icon: stampIcon(s, 30), interactive: false }).addTo(pm));
+        });
+        $('#gw-cap', dlg).textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
+      }
+      function draw() {
+        dlg.innerHTML = '<h2>Nouveau grand jeu</h2><p class="dlg-sub">Choisissez l’échelle et le thème : l’aperçu du rendu s’affiche à côté (ou en dessous sur téléphone). Le thème ne pourra plus être changé ensuite (pour un autre thème, créez un autre grand jeu).</p>' +
+          '<div class="gw-cols"><div class="gw-l"><h3>1 · Échelle du jeu</h3><div class="gscale">' + scaleBtns(pick.sc) + '</div>' +
+          '<h3>2 · Thème</h3><div class="gthemes">' + themeCards(pick.th) + '</div></div>' +
+          '<div class="gw-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>' +
+          '<div class="dlg-actions"><button class="btn-primary" id="gw-go" type="button">Créer le grand jeu</button></div>';
+        pm = null; pl = null; pmk = [];
+        $('#gw-go', dlg).addEventListener('click', function () { done = true; dlg.close(); setScale(pick.sc); applyTheme(pick.th); setTab('tools'); });
+        $$('[data-sc]', dlg).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', dlg).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        $$('[data-th]', dlg).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; $$('[data-th]', dlg).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        setTimeout(function () { if (pm) pm.invalidateSize(); preview(); }, 60);
+      }
+      dlg.onclose = function () { if (pm) { pm.remove(); pm = null; } if (!done) { setTab('tools'); renderThemes(); } };
+      draw(); if (!dlg.open) dlg.showModal(); setTimeout(function () { if (pm) { pm.invalidateSize(); preview(); } }, 150);
+    }).catch(function () { setTab('tools'); });
   }
   (function wireThemes() {
-    var tab = $('#gtabs [data-gtab=themes]'); if (tab) tab.addEventListener('click', function () { loadThemes().then(renderThemes); });
+    var tl = $('#gtabs [data-gtab=tools]'); if (tl) tl.addEventListener('click', function () { loadThemes().then(renderThemes); });
     $('#gscale').addEventListener('click', function (e) { var b = e.target.closest('button[data-sc]'); if (b) setScale(+b.dataset.sc); });
-    $('#gthemes').addEventListener('click', function (e) { var b = e.target.closest('button[data-th]'); if (b) applyTheme(b.dataset.th); });
-    $('#gbase').addEventListener('click', function (e) { var b = e.target.closest('button[data-b]'); if (b) { S.base = b.dataset.b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); renderThemes(); } });
+    $('#gtheme-choose').addEventListener('click', function () { wizard(); });
     $('#gparch').addEventListener('change', function () { D().parch = this.checked; applyParch(); SM.persist(); });
-    function pick(e) { var b = e.target.closest('button[data-i]'); if (!b) return; STAMP = { i: b.dataset.i, l: b.dataset.l }; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); SM.toast('Cliquez sur la carte pour poser « ' + STAMP.l + ' ».'); }
+    $('#gcaptions').addEventListener('change', function () { D().captions = this.checked; SM.persist(); render(); });
+    $('#gcats').addEventListener('click', function (e) { var b = e.target.closest('button[data-c]'); if (b) { GCAT = b.dataset.c; renderThemes(); } });
+    function pick(e) {
+      var b = e.target.closest('button[data-i]'); if (!b) return;
+      STAMP = { i: b.dataset.i, l: b.dataset.l }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
+    }
     $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick);
-    $('#gs-st-m').addEventListener('click', function () { setProp('mm', Math.max(4, (STY.mm || 11) - 1)); renderThemes(); });
-    $('#gs-st-p').addEventListener('click', function () { setProp('mm', Math.min(40, (STY.mm || 11) + 1)); renderThemes(); });
-    $('#gs-stamp-m').addEventListener('click', function () { var s = selShape(); setProp('mm', Math.max(4, ((s || STY).mm || 11) - 1)); });
-    $('#gs-stamp-p').addEventListener('click', function () { var s = selShape(); setProp('mm', Math.min(40, ((s || STY).mm || 11) + 1)); });
+    $('#gzones').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-z]'); if (!b) return;
+      var th = themeById(D().theme), all = (th ? th.z : []).concat(window.SM_ZONES || []), key = b.dataset.z.split('|');
+      var z = all.filter(function (x) { return x.l === key[0] && x.f === key[1]; })[0]; if (!z) return;
+      setGT(ZSHAPE); PRE = z; STAMP = null; setTab('tools'); renderThemes(); renderPane();
+    });
+    $('#glines').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-ln]'); if (!b) return;
+      var th = themeById(D().theme), l = (th ? th.ln : []).filter(function (x) { return x.k === b.dataset.ln; })[0]; if (!l) return;
+      setGT('line'); PRE = Object.assign({ ln: true }, l); STAMP = null; setTab('tools'); renderThemes(); renderPane();
+    });
+    $('#gzshape').addEventListener('click', function (e) { var b = e.target.closest('button[data-zs]'); if (!b) return; ZSHAPE = b.dataset.zs; if (PRE && !PRE.ln) { var z = PRE; setGT(ZSHAPE); PRE = z; } renderThemes(); renderPane(); });
+    $('#gs-st-m').addEventListener('click', function () { D().stampMm = Math.max(6, (D().stampMm || 16) - 2); SM.persist(); render(); renderThemes(); });
+    $('#gs-st-p').addEventListener('click', function () { D().stampMm = Math.min(60, (D().stampMm || 16) + 2); SM.persist(); render(); renderThemes(); });
+    $('#gs-stamp-m').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.max(4, (s.mm || D().stampMm || 16) - 2)); });
+    $('#gs-stamp-p').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.min(80, (s.mm || D().stampMm || 16) + 2)); });
+    $('#gs-stamp-auto').addEventListener('click', function () { var s = selShape(); if (s) { delete s.mm; refreshStyle(s); SM.persist(); renderPane(); updateHandles(); } });
+    $('#gs-name').addEventListener('input', function () { var s = selShape(); if (s) { s.name = this.value; refreshStyle(s); screenLegend.update(); SM.persist(); renderList(); } });
+    // sections repliables : une seule ouverte à la fois
+    $$('.gdet').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) $$('.gdet').forEach(function (o) { if (o !== d) o.open = false; }); }); });
     loadThemes().then(renderThemes).catch(function () { /* hors ligne */ });
   })();
 
   // ---------- Onglets du panneau : Thèmes · Outils · Style · Éléments ----------
-  var GTAB = S.game.shapes.length ? 'tools' : 'themes';
+  var GTAB = 'tools';
   function setTab(t) {
+    if (t === 'themes') t = 'tools';
     GTAB = t;
     $$('#gtabs [data-gtab]').forEach(function (b) { var on = b.dataset.gtab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     $$('[data-gtabp]').forEach(function (p) { p.hidden = p.dataset.gtabp !== t; });
@@ -491,6 +693,7 @@
       else if (f === 'dash') on = !kind || (kind !== 'text' && kind !== 'cross' && kind !== 'stamp');
       else if (f === 'weight') on = kind !== 'stamp';
       else if (f === 'stampsize') on = kind === 'stamp';
+      else if (f === 'legendname') on = !!s && s.kind !== 'text';
       else if (f === 'text') on = isT || kind === 'stamp';
       show(r, on);
     });
@@ -501,7 +704,10 @@
     $('#gc-fill').classList.toggle('none', !(src.alpha > 0));
     $('#gb-fill-v').textContent = src.alpha > 0 ? colorName(src.fill) : 'Aucun';
     $('#gc-stroke').style.borderColor = src.stroke; $('#gb-stroke-v').textContent = colorName(src.stroke);
-    $('#gs-weight-v').textContent = src.weight + ' px'; $('#gs-stamp-v').textContent = (src.mm || 11) + ' mm';
+    $('#gs-weight-v').textContent = src.weight + ' px'; $('#gs-stamp-v').textContent = (src.mm || D().stampMm || 16) + ' mm' + (src.mm ? '' : ' (général)');
+    if (s && document.activeElement !== $('#gs-name')) $('#gs-name').value = s.name || '';
+    $('#gs-stamp-auto').hidden = !(s && s.mm);
+    var ga = $('#gactive'); if (ga) { var act = GT !== 'select'; ga.hidden = !act; if (act) $('#gactive-t').textContent = PRE ? (PRE.ln ? 'Ligne « ' + PRE.l + ' » : cliquez les points, double-clic ou clic droit pour terminer.' : 'Zone « ' + PRE.l + ' » : tracez-la sur la carte.') : (GT === 'stamp' && STAMP ? 'Pose de « ' + STAMP.l + ' » : cliquez sur la carte, ou cliquez-glissez pour choisir la taille.' : 'Outil « ' + (KINDS[GT] ? KINDS[GT].label : GT) + ' » actif.'); }
     $$('#gs-dash button').forEach(function (b) { b.classList.toggle('on', (b.dataset.d || '') === String(src.dash === true ? 'dash' : src.dash || '')); });
     $('#gs-size-v').textContent = src.size; $('#gc-font').style.background = src.fontColor; $('#gs-font').value = fontKey(src);
     if (s && document.activeElement !== $('#gs-text')) $('#gs-text').value = s.text || '';
@@ -594,7 +800,8 @@
     $$('.gtb [data-al]').forEach(function (b) { b.addEventListener('click', function () { setProp('align', b.dataset.al); }); });
     ['bold', 'italic', 'underline'].forEach(function (k) { $('#gs-' + k).addEventListener('click', function () { setProp(k, !cur(k)); }); });
     $('#gs-text').addEventListener('input', function () { var s = selShape(); if (s) { s.text = this.value; refreshStyle(s); SM.persist(); renderList(); } });
-    $('#gtools').addEventListener('click', function (e) { var b = e.target.closest('button[data-gt]'); if (b) setGT(b.dataset.gt); });
+    $('#gtools').addEventListener('click', function (e) { var b = e.target.closest('button[data-gt]'); if (b) { PRE = null; setGT(b.dataset.gt); } });
+    $('#gactive-end').addEventListener('click', function () { setGT('select'); });
     $('#gs-dup').addEventListener('click', function () { var s = selShape(); if (s) dupShape(s); });
     $('#gs-front').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, true); });
     $('#gs-back').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, false); });
@@ -636,7 +843,7 @@
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
   function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); map.getContainer().classList.remove('parch'); }
 
-  SM.game = { loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();

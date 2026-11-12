@@ -116,43 +116,39 @@
       <h2 class="pane-title">Grand jeu</h2>
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
       <div class="gtabs" id="gtabs" role="tablist">
-        <button type="button" role="tab" data-gtab="themes">Thèmes</button>
-        <button type="button" role="tab" data-gtab="tools">Outils</button>
+        <button type="button" role="tab" data-gtab="tools">Poser</button>
         <button type="button" role="tab" data-gtab="style">Style</button>
-        <button type="button" role="tab" data-gtab="list">Éléments <span class="count" id="gs-count"></span></button>
+        <button type="button" role="tab" data-gtab="list">Liste <span class="count" id="gs-count"></span></button>
       </div>
-      <div data-gtabp="themes" hidden>
-        <h3 class="sub">1 · Échelle du jeu</h3>
-        <p class="gtab-help">À choisir en premier : elle règle le zoom et la taille des éléments (en millimètres sur le papier à cette échelle). Modifiable ensuite.</p>
-        <div class="gscale" id="gscale"></div>
-        <h3 class="sub">2 · Thème</h3>
-        <div class="gthemes" id="gthemes"></div>
-        <div id="gtheme-bg" hidden>
-          <h3 class="sub">3 · Fond de carte</h3>
-          <div class="gbase" id="gbase"></div>
-          <label class="check"><input type="checkbox" id="gparch"> Effet parchemin (teinte ancienne et bords vieillis, aussi à l’impression)</label>
-        </div>
-        <h3 class="sub">Éléments du thème <span class="count" id="gth-name"></span></h3>
-        <div class="gf-line" style="margin-bottom:8px"><span class="gf-l">Taille sur le papier</span><div class="gstep"><button type="button" id="gs-st-m" aria-label="Plus petit">−</button><output id="gs-st-size">11 mm</output><button type="button" id="gs-st-p" aria-label="Plus grand">+</button></div></div>
+      <div data-gtabp="tools">
+        <div class="gactive" id="gactive" hidden><span id="gactive-t"></span><button type="button" id="gactive-end" class="btn-ghost sm">Terminer</button></div>
+        <h3 class="sub">Éléments <span class="count" id="gth-name"></span></h3>
+        <div class="gbase" id="gcats" hidden></div>
         <div class="gstamps" id="gstamps"></div>
-        <h3 class="sub">Repères du jeu</h3>
-        <div class="gstamps" id="gcommon"></div>
-        <p class="gtab-help">Cliquez un élément, puis la carte autant de fois que voulu. <kbd>Échap</kbd> pour terminer. Double-clic sur un élément posé : le modifier.</p>
-        <p class="gcredit" id="gcredit"></p>
-      </div>
-      <div data-gtabp="tools" hidden>
-      <p class="gtab-help">Choisissez un outil, puis dessinez sur la carte. <kbd>Échap</kbd>, clic droit ou double-clic : l’outil est lâché et on revient à la sélection.</p>
-      <div class="gtools" id="gtools">
-        <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
-        <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
-        <button data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
-        <button data-gt="circle" title="Cercle : centre puis rayon"><svg class="ic"><use href="#i-g-circle"/></svg><span>Cercle</span></button>
-        <button data-gt="line" title="Ligne : cliquez les points, double-clic pour finir"><svg class="ic"><use href="#i-g-line"/></svg><span>Ligne</span></button>
-        <button data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
-        <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
-        <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
-      </div>
-
+        <details class="gdet"><summary>Terrains et zones <small>(rivières, forêts… transparents)</small></summary>
+          <div class="gzshape" id="gzshape"><span>Tracer en :</span><button type="button" data-zs="polygon">Polygone</button><button type="button" data-zs="rect">Rectangle</button><button type="button" data-zs="circle">Cercle</button></div>
+          <div class="gzones" id="gzones"></div>
+        </details>
+        <details class="gdet"><summary>Lignes <small>(rivière, route, muraille…)</small></summary>
+          <div class="gzones" id="glines"></div>
+        </details>
+        <details class="gdet"><summary>Repères du jeu</summary>
+          <div class="gstamps" id="gcommon"></div>
+        </details>
+        <details class="gdet"><summary>Formes libres et texte</summary>
+          <div class="gtools" id="gtools">
+            <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
+            <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
+            <button data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
+            <button data-gt="circle" title="Cercle : centre puis rayon"><svg class="ic"><use href="#i-g-circle"/></svg><span>Cercle</span></button>
+            <button data-gt="line" title="Ligne : cliquez les points, double-clic pour finir"><svg class="ic"><use href="#i-g-line"/></svg><span>Ligne</span></button>
+            <button data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
+            <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
+            <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
+          </div>
+        </details>
+        <label class="check"><input type="checkbox" id="gs-keep"> Poser plusieurs fois de suite</label>
+        <p class="gtab-help">Un clic pose l’élément ; <b>cliquez-glissez</b> pour choisir sa taille. Échap, clic droit ou double-clic : on revient à la sélection.</p>
       </div>
       <div data-gtabp="style" hidden>
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
@@ -166,8 +162,13 @@
           <div class="gstep"><button type="button" id="gs-weight-m" aria-label="Plus fin">−</button><output id="gs-weight-v">3 px</output><button type="button" id="gs-weight-p" aria-label="Plus épais">+</button></div>
         </div>
         <div class="gf-line" data-for="stampsize">
-          <span class="gf-l">Taille sur le papier</span>
-          <div class="gstep"><button type="button" id="gs-stamp-m" aria-label="Plus petit">−</button><output id="gs-stamp-v">11 mm</output><button type="button" id="gs-stamp-p" aria-label="Plus grand">+</button></div>
+          <span class="gf-l">Taille de cet élément</span>
+          <div class="gstep"><button type="button" id="gs-stamp-m" aria-label="Plus petit">−</button><output id="gs-stamp-v">16 mm</output><button type="button" id="gs-stamp-p" aria-label="Plus grand">+</button></div>
+          <button type="button" class="btn-ghost sm" id="gs-stamp-auto" hidden>Taille générale</button>
+        </div>
+        <div class="gf-text2" data-for="legendname">
+          <label class="gf-l" for="gs-name">Nom dans la légende <small>(laisser vide : pas dans la légende)</small></label>
+          <input id="gs-name" type="text" maxlength="40" placeholder="Ex. Forêt, Château fort…" autocomplete="off">
         </div>
         <div class="gf-line" data-for="dash">
           <span class="gf-l">Type de trait</span>
@@ -275,6 +276,19 @@
 
     <section class="pane" data-pane="settings" hidden>
       <h2 class="pane-title">Paramètres</h2>
+      <div data-set="game" hidden>
+        <h3 class="sub">Grand jeu</h3>
+        <p class="note first" id="gtheme-info"></p>
+        <button type="button" class="btn-ghost sm" id="gtheme-choose" hidden>Choisir un thème…</button>
+        <h3 class="sub">Échelle du jeu</h3>
+        <p class="note first">Elle règle le zoom et la taille des éléments (en millimètres sur le papier à cette échelle).</p>
+        <div class="gscale" id="gscale"></div>
+        <h3 class="sub">Éléments</h3>
+        <div class="gf-line" style="margin-bottom:8px"><span class="gf-l">Taille de tous les éléments</span><div class="gstep"><button type="button" id="gs-st-m" aria-label="Plus petit">−</button><output id="gs-st-size">16 mm</output><button type="button" id="gs-st-p" aria-label="Plus grand">+</button></div></div>
+        <label class="check"><input type="checkbox" id="gcaptions"> Écrire le nom sous chaque élément (sinon : légende seulement)</label>
+        <label class="check"><input type="checkbox" id="gparch"> Effet parchemin (teinte ancienne, bords vieillis ; aussi à l’impression)</label>
+        <p class="gcredit" id="gcredit"></p>
+      </div>
       <div data-set="route" hidden>
         <h3 class="sub">Itinéraire</h3>
         <label class="check"><input type="checkbox" id="opt-motorway"> Éviter les autoroutes</label>
@@ -296,7 +310,6 @@
       </div>
       <div data-set="game" hidden>
         <h3 class="sub">Grand jeu</h3>
-      <label class="check"><input type="checkbox" id="gs-keep"> Enchaîner : garder l’outil actif après chaque forme</label>
       </div>
     </section>
 

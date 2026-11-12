@@ -803,6 +803,7 @@
   function applyDock() {
     var d = $('#dock');
     d.hidden = !(S.mode === 'route' || S.mode === 'az' || S.mode === 'meas');
+    $('#app').classList.toggle('wide', S.mode === 'game');          // grand jeu : panneau plus large (le profil d'altitude est masqué)
     d.classList.toggle('closed', !S.dockOpen);
     d.style.height = S.dockH + 'px';
     $('#dock-toggle').setAttribute('aria-expanded', S.dockOpen);
@@ -1800,7 +1801,7 @@
     RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
     select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
-    showHome(false); setRail(rail); setTool('pan'); persist();
+    showHome(false); setRail(rail); setTool(rail === 'game' ? 'game' : 'pan'); persist();
     var b = layerBounds(rail === 'route' ? 'route' : rail); if (!(opts && opts.keepView) && b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
   }
   function downloadText(name, text, mime) { download(name, text, mime); }
@@ -1851,6 +1852,7 @@
   }
   function newProject(t) {
     resetAll(false); S.pid = nid(); showHome(false); setRail(t);
+    if (t === 'game' && window.SM && SM.game && SM.game.wizard) SM.game.wizard();
     if (isMobile()) { S.panelOpen = false; applyPanel(); persist(); }
   }
   function fmtWhen(ts) { return new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
