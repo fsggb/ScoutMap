@@ -697,7 +697,7 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .viewer .app{display:block!important;position:relative}
 .viewer .stage{position:absolute;inset:0}
 .viewer .brand{pointer-events:none}
-.hk-lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:700 11px/1 var(--ui);color:#e0368a;background:rgba(255,255,255,.92);border:1.5px solid #e0368a;border-radius:4px;padding:1px 4px;letter-spacing:.02em}
+.hk-lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:700 10px/1 var(--ui);color:#e0368a;background:rgba(255,255,255,.9);border:1px solid #e0368a;border-radius:3px;padding:1px 3px;letter-spacing:.02em}
 .doc-title{flex:1;min-width:140px;max-width:380px;padding:8px 12px;border:1.5px solid var(--line-2);border-radius:10px;font:600 14px var(--ui);color:var(--navy);background:#fff}
 .doc-title:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px rgba(198,162,78,.3)}
 .nlines .nl{height:8mm;border-bottom:1px solid #c8ccdc;line-height:8mm}
@@ -712,6 +712,9 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 #ov-none{margin-top:12px;width:100%;justify-content:center}
 body.doc-open .home{display:none!important}
 .rt.dense td{height:10.5mm;padding:3px 8px}
+.pdf-name{display:flex;align-items:center;justify-content:center;gap:10px;margin:-4px 0 14px;font-weight:600;color:#33364d}
+.pdf-name input{width:min(380px,60%);padding:9px 12px;border:1.5px solid var(--line-2);border-radius:10px;font:600 14px var(--ui);color:var(--navy)}
+.pdf-name input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px rgba(198,162,78,.3)}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
