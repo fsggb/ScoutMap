@@ -89,9 +89,9 @@
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Outils">
-    <button class="rail-btn" data-rail="home" title="Accueil : choisir un type de travail (H)"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
-    <button class="rail-btn" id="rail-mode" data-rail="mode" title="Outils du type de travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
-    <button class="rail-btn" data-rail="layers" title="Calques du type en cours (L)"><svg class="ic"><use href="#i-layers"/></svg><span>Calques</span></button>
+    <button class="rail-btn" data-rail="route" title="Itinéraire à pied (I)"><svg class="ic"><use href="#i-route"/></svg><span>Itinéraire</span></button>
+    <button class="rail-btn" data-rail="az" title="Azimuts : course d’orientation (A)"><svg class="ic"><use href="#i-compass"/></svg><span>Azimuts</span></button>
+    <button class="rail-btn" data-rail="game" title="Grand jeu : zones, flèches, textes (G)"><svg class="ic"><use href="#i-flag"/></svg><span>Grand jeu</span></button>
     <span class="rail-sp"></span>
     <button class="rail-btn" id="rail-toggle" title="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg><span>Panneau</span></button>
   </nav>
@@ -100,7 +100,7 @@
     <button class="panel-close" id="panel-close" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-x"/></svg></button>
     <section class="pane" data-pane="game" hidden>
       <h2 class="pane-title">Grand jeu</h2>
-      <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"><button class="btn-ghost" id="game-new" title="Garde ce dessin comme calque et en commence un nouveau"><svg class="ic"><use href="#i-plus"/></svg>Nouveau</button></div>
+      <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
       <h3 class="sub">Outils de dessin</h3>
       <div class="gtools" id="gtools">
         <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
@@ -136,12 +136,12 @@
       <ul class="glist" id="gs-list"></ul>
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
       <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne.</p>
-      <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Carte en PDF…</button>
+      <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="route" hidden>
       <h2 class="pane-title">Itinéraire à pied</h2>
-      <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"><button class="btn-ghost" id="route-new" title="Garde cet itinéraire comme calque et en commence un nouveau"><svg class="ic"><use href="#i-plus"/></svg>Nouveau</button></div>
+      <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
       <div class="seg full" id="route-mode"><button data-v="oneway">Aller simple</button><button data-v="loop">Boucle</button></div>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
       <div class="group">
@@ -174,14 +174,15 @@
         <p class="note">Le calcul d’itinéraire de la Géoplateforme exclut les autoroutes mais ne permet pas d’exclure les nationales : elles sont seulement signalées, quand le service en donne le numéro.</p>
       </details>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
+      <div id="tracks-box" hidden><h3 class="sub">Traces importées</h3><ul class="layers" id="layer-list"></ul></div>
+      <button class="btn-ghost block" id="layers-import" title="Ouvrir une trace GPX, KML ou GeoJSON (ou glisser le fichier sur la carte)"><svg class="ic"><use href="#i-upload"/></svg>Ouvrir une trace (GPX, KML, GeoJSON)</button>
       <p class="status" id="route-status" role="status"></p>
-      <button class="btn-ghost block" id="route-tiles" title="Imprimer la carte du parcours sur plusieurs feuilles A4 ou A3"><svg class="ic"><use href="#i-map"/></svg>Carte du parcours en A4 / A3…</button>
-      <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Feuille de route en PDF…</button>
+      <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="az" hidden>
       <h2 class="pane-title">Azimuts</h2>
-      <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"><button class="btn-ghost" id="az-new" title="Garde ce tracé comme calque et en commence un nouveau"><svg class="ic"><use href="#i-plus"/></svg>Nouveau</button></div>
+      <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
       <div class="two">
         <label class="field"><span>Unité</span><select id="az-unit"><option value="deg">Degrés (°)</option><option value="grd">Grades (gr)</option><option value="mil">Millièmes (mil)</option></select></label>
@@ -200,18 +201,7 @@
         <button class="btn-ghost danger" id="az-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
       </div>
       <div class="stats" id="az-stats" hidden></div>
-    </section>
-
-    <section class="pane" data-pane="meas" hidden>
-      <h2 class="pane-title">Mesure</h2>
-      <div class="layer-head"><input id="meas-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la mesure"><button class="btn-ghost" id="meas-new" title="Garde cette mesure comme calque et en commence une nouvelle"><svg class="ic"><use href="#i-plus"/></svg>Nouveau</button></div>
-      <p class="help">Cliquez pour poser les sommets de la ligne ou du polygone. Glissez un sommet pour le déplacer.</p>
-      <div class="seg full" id="meas-mode"><button data-v="dist">Distance</button><button data-v="area">Surface</button></div>
-      <div class="stats" id="meas-stats"></div>
-      <div class="btnrow">
-        <button class="btn-ghost" id="meas-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
-        <button class="btn-ghost danger" id="meas-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
-      </div>
+          <button class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="sim" hidden>
@@ -233,16 +223,6 @@
       <button class="btn-ghost block" id="sim-close">Fermer la simulation</button>
     </section>
 
-    <section class="pane pane-layers" data-pane="layers" hidden>
-      <h2 class="pane-title">Calques</h2>
-      <p class="note lnote">Double-clic sur un nom pour le renommer · clic sur un tracé de la carte pour le modifier.</p>
-      <ul class="layers" id="layer-list"></ul>
-      <div class="layers-foot">
-        <div class="newlayers"><button class="btn-ghost" data-newlayer="route" title="Nouvel itinéraire"><svg class="ic"><use href="#i-route"/></svg>Itinéraire</button><button class="btn-ghost" data-newlayer="az" title="Nouveaux azimuts"><svg class="ic"><use href="#i-compass"/></svg>Azimuts</button><button class="btn-ghost" data-newlayer="meas" title="Nouvelle mesure"><svg class="ic"><use href="#i-ruler"/></svg>Mesure</button></div>
-        <button class="dropzone" id="layers-import"><svg class="ic"><use href="#i-upload"/></svg><span>Importer une trace GPX <small>ou glisser-déposer sur la carte</small></span></button>
-        <div class="foot-btns"><button class="btn-ghost" id="open-basemaps"><svg class="ic"><use href="#i-map"/></svg>Fonds et couches</button><button class="btn-ghost danger" id="reset-all"><svg class="ic"><use href="#i-trash"/></svg>Tout effacer</button></div>
-      </div>
-    </section>
   </aside>
 
   <main class="stage">
@@ -332,26 +312,9 @@
   </main>
 </div>
 
-<input id="file-gpx" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden>
+<input id="file-gpx" type="file" accept=".gpx,.kml,.geojson,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json,text/xml" hidden>
 <div id="toast" class="toast" role="status" hidden></div>
 
-<div class="home" id="home" hidden>
-  <div class="home-in">
-    <img class="home-logo" src="assets/fsggb.png" alt="" width="64" height="64">
-    <h1>Que voulez-vous faire ?</h1>
-    <p class="home-sub">Choisissez un type de travail. Chacun a ses propres outils et ses propres calques : vous ne voyez que ce qui concerne votre travail du moment.</p>
-    <div class="home-grid">
-      <button class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Itinéraire à pied</b><small>Parcours ou boucle, distance maximale, profil d’altitude, feuille de route, simulation.</small><em class="hc-badge" data-badge="route" hidden></em></button>
-      <button class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Azimuts</b><small>Course d’orientation : azimut, contre-azimut, distances, étapes visées.</small><em class="hc-badge" data-badge="az" hidden></em></button>
-      <button class="home-card" data-start="meas"><span class="hc-ic"><svg class="ic"><use href="#i-ruler"/></svg></span><b>Mesures</b><small>Distances et surfaces sur la carte.</small><em class="hc-badge" data-badge="meas" hidden></em></button>
-      <button class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Grand jeu</b><small>Zones, formes, flèches, croix et textes de couleur, transparence réglable.</small><em class="hc-badge" data-badge="game" hidden></em></button>
-    </div>
-    <div class="home-foot">
-      <button class="btn-ghost" id="home-import"><svg class="ic"><use href="#i-upload"/></svg>Importer un fichier GPX</button>
-      <button class="btn-primary" id="home-continue" hidden>Reprendre mon travail</button>
-    </div>
-  </div>
-</div>
 
 <dialog id="dlg-export">
   <h2>Exporter en GPX</h2>
@@ -360,44 +323,16 @@
   <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
 </dialog>
 
-<dialog id="dlg-pdf">
-  <h2>Exporter en PDF / imprimer</h2>
-  <p class="dlg-sub">Vous pourrez modifier tous les textes avant d’imprimer.</p>
-  <div class="doc-types" id="doc-types">
-    <label class="doc-type"><input type="radio" name="dtype" value="simple"><span><b>Feuille de route simplifiée</b><small>Distance, dénivelé positif et étapes</small></span></label>
-    <label class="doc-type"><input type="radio" name="dtype" value="detail"><span><b>Feuille de route détaillée</b><small>Étapes, consignes de guidage, altitudes, durées</small></span></label>
-    <label class="doc-type"><input type="radio" name="dtype" value="map"><span><b>Carte à l’échelle</b><small>La vue actuelle, imprimée à l’échelle exacte sur une feuille</small></span></label>
-    <label class="doc-type"><input type="radio" name="dtype" value="tiles"><span><b>Carte du parcours sur plusieurs feuilles</b><small>A4 ou A3, le moins de feuilles possible : seules les feuilles traversées par le tracé sont imprimées</small></span></label>
+<dialog id="dlg-pdf" class="dlg-wide">
+  <h2>Que voulez-vous imprimer ?</h2>
+  <div class="dcards" id="doc-types">
+    <button class="dcard" data-type="simple"><span class="dc-ic"><svg class="ic"><use href="#i-file"/></svg></span><b>Feuille de route</b><small>L’essentiel sur une page : distance, dénivelé, étapes</small></button>
+    <button class="dcard" data-type="detail"><span class="dc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Feuille de route détaillée</b><small>Avec consignes de guidage, altitudes et durées</small></button>
+    <button class="dcard" data-type="map"><span class="dc-ic"><svg class="ic"><use href="#i-map"/></svg></span><b>Carte à l’échelle</b><small>Ce que vous voyez à l’écran, sur une seule feuille</small></button>
+    <button class="dcard" data-type="tiles"><span class="dc-ic"><svg class="ic"><use href="#i-layers"/></svg></span><b>Carte du parcours</b><small>Plusieurs feuilles A4 ou A3, le moins possible</small></button>
   </div>
-  <div class="field"><span>Calques à imprimer</span><div class="layer-pick" id="pdf-layers"></div><div class="pick-actions"><button type="button" class="text-btn" id="pdf-all">Tout sélectionner</button><button type="button" class="text-btn" id="pdf-none">Aucun</button></div></div>
-  <label class="field"><span>Titre du document <small>(vide : nom du calque)</small></span><input type="text" id="pdf-title" maxlength="100" placeholder="Nom du calque"></label>
-  <div class="two">
-    <label class="field"><span>Papier</span><select id="pdf-paper"><option value="A4">A4</option><option value="A3">A3</option></select></label>
-    <label class="field"><span>Orientation</span><select id="pdf-orient"><option value="auto">Automatique (le moins de feuilles)</option><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select></label>
-  </div>
-  <label class="field" id="pdf-scale-row"><span>Échelle de la carte</span><select id="pdf-scale"></select></label>
-  <div id="pdf-tiles-opts" hidden>
-    <div class="two">
-      <label class="field"><span>Échelle</span><select id="pdf-tscale"><option value="10000">1 : 10 000</option><option value="25000" selected>1 : 25 000</option><option value="50000">1 : 50 000</option></select></label>
-      <label class="field"><span>Marge autour du tracé</span><span class="num"><input type="number" id="pdf-corridor" value="6" min="2" max="40" step="1"> mm</span></label>
-    </div>
-    <div class="two">
-      <label class="field"><span>Marges de la feuille</span><span class="num"><input type="number" id="pdf-margin" value="8" min="4" max="25" step="1"> mm</span></label>
-      <label class="field"><span>Chevauchement</span><span class="num"><input type="number" id="pdf-overlap" value="10" min="4" max="40" step="1"> mm</span></label>
-    </div>
-    <label class="field"><span>Netteté de la carte</span><select id="pdf-sharp"><option value="auto">Automatique (recommandé)</option><option value="1">Haute</option><option value="2">Maximale (plus lent)</option></select></label>
-    <label class="check" id="pdf-mix-row"><input type="checkbox" id="pdf-mix" checked> Mélanger portrait et paysage (moins de feuilles)</label>
-    <label class="check"><input type="checkbox" id="pdf-index" checked> Feuille d’assemblage en première page</label>
-    <p class="alert ok" id="pdf-tiles-sum"></p>
-    <p class="note" id="pdf-tiles-note"></p>
-  </div>
-  <div class="checks" id="pdf-opts">
-    <label id="pdf-overview-row"><input type="checkbox" id="pdf-overview" checked> Vue d’ensemble de l’itinéraire (carte)</label>
-    <label id="pdf-profile-row"><input type="checkbox" id="pdf-profile" checked> Profil d’altitude (coupe du dénivelé)</label>
-    <label id="pdf-az-row"><input type="checkbox" id="pdf-az" checked> Tableau des azimuts</label>
-    <label id="pdf-notes-row"><input type="checkbox" id="pdf-notes" checked> Cadre de notes</label>
-  </div>
-  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok">Aperçu et modification</button></div>
+  <p class="pdf-empty" id="pdf-empty" hidden>Tracez d’abord quelque chose sur la carte pour pouvoir l’imprimer.</p>
+  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button></div>
 </dialog>
 
 <dialog id="dlg-video">
@@ -419,14 +354,13 @@
   <dl class="kbd-list">
     <dt><kbd>I</kbd></dt><dd>Outil itinéraire</dd>
     <dt><kbd>A</kbd></dt><dd>Outil azimuts</dd>
-    <dt><kbd>M</kbd></dt><dd>Outil de mesure</dd>
-    <dt><kbd>L</kbd></dt><dd>Calques</dd>
+    <dt><kbd>G</kbd></dt><dd>Outil grand jeu</dd>
     <dt><kbd>Suppr</kbd> ou <kbd>⌫</kbd></dt><dd>Retirer le point sélectionné</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>Y</kbd></dt><dd>Rétablir (Ctrl + Maj + Z aussi)</dd>
     <dt><kbd>Échap</kbd></dt><dd>Désélectionner, puis revenir au déplacement de la carte</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Annuler la dernière modification</dd>
-    <dt><kbd>Ctrl</kbd> + <kbd>O</kbd></dt><dd>Importer un GPX</dd>
-    <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Exporter en GPX</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>O</kbd></dt><dd>Ouvrir une trace (GPX, KML, GeoJSON)</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Enregistrer en GPX</dd>
     <dt><kbd>Ctrl</kbd> + <kbd>P</kbd></dt><dd>Exporter en PDF / imprimer</dd>
     <dt>Clic droit</dt><dd>Menu du point : départ, étape, arrivée, azimut, coordonnées</dd>
     <dt>Clic sur A</dt><dd>Ferme la boucle (itinéraire ou azimuts)</dd>
@@ -437,7 +371,8 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
-    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small>Cliquez dans le document pour modifier n’importe quel texte.</small></div>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small>Cliquez dans le document pour modifier un texte.</small></div>
+    <div class="doc-tools" id="doc-tools"></div>
     <button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer / Enregistrer en PDF</button>
   </div>
   <div class="doc-scroll"><div id="doc-pages"></div></div>
