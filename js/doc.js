@@ -11,77 +11,78 @@
 
   function today() { return new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' }); }
 
-  // ---------- Calques imprimables ----------
-  var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure', game: 'Grand jeu', track: 'Trace GPX' };
+  // ---------- Ce qu'on imprime : tout ce qui est dessiné dans l'onglet en cours ----------
+  var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', game: 'Grand jeu', track: 'Trace importée' };
   function pickables() {
     var out = SM.layersList().filter(function (l) { return !l.empty; }).map(function (l) {
       return { key: l.key, type: l.type, name: l.name, color: l.color, vis: l.vis, active: l.active, data: l.data, res: l.res };
     });
-    if (S.mode === 'route') S.tracks.forEach(function (t) { out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: t.show !== false, active: false, data: t, res: null }); });
+    if (S.mode === 'route') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: true, active: false, data: t, res: null }); });
     return out;
   }
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
-  function curType() { var r = $('input[name=dtype]:checked'); return r ? r.value : 'detail'; }
-  function renderPick() {
-    var t = curType(), list = pickables(), sheets = t === 'simple' || t === 'detail';
-    var hasActiveRoute = list.some(function (p) { return p.type === 'route' && p.active; });
-    $('#pdf-layers').innerHTML = list.length ? list.map(function (p) {
-      var ok = !sheets || sheetCapable(p);
-      var on = ok && (sheets ? (p.active && (p.type === 'route' || p.type === 'az')) || (!hasActiveRoute && p.type === 'route' && p === list.filter(function (x) { return x.type === 'route'; })[0]) : p.vis);
-      return '<label class="' + (ok ? '' : 'dis') + '"><input type="checkbox" value="' + esc(p.key) + '"' + (on ? ' checked' : '') + (ok ? '' : ' disabled') + '><span class="lsw" style="background:' + p.color + '"></span><span>' + esc(p.name) + ' <small>' + TYPE_LABEL[p.type] + '</small></span></label>';
-    }).join('') : '<span class="muted">Aucun calque : tracez d’abord un itinéraire, des azimuts…</span>';
-  }
-  function chosen() {
-    var keys = $$('#pdf-layers input:checked').map(function (i) { return i.value; });
-    return pickables().filter(function (p) { return keys.indexOf(p.key) >= 0; });
-  }
-  function syncDialog() {
-    var t = curType(), map = t === 'map', tiles = t === 'tiles', sheet = !map && !tiles, list = pickables();
-    $('#pdf-scale-row').hidden = !map; $('#pdf-tiles-opts').hidden = !tiles;
-    $('#pdf-az-row').hidden = true;
-    $('#pdf-overview-row').hidden = !sheet; $('#pdf-profile-row').hidden = !sheet; $('#pdf-notes-row').hidden = !sheet;
-    renderPick();
-    if (!$('#pdf-title').dataset.touched) $('#pdf-title').value = '';
-    var or = $('#pdf-orient');
-    $$('option', or).forEach(function (o) { if (o.value === 'auto') o.disabled = !tiles; });
-    if (!or.dataset.user) or.value = tiles ? 'auto' : (map ? 'landscape' : 'portrait'); else if (!tiles && or.value === 'auto') or.value = 'portrait';
-    $('#pdf-ok').disabled = !list.length;
-    updateTilesSummary();
-  }
-  function fillScales() {
-    var cur = SM.niceScale(SM.curScale());
-    var o = '<option value="view">Vue actuelle (1 : ' + SM.sp(cur) + ')</option><option value="fit">Ajuster aux calques choisis</option>';
-    SM.SCALES.forEach(function (s) { o += '<option value="' + s + '">1 : ' + SM.sp(s) + '</option>'; });
-    $('#pdf-scale').innerHTML = o;
+
+  // Réglages de l'aperçu (modifiables en direct dans la barre d'outils)
+  var PRM = { type: 'simple', paper: 'A4', orient: 'portrait', scale: 'view', tscale: 25000, line: true };
+  var BT = 0, buildTimer = null, ABORT = { abort: true };
+  function config() {
+    var items = pickables(), t = PRM.type;
+    return {
+      type: t, title: '', paper: PRM.paper, orient: PRM.orient, scale: PRM.scale, overview: true, profile: true, notes: true, items: items, showLine: PRM.line,
+      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: PRM.orient, mix: PRM.orient === 'auto' }
+    };
   }
   function openPdf(type) {
-    var list = pickables(), sheetOk = list.some(sheetCapable);
-    var radios = $$('input[name=dtype]');
-    radios.forEach(function (r) { r.closest('.doc-type').classList.toggle('dis', (r.value === 'simple' || r.value === 'detail') && !sheetOk); });
-    var t = type || (sheetOk ? 'simple' : 'map');
-    if ((t === 'simple' || t === 'detail') && !sheetOk) t = 'map';
-    radios.forEach(function (r) { r.checked = r.value === t; });
-    $('#pdf-title').dataset.touched = ''; $('#pdf-orient').dataset.user = '';
-    fillScales(); if (S.mode === 'game' && $('#pdf-scale option[value=fit]')) $('#pdf-scale').value = 'fit';
-    syncDialog();
-    var d = $('#dlg-pdf'); if (!d.open) d.showModal();
+    var list = pickables(), sheetOk = list.some(sheetCapable), tilesOk = geomLines(list).length > 0;
+    var ok = { simple: sheetOk, detail: sheetOk, map: list.length > 0, tiles: tilesOk };
+    $$('#doc-types .dcard').forEach(function (b) { var on = ok[b.dataset.type]; b.disabled = !on; b.classList.toggle('dis', !on); });
+    $('#pdf-empty').hidden = list.length > 0;
+    if (type && ok[type]) { start(type); return; }
+    var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
   }
-  $$('input[name=dtype]').forEach(function (r) { r.addEventListener('change', syncDialog); });
-  $('#pdf-title').addEventListener('input', function () { this.dataset.touched = '1'; });
-  $('#pdf-orient').addEventListener('change', function () { this.dataset.user = '1'; });
+  $$('#doc-types .dcard').forEach(function (b) { b.addEventListener('click', function () { if (!b.disabled) { $('#dlg-pdf').close(); start(b.dataset.type); } }); });
   $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
-  $('#pdf-all').addEventListener('click', function () { $$('#pdf-layers input:not(:disabled)').forEach(function (i) { i.checked = true; }); });
-  $('#pdf-none').addEventListener('click', function () { $$('#pdf-layers input').forEach(function (i) { i.checked = false; }); });
-  $('#pdf-ok').addEventListener('click', function () {
-    var items = chosen();
-    if (!items.length) { SM.toast('Cochez au moins un calque à imprimer.'); return; }
-    var c = {
-      tiles: tilesParams(), type: curType(), title: $('#pdf-title').value.trim(), paper: $('#pdf-paper').value, orient: $('#pdf-orient').value,
-      scale: $('#pdf-scale').value, overview: $('#pdf-overview').checked, profile: $('#pdf-profile').checked, notes: $('#pdf-notes').checked, items: items
-    };
-    $('#dlg-pdf').close();
-    buildDoc(c);
+  function start(type) {
+    PRM.type = type; PRM.paper = 'A4'; PRM.line = true;
+    PRM.orient = type === 'tiles' ? 'auto' : type === 'map' ? 'landscape' : 'portrait';
+    PRM.scale = type === 'map' && S.mode === 'game' ? 'fit' : 'view';
+    renderTools(); rebuild(0);
+  }
+  function seg(id, opts, cur) {
+    return '<div class="seg" data-k="' + id + '">' + opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>';
+  }
+  function renderTools() {
+    var t = PRM.type, h = '', hasLine = pickables().some(function (p) { return p.type !== 'game'; });
+    h += '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>';
+    if (t === 'map' || t === 'tiles') h += '<label>Sens ' + seg('orient', (t === 'tiles' ? [['auto', 'Auto']] : []).concat([['portrait', 'Portrait'], ['landscape', 'Paysage']]), PRM.orient) + '</label>';
+    if (t === 'map') {
+      var cur = SM.niceScale(SM.curScale()), o = '<option value="view"' + (PRM.scale === 'view' ? ' selected' : '') + '>Vue actuelle (1 : ' + SM.sp(cur) + ')</option><option value="fit"' + (PRM.scale === 'fit' ? ' selected' : '') + '>Ajusté au tracé</option>';
+      SM.SCALES.forEach(function (s) { o += '<option value="' + s + '"' + (String(PRM.scale) === String(s) ? ' selected' : '') + '>1 : ' + SM.sp(s) + '</option>'; });
+      h += '<label>Échelle <select data-k="scale">' + o + '</select></label>';
+    }
+    if (t === 'tiles') h += '<label>Échelle ' + seg('tscale', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']], PRM.tscale) + '</label>';
+    if ((t === 'map' || t === 'tiles') && hasLine) h += '<label>Tracé ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
+    h += '<span class="doc-sum" id="doc-sum"></span>';
+    $('#doc-tools').innerHTML = h;
+    updateSummary();
+  }
+  $('#doc-tools').addEventListener('click', function (e) {
+    var b = e.target.closest('.seg button'); if (!b) return;
+    var k = b.parentNode.dataset.k, v = b.dataset.v;
+    if (k === 'paper') PRM.paper = v; else if (k === 'orient') PRM.orient = v; else if (k === 'tscale') PRM.tscale = +v; else if (k === 'line') PRM.line = v === '1';
+    renderTools(); rebuild(450);
   });
+  $('#doc-tools').addEventListener('change', function (e) {
+    if (e.target.dataset.k === 'scale') { PRM.scale = e.target.value; rebuild(450); }
+  });
+  function rebuild(delay) { clearTimeout(buildTimer); buildTimer = setTimeout(function () { buildDoc(config()); }, delay); }
+  function updateSummary() {
+    var el = $('#doc-sum'); if (!el) return;
+    if (PRM.type !== 'tiles') { el.textContent = ''; return; }
+    var c = config(), pl = tilesPlan(c.items, c.tiles);
+    el.textContent = pl ? pl.pages.length + ' feuille' + (pl.pages.length > 1 ? 's' : '') + ' ' + PRM.paper + (pl.mixed ? ' (' + pl.nLandscape + ' paysage + ' + pl.nPortrait + ' portrait)' : '') : 'Aucun tracé à imprimer';
+    el.className = 'doc-sum' + (pl && pl.pages.length > 40 ? ' bad' : '');
+  }
 
   // ---------- Carte du parcours sur plusieurs feuilles ----------
   // Lignes à couvrir : le tracé de chaque calque (et, pour un grand jeu, toute l'emprise du dessin).
@@ -101,41 +102,10 @@
     });
     return out.filter(function (l) { return l && l.length; });
   }
-  function tilesParams() {
-    function num(id, d) { var v = parseFloat($(id).value); return isFinite(v) ? v : d; }
-    var or = $('#pdf-orient').value === 'auto' ? 'auto' : $('#pdf-orient').value;
-    return { scale: +$('#pdf-tscale').value || 25000, corridor: num('#pdf-corridor', 6), margin: num('#pdf-margin', 8), overlap: num('#pdf-overlap', 10),
-      sharp: $('#pdf-sharp').value, index: $('#pdf-index').checked, paper: $('#pdf-paper').value, orient: or, mix: or === 'auto' && $('#pdf-mix').checked };
-  }
   function tilesPlan(items, prm) {
     if (!window.Paginate) return null;
     return Paginate.plan({ lines: geomLines(items), scale: prm.scale, paper: PAPER[prm.paper], orient: prm.orient, mix: prm.mix, margin: prm.margin, overlap: prm.overlap, corridor: prm.corridor });
   }
-  function updateTilesSummary() {
-    if (curType() !== 'tiles') return;
-    var box = $('#pdf-tiles-sum'), note = $('#pdf-tiles-note'), items = chosen(), prm = tilesParams();
-    $('#pdf-mix-row').hidden = prm.orient !== 'auto';
-    if (!items.length) { box.textContent = 'Cochez un calque contenant un tracé.'; box.className = 'alert warn'; note.textContent = ''; return; }
-    var pl = tilesPlan(items, prm);
-    if (!pl) { box.textContent = 'Aucun tracé dans les calques choisis.'; box.className = 'alert warn'; note.textContent = ''; return; }
-    var n = pl.pages.length, c = pl.counts;
-    box.className = 'alert ' + (n > 40 ? 'bad' : 'ok');
-    var compo = pl.mixed ? pl.nLandscape + ' en paysage + ' + pl.nPortrait + ' en portrait' : (pl.orient === 'portrait' ? 'toutes en portrait' : 'toutes en paysage');
-    var alts = [];
-    if (prm.orient === 'auto') { if (c.landscape != null) alts.push('tout en paysage : ' + c.landscape); if (c.portrait != null) alts.push('tout en portrait : ' + c.portrait); }
-    box.innerHTML = '<b>' + n + ' feuille' + (n > 1 ? 's' : '') + ' ' + prm.paper + '</b> (' + compo + ')' + (alts.length ? '<br><span>' + alts.join(' · ') + '</span>' : '') +
-      (prm.index ? '<br><span>+ 1 feuille d’assemblage</span>' : '') + (n > 40 ? '<br>Beaucoup de feuilles : choisissez une échelle plus petite.' : '');
-    var km = function (mmv) { return (mmv * prm.scale / 1e6).toFixed(1).replace('.', ','); };
-    var d0 = pl.pages[0];
-    note.textContent = 'Une feuille ' + prm.paper + ' couvre environ ' + km(Math.min(d0.wMm, d0.hMm)) + ' × ' + km(Math.max(d0.wMm, d0.hMm)) + ' km à cette échelle. Le centre d’une boucle n’est pas imprimé.' +
-      (pl.mixed ? ' Les feuilles ont des orientations différentes : imprimez depuis Chrome ou Edge (réglage « Mise en page » du navigateur laissé sur automatique).' : '') +
-      (SM.LAYERS[S.base].ign ? '' : ' Le fond « ' + SM.LAYERS[S.base].label + ' » est remplacé par le Plan IGN pour cette impression (les serveurs OpenStreetMap interdisent le téléchargement en masse).');
-  }
-  ['#pdf-tscale', '#pdf-corridor', '#pdf-margin', '#pdf-overlap', '#pdf-paper', '#pdf-orient', '#pdf-index', '#pdf-sharp', '#pdf-mix'].forEach(function (id) {
-    $(id).addEventListener('input', updateTilesSummary); $(id).addEventListener('change', updateTilesSummary);
-  });
-  $('#pdf-layers').addEventListener('change', updateTilesSummary);
-
   // ---------- Cartes statiques (aperçu et impression) ----------
   function closeMaps() { docMaps.forEach(function (m) { try { m.remove(); } catch (e) { /* déjà retirée */ } }); docMaps = []; }
   function makeMap(el, wpx, hpx, off, o) {
@@ -168,15 +138,15 @@
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });
       } else if (it.type === 'track') {
-        L.polyline(d.coords, { color: '#fff', weight: 7, opacity: .85 }).addTo(m); L.polyline(d.coords, { color: col, weight: 4 }).addTo(m);
+        if (!o.noLine) { L.polyline(d.coords, { color: '#fff', weight: 7, opacity: .85 }).addTo(m); L.polyline(d.coords, { color: col, weight: 4 }).addTo(m); }
         d.coords.forEach(function (c) { pts.push(c); });
       } else if (it.type === 'az' && d.pts.length) {
-        if (d.pts.length > 1) L.polyline(d.pts, { color: col, weight: 4, dashArray: '10 6' }).addTo(m);
+        if (d.pts.length > 1 && !o.noLine) L.polyline(d.pts, { color: col, weight: 4, dashArray: '10 6' }).addTo(m);
         d.pts.forEach(function (p, i) { if (!o.noMarkers) L.marker(p, { icon: SM.pin(String(i + 1), 'az'), interactive: false }).addTo(m); pts.push(p); });
       } else if (it.type === 'route') {
         if (it.res) {
-          L.polyline(it.res.line, { color: '#fff', weight: 9, opacity: .9, lineCap: 'round', lineJoin: 'round' }).addTo(m);
-          L.polyline(it.res.line, { color: col, weight: 5, lineCap: 'round', lineJoin: 'round' }).addTo(m);
+          if (!o.noLine) L.polyline(it.res.line, { color: '#fff', weight: 9, opacity: .9, lineCap: 'round', lineJoin: 'round' }).addTo(m);
+          if (!o.noLine) L.polyline(it.res.line, { color: col, weight: 5, lineCap: 'round', lineJoin: 'round' }).addTo(m);
           it.res.line.forEach(function (p) { pts.push(p); });
         }
         d.wps.forEach(function (p, i) { if (!o.noMarkers) L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
@@ -222,8 +192,9 @@
     return '<header class="d-head"><img src="assets/fsggb.png" alt=""><div><h1>' + esc(title) + '</h1><p class="d-sub">' + sub + '</p></div>' +
       '<div class="d-tag">ScoutMap<br>FSGGB</div></header>';
   }
-  function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>Fonds © IGN – Géoplateforme' + footDate() + '</span></footer>'; }
-  function footDate() { var i = SM.layerDate && SM.layerDate(SM.S.base); return i && i.iso ? ' (données mises à jour le ' + new Date(i.iso + 'T12:00:00').toLocaleDateString('fr-FR') + ')' : ''; }
+  function foot() { return '<footer class="d-foot"><span>Document établi avec ScoutMap – FSGGB le ' + today() + '</span><span>' + creditText() + footDate() + '</span></footer>'; }
+  function creditText() { var l = SM.LAYERS[S.base], a = (l.attr || '© IGN – Géoplateforme').replace(/<[^>]+>/g, ''); return 'Fond : ' + l.label + ' · ' + a + (S.ov.hiking ? ' · Sentiers : Waymarked Trails' : ''); }
+  function footDate() { var i = SM.layerDate && SM.layerDate(SM.S.base); return i && i.iso ? ' (données IGN mises à jour le ' + new Date(i.iso + 'T12:00:00').toLocaleDateString('fr-FR') + ')' : ''; }
   function newSheet(c, pw, ph, pm) {
     var el = document.createElement('article');
     el.className = 'sheet'; el.contentEditable = 'true'; el.spellcheck = false;
@@ -232,29 +203,30 @@
   }
 
   function buildDoc(c) {
-    if (c.type === 'tiles') { buildTilesDoc(c); return; }
+    var tok = ++BT;
+    if (c.type === 'tiles') { buildTilesDoc(c, tok); return; }
     closeMaps();
     var P = PAPER[c.paper], pw = c.orient === 'landscape' ? P[1] : P[0], ph = c.orient === 'landscape' ? P[0] : P[1], pm = 10;
     var cw = pw - 2 * pm, chh = ph - 2 * pm;
     $('#page-style').textContent = '@page{size:' + c.paper + ' ' + c.orient + ';margin:' + pm + 'mm}';
     $('#doc-pages').innerHTML = '';
-    $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
+    $('#doc').hidden = false; document.body.classList.add('doc-open');
     origTitle = origTitle || document.title;
     setBusy(true);
     var job;
-    if (c.type === 'map') job = Promise.resolve(buildMapDoc(c, newSheet(c, pw, ph, pm), cw, chh));
+    if (c.type === 'map') job = Promise.resolve().then(function () { buildMapDoc(c, newSheet(c, pw, ph, pm), cw, chh); });
     else {
       var items = c.items.filter(function (p) { return p.type === 'route' || p.type === 'az'; });
       // Les noms de village / hameau des étapes sont recherchés avant d'écrire le document.
       job = Promise.all(items.filter(function (p) { return p.type === 'route'; }).map(function (p) { return SM.fillPlaces(p.data); })).then(function () {
         return items.reduce(function (chain, it) {
-          return chain.then(function () { return it.type === 'route' ? routeSheet(c, it, newSheet(c, pw, ph, pm), cw, items.length) : azSheet(c, it, newSheet(c, pw, ph, pm), cw, items.length); });
+          return chain.then(function () { if (tok !== BT) throw ABORT; return it.type === 'route' ? routeSheet(c, it, newSheet(c, pw, ph, pm), cw, items.length) : azSheet(c, it, newSheet(c, pw, ph, pm), cw, items.length); });
         }, Promise.resolve());
       });
     }
     job.then(function () {
       return Promise.all(docMaps.map(function (m) { return m._ready; }));
-    }).then(function () { setBusy(false); }).catch(function (e) { setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
+    }).then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
   function setBusy(b, msg) {
     var btn = $('#doc-print'); btn.disabled = b;
@@ -274,8 +246,8 @@
     var land = pg.orient === 'landscape', pw = land ? o.P[1] : o.P[0], ph = land ? o.P[0] : o.P[1];
     var sh = newTileSheet(pw, ph, o.pm, false, pg.orient);
     var box = document.createElement('div'); box.className = 'd-mapbox tile-box'; box.contentEditable = 'false'; sh.appendChild(box);
-    var m = makeMap(box, Math.round(pg.wMm * MM), Math.round(pg.hMm * MM), o.off, { base: o.base, ignOnly: true });
-    drawItems(m, items);
+    var m = makeMap(box, Math.round(pg.wMm * MM), Math.round(pg.hMm * MM), o.off, { base: o.base });
+    drawItems(m, items, { noLine: o.noLine });
     m.setView(L.latLng(pg.center[0], pg.center[1]), o.z0, { animate: false });
     L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(m);
     L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
@@ -294,7 +266,7 @@
         return '<span class="idx-chip"><b>F' + pg.n + '</b>' + (pg.orient === 'portrait' ? 'portrait' : 'paysage') + ' · ' + esc(G.formatCoord('wgs', pg.center[0], pg.center[1])) + '</span>'; }).join('') + '</div></section>' +
       '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> dans l’ordre du parcours (carrés dorés) ; les <b>étapes</b> du parcours sont les pastilles rondes 1, 2, 3… Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles traversées par le tracé sont imprimées.</p>' + foot();
     var el = sh.querySelector('#didx'), cwmm = pw - 2 * o.pm, hmm = Math.round((ph - 2 * o.pm) * (landIdx ? 0.55 : 0.58));
-    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base, ignOnly: true });
+    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base });
     drawItems(m, items, { noMarkers: true });
     var all = L.latLngBounds([]);
     pl.pages.forEach(function (pg) {
@@ -305,7 +277,7 @@
     L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
     return m._ready;
   }
-  function buildTilesDoc(c) {
+  function buildTilesDoc(c, tok) {
     var items = c.items, prm = c.tiles, pl = tilesPlan(items, prm);
     if (!pl) { SM.toast('Aucun tracé à imprimer : choisissez un calque qui contient un tracé.'); return; }
     if (pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
@@ -316,13 +288,13 @@
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length,
-      base: SM.LAYERS[S.base].ign ? S.base : 'plan', off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp,
+      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp,
       z0: SM.zoomFor(prm.scale, pl.lat0), title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
     setBusy(true, 'Préparation des feuilles…');
     var chain = Promise.resolve();
-    if (prm.index) chain = chain.then(function () { return indexSheet(pl, items, o); });
-    pl.pages.forEach(function (pg) { chain = chain.then(function () { setBusy(true, 'Chargement de la feuille F' + pg.n + ' / ' + o.total + '…'); return pageSheet(pl, pg, items, o); }); });
-    chain.then(function () { setBusy(false); }).catch(function (e) { setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
+    if (prm.index) chain = chain.then(function () { if (tok !== BT) throw ABORT; return indexSheet(pl, items, o); });
+    pl.pages.forEach(function (pg) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setBusy(true, 'Chargement de la feuille F' + pg.n + ' / ' + o.total + '…'); return pageSheet(pl, pg, items, o); }); });
+    chain.then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
 
   function buildMapDoc(c, sheet, cw, chh) {
@@ -331,7 +303,7 @@
     var title = c.title || (names.length === 1 ? names[0] : S.name || 'Carte');
     sheet.innerHTML = '<div class="d-head-wrap"></div><div class="d-mapfull"><div class="d-mapbox" id="' + id + '" contenteditable="false"></div></div><div class="d-foot-wrap"></div>';
     var el = $('#' + id), m = makeMap(el, Math.floor(cw * MM), Math.floor(mapH * MM), off);
-    var pts = drawItems(m, c.items), bounds = boundsOf(pts), center, scale;
+    var pts = drawItems(m, c.items, { noLine: !c.showLine }), bounds = boundsOf(pts), center, scale;
     if (c.scale === 'fit' && bounds) {
       var cc = bounds.getCenter(); m.setView(cc, 10, { animate: false });
       var bz = m.getBoundsZoom(bounds, false, L.point(24, 24)); scale = null;
