@@ -229,7 +229,7 @@
       var back = idx >= n, i = back ? 0 : idx, w = d.wps[i];
       var place = w.place && w.name && w.name !== w.place ? 'près de ' + w.place + ' · ' : '';
       rows.push({ lab: back ? 'A' : SM.lblOf(d, idx), cls: idx === 0 ? 'start' : (back || (idx === n - 1 && !loop)) ? 'end' : 'via',
-        name: SM.nameOf(d, i) + (back ? ' (retour)' : ''), sub: place + G.formatCoord('wgs', w.lat, w.lon) + (SM.offInfo && SM.offInfo(w) ? ' · hors sentier : azimut ' + SM.offInfo(w).az + ' sur ' + SM.offInfo(w).d : ''), leg: leg, cum: cum,
+        name: SM.nameOf(d, i) + (back ? ' (retour)' : ''), sub: place + G.formatCoord('wgs', w.lat, w.lon), leg: leg, cum: cum,
         alt: prof ? altAt(prof, cum * ratio) : null, d: cum * ratio });
     }
     row(0, 0);
