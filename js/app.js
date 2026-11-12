@@ -223,11 +223,11 @@
     var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
     Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
   }
-  // ---------- Sentiers GR / GRP / PR (données OpenStreetMap via Overpass), dessinés en rose ----------
+  // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (Overpass) ----------
   // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
   // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
   var HK = { cells: {}, pend: {}, fail: 0, failed: false, group: L.layerGroup(), colour: '#e0368a', ends: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'] };
-  var HK_CELL = 0.2, HK_MINZ = 11;
+  var HK_CELL = 0.2, HK_MINZ = 12;
   function hkClass(tags) {
     var ref = String(tags.ref || ''), name = String(tags.name || ''), sym = String(tags['osmc:symbol'] || '').toLowerCase(), net = tags.network || '';
     if (/GRP|GR\s*®?\s*de\s*Pays/i.test(ref + ' ' + name)) return 'GRP';
@@ -248,11 +248,24 @@
     });
     return out;
   }
+  // Itinéraires de randonnée pédestre de la BD TOPO (IGN, WFS de la Géoplateforme) : circuits et sentiers locaux (PR…) ; quelques GR y figurent aussi.
+  function hkIgnParse(j) {
+    var out = [];
+    (j.features || []).forEach(function (f) {
+      var pr = f.properties || {}, g = f.geometry; if (!g || !/pédestre/i.test(pr.nature || '')) return;
+      var top = String(pr.toponyme || ''), cls = /GRP|GR\s*®?\s*de\s*Pays/i.test(top) ? 'GRP' : /(^|\s)GR\s?\d/i.test(top) ? 'GR' : 'PR';
+      var lines = g.type === 'MultiLineString' ? g.coordinates : g.type === 'LineString' ? [g.coordinates] : [];
+      var ways = lines.filter(function (l) { return l.length > 1; }).map(function (l) { return l.map(function (q) { return [q[1], q[0]]; }); });
+      var m = /GR\s?\d+\w*/i.exec(top);
+      if (ways.length) out.push({ id: 'i' + (pr.cleabs || out.length), cls: cls, ref: cls === 'GR' && m ? m[0].replace(/\s+/g, ' ').toUpperCase() : '', ways: ways });
+    });
+    return out;
+  }
   function hkFetchCell(ci, cj) {
     var key = ci + ',' + cj;
     if (HK.cells[key]) return Promise.resolve();
     if (HK.pend[key]) return HK.pend[key];
-    var s = ci * HK_CELL, w = cj * HK_CELL, q = hkQuery(s.toFixed(4), w.toFixed(4), (s + HK_CELL).toFixed(4), (w + HK_CELL).toFixed(4));
+    var s = ci * HK_CELL, w = cj * HK_CELL, n = s + HK_CELL, e = w + HK_CELL, q = hkQuery(s.toFixed(4), w.toFixed(4), n.toFixed(4), e.toFixed(4));
     function tryEnd(k) {
       if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
       var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 28000);
@@ -260,9 +273,14 @@
         .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .catch(function () { clearTimeout(to); return tryEnd(k + 1); });
     }
-    HK.pend[key] = tryEnd(0).then(function (j) { HK.cells[key] = hkParse(j); HK.fail = 0; delete HK.pend[key]; }, function () {
+    var ignUrl = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:itineraire_autre&OUTPUTFORMAT=application/json&COUNT=2500&SRSNAME=EPSG:4326&PROPERTYNAME=nature,toponyme,cleabs,geometrie&BBOX=' + s.toFixed(4) + ',' + w.toFixed(4) + ',' + n.toFixed(4) + ',' + e.toFixed(4) + ',urn:ogc:def:crs:EPSG::4326';
+    var okOsm = false, okIgn = false;
+    var pOsm = tryEnd(0).then(function (j) { okOsm = true; return hkParse(j).filter(function (r) { return r.cls !== 'PR'; }); }, function () { return []; });   // OSM : GR et GR de Pays (les PR viennent de l'IGN)
+    var pIgn = fetch(ignUrl).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) { okIgn = true; return hkIgnParse(j); }, function () { return []; });
+    HK.pend[key] = Promise.all([pOsm, pIgn]).then(function (r) {
       delete HK.pend[key];
-      if (++HK.fail >= 2 && !HK.failed) { HK.failed = true; applyLayers(); }   // bascule silencieuse sur les tuiles de secours
+      if (!okOsm && !okIgn) { if (++HK.fail >= 2 && !HK.failed) { HK.failed = true; applyLayers(); } return; }   // bascule silencieuse sur les tuiles de secours
+      HK.fail = 0; HK.cells[key] = r[0].concat(r[1]);
     });
     return HK.pend[key];
   }
@@ -277,15 +295,15 @@
     hkCells(bounds).forEach(function (c) {
       (HK.cells[c[0] + ',' + c[1]] || []).forEach(function (r) {
         var dash = r.cls === 'PR' ? '2 6' : r.cls === 'GRP' ? '12 5' : null;
-        r.ways.forEach(function (w) {
-          L.polyline(w, { color: '#fff', weight: wt + 2, opacity: 0.75, lineCap: 'butt', interactive: false }).addTo(target);
-          L.polyline(w, { color: HK.colour, weight: wt, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
-        });
+        // un seul tracé (multi-lignes) par itinéraire : bien plus léger que un tracé par tronçon
+        L.polyline(r.ways, { color: '#fff', weight: wt + 2, opacity: 0.75, lineCap: 'butt', interactive: false }).addTo(target);
+        L.polyline(r.ways, { color: HK.colour, weight: wt, opacity: 0.95, dashArray: dash, lineCap: r.cls === 'PR' ? 'round' : 'butt', interactive: false }).addTo(target);
         if (lbl && r.ref && r.cls !== 'PR' && zoom >= 12 && !seen[r.id] && nl < 40) {
-          var best = r.ways.reduce(function (a, b2) { return b2.length > a.length ? b2 : a; }, r.ways[0]), mid = best[Math.floor(best.length / 2)];
-          if (bounds.contains(mid)) {
+          var best = null, bl = 0;
+          r.ways.forEach(function (w2) { var mid = w2[Math.floor(w2.length / 2)]; if (w2.length > bl && bounds.contains(mid)) { bl = w2.length; best = mid; } });
+          if (best) {
             seen[r.id] = 1; nl++;
-            L.marker(mid, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target);
+            L.marker(best, { interactive: false, icon: L.divIcon({ className: 'hk-lbl', html: '<span>' + esc(r.ref) + '</span>', iconSize: [0, 0] }) }).addTo(target);
           }
         }
       });
