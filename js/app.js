@@ -1392,7 +1392,7 @@
         if (tok !== RT.rtTok || tag !== S.route.id) return;
         var pick = null, score = oldTot - 0.5 * u.len;
         rs.forEach(function (r) {
-          if (!r || r.dist > oldDist + Math.max(400, oldDist * 0.15)) return;   // un détour reste modeste : pas de boucles supplémentaires
+          if (!r || r.dist > oldDist + 200) return;
           var test = legs.slice(); test[leg] = r;
           var tot = retrace(assemble(test).line).total, sc = tot + 0.5 * (r.dist - oldDist);
           if (tot <= oldTot - 0.5 * u.len && sc < (pick ? pick.sc : Infinity)) pick = { r: r, sc: sc };
@@ -1646,9 +1646,8 @@
     fr.readAsText(file);
   }
   $('#file-gpx').addEventListener('change', function () { openFiles(this.files); this.value = ''; });
-  $('#layers-import').addEventListener('click', function () { $('#file-gpx').click(); });
   (function dropGpx() {
-    var dz = $('#layers-import');
+    var dz = document.body;
     window.addEventListener('dragover', function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) { e.preventDefault(); dz.classList.add('over'); } });
     window.addEventListener('dragleave', function (e) { if (!e.relatedTarget) dz.classList.remove('over'); });
     window.addEventListener('drop', function (e) {

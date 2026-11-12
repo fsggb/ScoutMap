@@ -746,6 +746,15 @@ body.doc-open .home{display:none!important}
 .tuto-contact a{font-weight:650;color:var(--navy)}
 #dlg-tuto .dlg-actions{margin-top:14px}
 @media (max-width:640px){.tuto-contact{text-align:left}}
+/* fenêtre du tutoriel : tout tient sans défilement, coins arrondis préservés, croix de fermeture en haut à droite */
+#dlg-tuto{position:fixed;overflow:hidden!important;border-radius:18px;padding:20px 22px 18px;max-height:96vh;width:min(880px,96vw)}
+#dlg-tuto h2{margin:0 44px 12px 0}
+#dlg-tuto .dlg-x{position:absolute;right:14px;top:14px;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#eef0f7;color:var(--navy);cursor:pointer;z-index:2}
+#dlg-tuto .dlg-x:hover{background:var(--gold)}
+#dlg-tuto video{width:100%;height:min(calc(100vh - 330px),480px);object-fit:contain;background:#000761;border-radius:12px;display:block}
+#dlg-tuto .tuto-info{margin-top:12px}
+#dlg-tuto .tuto-row{padding:10px 14px}
+#dlg-tuto a.btn-ghost{text-decoration:none;color:var(--navy);font-weight:600}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

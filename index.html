@@ -176,7 +176,7 @@
       <div class="btnrow">
         <button class="btn-ghost" id="route-reverse"><svg class="ic"><use href="#i-swap"/></svg>Inverser le sens</button>
         <button class="btn-ghost" id="route-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
-        <button class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
+        <button class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer l’itinéraire</button>
       </div>
       <div class="stats" id="route-stats" hidden></div>
       <div class="alert warn" id="nat-warn" hidden></div>
@@ -193,7 +193,6 @@
       </details>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
       <div id="tracks-box" hidden><h3 class="sub">Traces importées</h3><ul class="layers" id="layer-list"></ul></div>
-      <button class="btn-ghost block" id="layers-import" title="Ouvrir une trace GPX, KML ou GeoJSON (ou glisser le fichier sur la carte)"><svg class="ic"><use href="#i-upload"/></svg>Ouvrir une trace (GPX, KML, GeoJSON)</button>
       <p class="status" id="route-status" role="status"></p>
       <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
@@ -330,7 +329,7 @@
   </main>
 </div>
 
-<input id="file-gpx" type="file" accept=".gpx,.kml,.geojson,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json,text/xml" hidden>
+<input id="file-gpx" type="file" accept=".html,.htm,.gpx,.kml,.geojson,.json,text/html,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json,text/xml" hidden>
 <div id="toast" class="toast" role="status" hidden></div>
 
 
@@ -359,6 +358,7 @@
 </div>
 
 <dialog id="dlg-tuto" class="dlg-wide">
+  <button class="dlg-x" id="tuto-close" type="button" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
   <h2>Tutoriel vidéo</h2>
   <video id="tuto-video" controls preload="none" playsinline poster="assets/tuto-poster.png"></video>
   <div class="tuto-info">
@@ -368,7 +368,6 @@
       <div class="tuto-contact"><span>Une question, un problème, une idée d’amélioration ?</span><a href="mailto:service-informatique@fsggb.fr">service-informatique@fsggb.fr</a></div>
     </div>
   </div>
-  <div class="dlg-actions"><button class="btn-primary" id="tuto-close">Fermer</button></div>
 </dialog>
 
 <dialog id="dlg-pdf" class="dlg-wide">
