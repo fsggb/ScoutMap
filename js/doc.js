@@ -20,6 +20,13 @@
     if (S.mode === 'route') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: true, active: false, data: t, res: null }); });
     return out;
   }
+  // Libellés adaptés à l'application en cours (itinéraire, azimuts, grand jeu)
+  var WORDS = {
+    route: { name: 'Nom de l’itinéraire', ph: 'Ex. Raid des Pyrénées', sheet: 'Feuille de route', sheetCap: 'Une page A4 : distance, dénivelé, étapes, notes et numéros d’urgence. Modifiable avant impression.', maps: 'Cartes de l’itinéraire', cover: 'seules les feuilles traversées par le tracé' },
+    az: { name: 'Nom du parcours d’azimuts', ph: 'Ex. Course d’orientation', sheet: 'Feuille d’azimuts', sheetCap: 'Une page A4 : tableau des azimuts, contre-azimuts, distances et cumul, vue d’ensemble, profil et notes. Modifiable avant impression.', maps: 'Cartes du parcours', cover: 'seules les feuilles traversées par le tracé' },
+    game: { name: 'Nom du jeu', ph: 'Ex. Grand jeu du camp', sheet: '', sheetCap: '', maps: 'Cartes détaillées du jeu', cover: 'seules les feuilles où quelque chose est dessiné' }
+  };
+  function W() { return WORDS[S.mode] || WORDS.route; }
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
   // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
@@ -32,7 +39,7 @@
       tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
   // ----- Vignettes de la première fenêtre (dessinées à partir des vraies données)
-  function lonlat(items) { return geomLines(items).filter(function (l) { return l && l.length; }); }
+  function lonlat(items) { return geomLines(items, true).filter(function (l) { return l && l.length; }); }
   function projector(lines, extra, W, H, pad) {
     var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
     function add(p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); }
@@ -105,10 +112,11 @@
     var pl = tilesOk ? tilesPlan(items, c.tiles) : null, fit = tilesOk ? fitScaleFor(items, PRM.paper) : null;
     var n = pl ? pl.pages.length : 0;
     var cards = [
-      { k: 'roadmap', on: PRM.roadmap, ok: sheetOk, t: 'Feuille de route', th: sheetOk ? thumbRoadmap(items) : '', cap: 'Une page A4 : distance, dénivelé, étapes, notes et numéros d’urgence. Modifiable avant impression.' },
-      { k: 'maps', on: PRM.maps, ok: tilesOk, t: 'Cartes de l’itinéraire', th: thumbMaps(items, pl), cap: tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : seules les feuilles traversées par le tracé') : '' },
+      { k: 'roadmap', on: PRM.roadmap, ok: sheetOk, t: W().sheet, th: sheetOk ? thumbRoadmap(items) : '', cap: W().sheetCap, hide: S.mode === 'game' },
+      { k: 'maps', on: PRM.maps, ok: tilesOk, t: W().maps, th: thumbMaps(items, pl), cap: tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : ' + W().cover) : '' },
       { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : '' }
     ];
+    cards = cards.filter(function (x) { return !x.hide; }); $('#doc-types').style.gridTemplateColumns = 'repeat(' + cards.length + ',1fr)';
     $('#doc-types').innerHTML = cards.map(function (x) {
       return '<label class="dcard' + (x.ok ? '' : ' dis') + (x.on ? ' on' : '') + '"><input type="checkbox" data-k="' + x.k + '"' + (x.on ? ' checked' : '') + (x.ok ? '' : ' disabled') + '>' +
         '<span class="dc-tick">' + ic('check') + '</span><div class="dc-th">' + x.th + '</div><b>' + x.t + '</b><small>' + esc(x.cap) + '</small></label>';
@@ -130,8 +138,13 @@
   $('#pdf-name').addEventListener('input', function () { PRM.title = this.value; });
   function openPdf() {
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
-    if (!PRM._init) { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; PRM._init = true; }
-    if (!PRM.title) { var rn = items.filter(function (x) { return x.type === 'route'; })[0]; PRM.title = (rn && rn.name) || S.name || ''; }
+    if (PRM._init !== S.mode) {
+      PRM._init = S.mode; PRM.title = '';
+      if (S.mode === 'game') { PRM.roadmap = false; PRM.maps = false; PRM.onesheet = tilesOk; }      // un jeu : en général une seule carte d'ensemble
+      else { PRM.roadmap = sheetOk; PRM.maps = tilesOk; PRM.onesheet = false; }
+    }
+    if (!PRM.title) { var rn = items.filter(function (x) { return x.type === S.mode; })[0]; PRM.title = (rn && rn.name) || S.name || ''; }
+    $('#pdf-name-l').firstChild.nodeValue = W().name + ' '; $('#pdf-name').placeholder = W().ph;
     $('#pdf-name').value = PRM.title;
     renderChoices();
     var dl = $('#dlg-pdf'); if (!dl.open) dl.showModal();
@@ -139,13 +152,13 @@
   $('#pdf-cancel').addEventListener('click', function () { $('#dlg-pdf').close(); });
   $('#pdf-ok').addEventListener('click', function () {
     $('#dlg-pdf').close();
-    var t = PRM.title.trim(); if (t && SM.S.route.wps.length) { SM.S.route.name = t; var rn = $('#route-name'); if (rn) rn.value = t; SM.persist(); }
+    var t = PRM.title.trim(), md = S.mode; if (t && S[md] && 'name' in S[md]) { S[md].name = t; var rn = $('#' + md + '-name'); if (rn) rn.value = t; SM.persist(); }
     buildDoc(config());
   });
 
   // ---------- Carte du parcours sur plusieurs feuilles ----------
   // Lignes à couvrir : le tracé de chaque calque (et, pour un grand jeu, toute l'emprise du dessin).
-  function geomLines(items) {
+  function geomLines(items, outline) {
     var out = [];
     items.forEach(function (it) {
       var d = it.data;
@@ -156,6 +169,7 @@
         var pts = SM.game.points(d); if (!pts.length) return;
         var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
         pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+        if (outline) { out.push([[la0, lo0], [la0, lo1], [la1, lo1], [la1, lo0], [la0, lo0]]); return; }
         for (var la = la0; la <= la1 + 0.0009; la += 0.0018) out.push([[la, lo0], [la, lo1]]);   // balayage : tout le dessin est couvert
       }
     });
@@ -408,7 +422,7 @@
       '<div class="d-mapbox" id="didx" contenteditable="false"></div>' +
       '<section class="d-sec"><h2>Feuilles</h2><div class="idx-chips">' + pl.pages.map(function (pg) {
         return '<span class="idx-chip"><b>F' + pg.n + '</b>' + (pg.orient === 'portrait' ? 'portrait' : 'paysage') + ' · ' + esc(G.formatCoord('wgs', pg.center[0], pg.center[1])) + '</span>'; }).join('') + '</div></section>' +
-      '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> dans l’ordre du parcours (carrés dorés) ; les <b>étapes</b> du parcours sont les pastilles rondes 1, 2, 3… Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles traversées par le tracé sont imprimées.</p>' + foot();
+      (S.mode === 'route' ? '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> dans l’ordre du parcours (carrés dorés) ; les <b>étapes</b> du parcours sont les pastilles rondes 1, 2, 3… Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles traversées par le tracé sont imprimées.</p>' : '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> (carrés dorés). Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles couvrant le dessin sont imprimées.</p>') + foot();
     var el = sh.querySelector('#didx'), cwmm = pw - 2 * o.pm, hmm = Math.round((ph - 2 * o.pm) * (landIdx ? 0.55 : 0.58));
     var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base });
     drawItems(m, items, { noMarkers: true });
