@@ -223,7 +223,7 @@
     var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
     Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
   }
-  // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (Overpass) ----------
+  // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (via Waymarked Trails) ----------
   // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
   // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
   var HK = { cells: {}, pend: {}, group: L.layerGroup(), colour: '#e0368a', ends: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'] };
@@ -261,21 +261,39 @@
     });
     return out;
   }
+  // GR et GR de Pays : itinéraires OpenStreetMap listés puis téléchargés une seule fois (service Waymarked Trails, accessible depuis le navigateur).
+  var WMT = 'https://hiking.waymarkedtrails.org/api/v1';
+  function hkMercFrom(lat, lon) { return [lon * 20037508.34 / 180, Math.log(Math.tan((90 + lat) * Math.PI / 360)) * 20037508.34 / Math.PI]; }
+  function hkLatLon(x, y) { return [(2 * Math.atan(Math.exp(y / 20037508.34 * Math.PI)) - Math.PI / 2) * 180 / Math.PI, x / 20037508.34 * 180]; }
+  HK.routes = {};
+  function hkRoute(r) {
+    if (HK.routes[r.id]) return HK.routes[r.id];
+    var cls = r.group === 'NAT' ? 'GR' : 'GRP';
+    return (HK.routes[r.id] = fetch(WMT + '/details/relation/' + r.id).then(function (x) { if (!x.ok) throw new Error('HTTP ' + x.status); return x.json(); }).then(function (j) {
+      var ways = [];
+      (function walk(o) {
+        if (Array.isArray(o)) { o.forEach(walk); return; }
+        if (!o || typeof o !== 'object') return;
+        if (o.geometry && o.geometry.type === 'LineString' && o.geometry.coordinates.length > 1) ways.push(o.geometry.coordinates.map(function (c) { return hkLatLon(c[0], c[1]); }));
+        Object.keys(o).forEach(function (k) { if (k !== 'geometry') walk(o[k]); });
+      })(j);
+      return ways.length ? { id: r.id, cls: cls, ref: String(r.ref || '').replace(/\s+/g, ' ').trim(), ways: ways } : null;
+    }).catch(function () { delete HK.routes[r.id]; return null; }));
+  }
+  function hkWmt(s, w, n, e) {
+    var a = hkMercFrom(s, w), b = hkMercFrom(n, e);
+    return fetch(WMT + '/list/by_area?limit=200&bbox=' + [a[0], a[1], b[0], b[1]].map(Math.round).join(',')).then(function (x) { if (!x.ok) throw new Error('HTTP ' + x.status); return x.json(); }).then(function (j) {
+      var sel = (j.results || []).filter(function (r) { return (r.group === 'NAT' && /^GR/i.test(r.ref || '')) || (r.group === 'REG' && /GRP|de Pays/i.test((r.name || '') + ' ' + (r.ref || ''))); });
+      return Promise.all(sel.map(hkRoute)).then(function (arr) { return arr.filter(Boolean); });
+    });
+  }
   // Une cellule contient deux jeux de données chargés séparément : osm (GR et GR de Pays, dès le zoom 12) et ign (PR et circuits, à partir du zoom 14 pour ne pas surcharger la carte).
   var HK_IGNZ = 14;
   function hkFetchCell(ci, cj, needIgn) {
     var key = ci + ',' + cj, cell = HK.cells[key] || (HK.cells[key] = { osm: null, ign: null, osmT: 0, ignT: 0 }), now = Date.now(), jobs = [];
     var s = ci * HK_CELL, w = cj * HK_CELL, n = s + HK_CELL, e = w + HK_CELL;
     if (!cell.osm && now - cell.osmT > 60000 && !HK.pend[key + 'o']) {
-      var q = hkQuery(s.toFixed(4), w.toFixed(4), n.toFixed(4), e.toFixed(4));
-      var tryEnd = function (k) {
-        if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
-        var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 28000);
-        return fetch(HK.ends[k], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
-          .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-          .catch(function () { clearTimeout(to); return tryEnd(k + 1); });
-      };
-      HK.pend[key + 'o'] = tryEnd(0).then(function (j) { cell.osm = hkParse(j).filter(function (r) { return r.cls !== 'PR'; }); }, function () { cell.osmT = Date.now(); }).then(function () { delete HK.pend[key + 'o']; });
+      HK.pend[key + 'o'] = hkWmt(s, w, n, e).then(function (arr) { cell.osm = arr; }, function () { cell.osmT = Date.now(); }).then(function () { delete HK.pend[key + 'o']; });
       jobs.push(HK.pend[key + 'o']);
     } else if (HK.pend[key + 'o']) jobs.push(HK.pend[key + 'o']);
     if (needIgn && !cell.ign && now - cell.ignT > 60000 && !HK.pend[key + 'i']) {
