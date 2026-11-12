@@ -42,7 +42,7 @@
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="i-export" viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"/><path d="M4 5v14" opacity=".35"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
-  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
@@ -97,13 +97,13 @@
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Outils">
+    <button class="rail-btn rail-toggle" id="rail-toggle" title="Masquer ou afficher le panneau" aria-label="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg></button>
     <button class="rail-btn" data-rail="home" title="Accueil : changer de type de travail"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
     <span class="rail-line"></span>
     <button class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
     <span class="rail-sp"></span>
     <button class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
     <button class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
-    <button class="rail-btn" id="rail-toggle" title="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg><span>Panneau</span></button>
   </nav>
 
   <aside class="panel" id="panel">
