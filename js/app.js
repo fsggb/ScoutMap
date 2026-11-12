@@ -2452,7 +2452,7 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Tutoriel vidéo (nouvel onglet)', i: 'play', a: function () { window.open('assets/tuto-scoutmap.mp4', '_blank', 'noopener'); } },
+      { t: 'Tutoriel vidéo', i: 'play', a: openTuto },
       { t: 'Contacter le service informatique : service-informatique@fsggb.fr', i: 'file', a: function () { window.location.href = 'mailto:service-informatique@fsggb.fr?subject=' + encodeURIComponent('ScoutMap'); } },
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
       { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
