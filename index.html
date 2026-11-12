@@ -83,7 +83,7 @@
     <button class="btn-ghost sm light" id="btn-tuto" title="Voir le tutoriel vidéo"><svg class="ic"><use href="#i-play"/></svg><span>Tutoriel</span></button>
     <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
-    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Exporter en PDF</span></button>
+    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Imprimer / PDF</span></button>
   </div>
 </header>
 <div class="dropdown" id="dropdown" hidden role="menu"></div>
@@ -388,7 +388,7 @@
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
     <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
-    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small id="doc-status"></small></div>
+    <div class="doc-bar-txt"><b>Aperçu avant impression</b><small><i class="spin" id="doc-spin" hidden></i><span id="doc-status"></span></small></div>
     <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>
   <div class="doc-prog" id="doc-prog" hidden><i id="doc-prog-i"></i></div>
