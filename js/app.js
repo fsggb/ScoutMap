@@ -486,6 +486,27 @@
   }
   $$('[data-edit]').forEach(function (b) { b.addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); }); });
   function updateRailMode() {
+    var info = MODE_INFO[S.mode || 'route'];
+    $('#rail-mode-l').textContent = info.label; $('#rail-mode use').setAttribute('href', '#i-' + info.icon);
+  }
+  var SUB = null;   // sous-panneau affiché à la place des outils : 'notif' (alertes) ou 'settings' (paramètres)
+  function showSub(name) {
+    SUB = name || null; if (SUB) S.panelOpen = true;
+    $$('.pane').forEach(function (pn) { pn.hidden = pn.dataset.pane !== (SUB || S.rail); });
+    $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === 'mode' ? !SUB : b.dataset.rail === SUB); });
+    $$('[data-set]').forEach(function (d) { d.hidden = d.dataset.set !== S.mode; });
+    if (SUB === 'notif') renderNotes();
+    applyPanel(); updateHint();
+  }
+  // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
+  var NOTES = {};
+  function setNote(key, text, kind) { if (text) NOTES[key] = { text: text, kind: kind || 'warn' }; else delete NOTES[key]; renderNotes(); }
+  function renderNotes() {
+    var ks = Object.keys(NOTES), ul = $('#notes-list'), b = $('#notif-badge');
+    if (b) { b.hidden = !ks.length; b.textContent = String(ks.length); }
+    if (!ul) return;
+    ul.innerHTML = ks.map(function (k) { var n = NOTES[k]; return '<li class="note-' + n.kind + '">' + ic('alert') + '<span>' + esc(n.text) + '</span></li>'; }).join('');
+    $('#notes-empty').hidden = !!ks.length;
   }
   function setMode(m) {
     if (m === S.mode) { showHome(false); return; }
@@ -501,9 +522,11 @@
     if (r !== 'sim' && SIM.open) simClose(true);
     if (TYPES.indexOf(r) >= 0) setMode(r);
     else if (!S.mode) { showHome(true); return; }
-    S.rail = r; S.panelOpen = true;
+    S.rail = r; S.panelOpen = true; SUB = null;
     $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== r; });
-    $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === r); });
+    $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === 'mode'); });
+    $$('[data-set]').forEach(function (d) { d.hidden = d.dataset.set !== S.mode; });
+    updateRailMode();
     applyPanel();
     setTool(TYPES.indexOf(r) >= 0 ? r : 'pan');
     if (r === 'layers') renderLayerList();
@@ -518,9 +541,11 @@
     b.addEventListener('click', function () {
       var r = b.dataset.rail;
       if (r === 'home') { showHome(true); return; }
-      if (r === 'mode') r = S.mode || 'route';
-      if (S.rail === r && S.panelOpen && S.mode) { if (RT.tool === 'pan' && TYPES.indexOf(r) >= 0) setTool(r); else togglePanel(); }
-      else setRail(r);
+      if (r === 'notif' || r === 'settings') { showSub(SUB === r ? null : r); return; }
+      // bouton de l'application en cours : revient aux outils (ou rouvre le panneau)
+      if (SUB) { showSub(null); return; }
+      if (!S.panelOpen) { S.panelOpen = true; applyPanel(); persist(); return; }
+      if (RT.tool === 'pan' && TYPES.indexOf(S.rail) >= 0) setTool(S.rail); else togglePanel();
     });
   });
   $('#rail-toggle').addEventListener('click', togglePanel);
@@ -1141,7 +1166,7 @@
     $('#max-on').checked = !!S.route.maxOn; $('#max-km').value = S.route.maxKm; $('#max-km').disabled = !S.route.maxOn;
     syncNames();
   }
-  function setRouteStatus(msg, err) { var el = $('#route-status'); el.textContent = msg || ''; el.className = 'status' + (err ? ' error' : ''); }
+  function setRouteStatus(msg, err) { var el = $('#route-status'); el.textContent = msg || ''; el.className = 'status' + (err ? ' error' : ''); setNote('err', err ? msg : '', 'bad'); }
   function routeColor() { return overMax() ? '#c0262d' : S.route.color; }
   function restyleRoute() { if (routeLine) routeLine.setStyle({ color: routeColor() }); }
   function clearRouteLines() {
@@ -1357,12 +1382,11 @@
     return out;
   }
   function renderBackWarn() {
-    var r = RT.route, el = $('#back-warn');
+    var r = RT.route;
     if (backLine) { gRoute.removeLayer(backLine); backLine = null; }
-    if (!r || !S.route.noBack || !r.back || !r.back.runs.length) { el.hidden = true; return; }
+    if (!r || !S.route.noBack || !r.back || !r.back.runs.length) { setNote('back', ''); return; }
     backLine = L.layerGroup(r.back.runs.map(function (u) { return L.polyline(u.pts, { color: '#e07b00', weight: 7, opacity: 0.85, dashArray: '2 9', lineCap: 'round', interactive: false }); })).addTo(gRoute);
-    el.hidden = false;
-    el.innerHTML = ic('alert') + '<span>Le tracé repasse par le même chemin sur ≈ ' + G.fmtDist(r.back.total) + ' (pointillés orange)' + (r.backTried ? ', faute d’alternative proche.' : '.') + ' Déplacez un repère pour changer de chemin.</span>';
+    setNote('back', 'Le tracé repasse par le même chemin sur ≈ ' + G.fmtDist(r.back.total) + ' (pointillés orange)' + (r.backTried ? ', faute d’alternative proche.' : '.') + ' Déplacez un repère pour changer de chemin.', 'warn');
   }
   // Cherche, pour les tronçons qui reprennent un chemin déjà parcouru, un passage décalé qui évite l'aller-retour.
   function improveBack(legs0, w, tok, tag) {
@@ -1482,21 +1506,20 @@
   }
   function renderGauge() {
     var g = $('#gauge'), on = S.route.maxOn && S.route.maxKm > 0;
-    g.hidden = !on; if (!on) return;
+    g.hidden = !on; if (!on) { setNote('max', ''); return; }
     var mx = S.route.maxKm * 1000, r = RT.route, d = r ? r.dist : 0, over = d > mx;
     g.classList.toggle('over', over);
+    setNote('max', over ? 'Distance maximale dépassée de ' + G.fmtDist(d - mx) + ' (' + G.fmtDist(d) + ' pour ' + G.fmtDist(mx) + ') : le tracé reste modifiable.' : '', 'bad');
     $('#gauge-fill').style.width = Math.min(100, d / mx * 100) + '%';
     $('#gauge-txt').innerHTML = r
       ? 'Distance réelle <b>' + G.fmtDist(d) + '</b> sur ' + G.fmtDist(mx) + ' maximum · ' + (over ? '<b>dépassement de ' + G.fmtDist(d - mx) + '</b>' : 'il reste ' + G.fmtDist(mx - d))
       : 'Distance maximale : ' + G.fmtDist(mx) + '. Tracez l’itinéraire pour voir la distance réelle.';
   }
   function renderNatWarn() {
-    var el = $('#nat-warn'), r = RT.route, msg = '';
-    if (r && S.route.flagNat && r.nat && r.nat.length) msg += 'Le tracé semble emprunter ' + r.nat.map(function (n) { return (n.label === 'nationale' ? 'une route nationale' : 'la ' + n.label) + ' (≈ ' + G.fmtDist(n.dist) + ')'; }).join(', ') + '. Déplacez un repère pour l’éviter si besoin. ';
-    if (r && r.off) msg += 'Dont ' + G.fmtDist(r.off) + ' à vol d’oiseau (en pointillés) entre des points hors sentier et le chemin le plus proche. ';
-    if (r && r.tunnel) msg += 'Un passage en tunnel est inévitable sur ce tracé (aucun autre chemin trouvé) : à vérifier sur place.';
-    if (!msg) { el.hidden = true; return; }
-    el.hidden = false; el.innerHTML = ic('alert') + '<span>' + msg + '</span>';
+    var r = RT.route;
+    setNote('nat', r && S.route.flagNat && r.nat && r.nat.length ? 'Le tracé semble emprunter ' + r.nat.map(function (n) { return (n.label === 'nationale' ? 'une route nationale' : 'la ' + n.label) + ' (≈ ' + G.fmtDist(n.dist) + ')'; }).join(', ') + '. Déplacez un repère pour l’éviter si besoin.' : '', 'warn');
+    setNote('off', r && r.off ? 'Dont ' + G.fmtDist(r.off) + ' à vol d’oiseau (en pointillés) entre des points hors sentier et le chemin le plus proche.' : '', 'warn');
+    setNote('tunnel', r && r.tunnel ? 'Un passage en tunnel est inévitable sur ce tracé (aucun autre chemin trouvé) : à vérifier sur place.' : '', 'warn');
   }
 
   // ---------- Azimuts ----------
@@ -2404,11 +2427,17 @@
   function removeLast() {
     if (S.rail === 'route') $('#route-undo').click(); else if (S.rail === 'az') $('#az-undo').click(); else if (S.rail === 'meas') $('#meas-undo').click();
   }
-  function openTuto() {
-    var v = $('#tuto-video'); if (!v.getAttribute('src')) v.setAttribute('src', 'assets/tuto-scoutmap.mp4');
+  function openTuto(key) {
+    if (typeof key !== 'string') key = ($('#home') && !$('#home').hidden) ? 'global' : (S.mode || 'global');
+    var v = $('#tuto-video'); v.pause();
+    v.setAttribute('poster', 'assets/tuto-poster-' + key + '.png'); v.setAttribute('src', 'assets/tuto-' + key + '.mp4'); v.load();
+    $('#tuto-newtab').href = 'assets/tuto-' + key + '.mp4';
+    $$('#tuto-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.t === key); });
     openDlg('dlg-tuto');
   }
-  $('#btn-tuto').addEventListener('click', openTuto);
+  $$('#tuto-tabs button').forEach(function (b) { b.addEventListener('click', function () { openTuto(b.dataset.t); }); });
+  $$('[data-tuto]').forEach(function (b) { b.addEventListener('click', function () { openTuto(b.dataset.tuto); }); });
+  $('#btn-tuto').addEventListener('click', function () { openTuto(); });
   $('#tuto-close').addEventListener('click', function () { var v = $('#tuto-video'); v.pause(); $('#dlg-tuto').close(); });
   $('#dlg-tuto').addEventListener('close', function () { $('#tuto-video').pause(); });
   var MENUS = {
@@ -2433,10 +2462,6 @@
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
     ],
     create: [
-      { t: 'Itinéraire à pied', i: 'route', k: 'I', a: function () { startType('route'); } },
-      { t: 'Azimuts', i: 'compass', k: 'A', a: function () { startType('az'); } },
-      { t: 'Grand jeu (zones, flèches, textes)', i: 'flag', k: 'G', a: function () { startType('game'); } },
-      '-',
       { t: 'Simulation du parcours…', i: 'play', a: simOpen, dis: function () { return !currentProfile; } }
     ],
     view: [
@@ -2451,7 +2476,11 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Tutoriel vidéo', i: 'play', a: openTuto },
+      { t: 'Tutoriel global', i: 'play', a: function () { openTuto('global'); } },
+      { t: 'Tutoriel itinéraire', i: 'route', a: function () { openTuto('route'); } },
+      { t: 'Tutoriel azimuts', i: 'compass', a: function () { openTuto('az'); } },
+      { t: 'Tutoriel grand jeu', i: 'flag', a: function () { openTuto('game'); } },
+      '-',
       { t: 'Contacter le service informatique : service-informatique@fsggb.fr', i: 'file', a: function () { window.location.href = 'mailto:service-informatique@fsggb.fr?subject=' + encodeURIComponent('ScoutMap'); } },
       { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
       { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
@@ -2496,7 +2525,7 @@
     if ((e.key === 'Delete' || e.key === 'Backspace') && SEL) { e.preventDefault(); deleteSelected(); return; }
     var k = e.key.toLowerCase();
     if (k === 'escape') { hideMenu(); hideCtx(); closePops(); if (window.SM && SM.game && S.mode === 'game' && SM.game.escape()) return; if (SEL) select(null); else if (RT.tool !== 'pan') setTool('pan'); map.closePopup(); }
-    else if (k === 'i') startType('route'); else if (k === 'a') startType('az'); else if (k === 'g') startType('game');
+
   });
   window.addEventListener('beforeunload', function () { if (VIEWER) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } });
 
@@ -2504,7 +2533,7 @@
   applyWpsCollapse(); curOff = wantOff(); buildTiles(); applyVis(); syncRouteUi(); $('#proj-name').value = S.name || ''; applyDock();
   renderRouteMarkers(); renderAz(); renderMeas(); renderTracks(); renderStored(); showCoords(); updateScaleUI();
   $$('.pane').forEach(function (p) { p.hidden = p.dataset.pane !== S.rail; });
-  $$('.rail-btn[data-rail]').forEach(function (b) { b.classList.toggle('on', b.dataset.rail === S.rail || false); });
+  $$('[data-set]').forEach(function (d) { d.hidden = d.dataset.set !== S.mode; }); updateRailMode();
   $('#app').classList.toggle('nopanel', !S.panelOpen);
   updateRailMode(); applyDock();
   setTool(S.rail);
