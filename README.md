@@ -6,6 +6,7 @@ Dépôt indépendant de ScoutHub : site statique publié sur GitHub Pages, sans 
 **Site : https://fsggb.github.io/ScoutMap/**
 
 ## Simplification (novembre 2026)
+- **Points hors sentier (pic, col, versant)** : le point reste exactement où il est (un pic ou un col proche est repéré) et il est relié en pointillés, comme un azimut, au chemin le plus proche (recherche jusqu'à 2,5 km) qui sert au calcul. Cette distance à vol d'oiseau est ajoutée au total (aller simple pour le départ et l'arrivée, aller-retour pour les étapes) et signalée. Si aucun chemin n'est trouvé, un message l'indique. Un point dans un champ ou près d'un village est, lui, ramené sur le chemin ou le village le plus proche.
 - **Sentiers GR / GRP / PR** : tracés en rose, sans icônes. GR (trait plein) et GR de Pays (tirets longs) depuis OpenStreetMap (via le service Waymarked Trails), à partir du zoom 12, avec leur nom sur le tracé ; PR et circuits locaux (pointillés) depuis la BD TOPO de l'IGN, à partir du zoom 14. Ils s'impriment avec les cartes.
 - **Aide** : bouton « ? » en haut (tutoriel vidéo) ; menu Aide : vidéo dans un nouvel onglet et contact du service informatique (service-informatique@fsggb.fr).
 - **Accueil et travaux enregistrés** : au démarrage, quatre cartes (Ouvrir un fichier, Créer un itinéraire, des azimuts, un grand jeu) et la liste des travaux enregistrés automatiquement dans le navigateur (ouvrir, télécharger, supprimer ; avertissement : effacés si on vide les données du navigateur).
