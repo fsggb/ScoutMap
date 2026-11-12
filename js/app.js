@@ -2113,7 +2113,8 @@
       { t: 'Ouvrir une trace (GPX, KML, GeoJSON)…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
       { t: 'Enregistrer en GPX…', i: 'download', k: 'Ctrl+S', a: openExport },
       '-',
-      { t: 'Imprimer / exporter en PDF…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
+      { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
+      { t: 'Enregistrer en PDF…', i: 'download', a: function () { openPdf(); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
