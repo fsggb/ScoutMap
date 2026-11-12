@@ -1032,7 +1032,7 @@
             if (ps.length >= 2) ps.forEach(function (q) { m.distance += q.distance || 0; m.duration += q.duration || 0; m.steps = m.steps.concat(q.steps || []); });
             if (!m) m = { start: pf(a), end: pf(b), distance: j.distance, duration: j.duration, steps: [] };
             resolve({ line: j.geometry.coordinates.map(function (q) { return [q[1], q[0]]; }), dist: j.distance, dur: j.duration, portion: m });
-          }).catch(function (e) { if (++tries < 3 && !/Erreur 4|introuvable|impossible/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 400 * tries); }).then(go); throw e; });
+          }).catch(function (e) { if (++tries < 5 && !/Erreur 4|introuvable|impossible/i.test(e.message || '')) return new Promise(function (r) { setTimeout(r, 700 * tries); }).then(go); throw e; });
         }
         return go().catch(function (e) { delete legCache[key]; reject(e); });
       });
