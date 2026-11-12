@@ -71,6 +71,7 @@
   <symbol id="i-g-arrow" viewBox="0 0 24 24"><path d="M4 20L19 5M19 5h-8M19 5v8"/></symbol>
   <symbol id="i-g-cross" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
   <symbol id="i-g-text" viewBox="0 0 24 24"><path d="M5 7V4h14v3M12 4v16M9 20h6"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c3 .1 5 2.3 5 5.3"/></symbol>
   <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
@@ -186,6 +187,7 @@
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
       <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne. Double-clic sur une forme : la modifier.</p>
       </div>
+      <button class="btn-ghost block" id="game-live" title="Partager le jeu avec les autres chefs : QR code, positions en direct, messages"><svg class="ic"><use href="#i-people"/></svg>Partager en direct…</button>
       <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
@@ -489,6 +491,7 @@
 </div>
 <style id="page-style"></style>
 
+<script>if(/[?&]salle=/.test(location.search)){window.SM_VIEWER=true;window.SM_LIVE_ROOM=true;}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
 <script src="js/geo.js?v=__V__"></script>
@@ -496,6 +499,9 @@
 <script src="js/game.js?v=__V__"></script>
 <script src="js/paginate.js?v=__V__"></script>
 <script src="js/doc.js?v=__V__"></script>
+<script src="js/vendor/qrcode.min.js"></script>
+<script src="js/firebase-config.js?v=__V__"></script>
+<script src="js/live.js?v=__V__"></script>
 <script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
 </body>
 </html>
