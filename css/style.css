@@ -733,6 +733,19 @@ body.doc-open .home{display:none!important}
 .sub-row .ibtn{margin-left:auto}
 .wps.collapsed,#wps-empty.collapsed,#wps-help.collapsed{display:none!important}
 @media (max-width:860px){.pane>.pane-head{padding-right:40px}}
+/* bouton Imprimer / PDF de la barre du haut : discret, dans le ton de la barre */
+.menubar #btn-pdf{background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);box-shadow:none;font-weight:600}
+.menubar #btn-pdf:hover{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+/* fenêtre du tutoriel */
+#dlg-tuto{padding:22px 24px}
+#dlg-tuto h2{margin:0 0 14px;font-size:20px}
+.tuto-info{margin-top:16px;display:grid;gap:12px}
+.tuto-desc{margin:0;font-size:14.5px;color:#33364d;line-height:1.45}
+.tuto-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#f5f3ec;border-radius:12px}
+.tuto-contact{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#4d5069;text-align:right}
+.tuto-contact a{font-weight:650;color:var(--navy)}
+#dlg-tuto .dlg-actions{margin-top:14px}
+@media (max-width:640px){.tuto-contact{text-align:left}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
