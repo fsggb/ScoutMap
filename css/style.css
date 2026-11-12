@@ -775,6 +775,10 @@ body.doc-open .home{display:none!important}
 .tuto-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1.5px solid #d9d5c6;border-radius:999px;background:rgba(255,255,255,.7);color:var(--navy);font-weight:600;font-size:12.5px;cursor:pointer}
 .tuto-chip .ic{width:13px;height:13px}
 .tuto-chip:hover{border-color:var(--gold);background:#fff}
+/* bouton Panneau : icône seule, en haut du rail (comme le volet latéral de Claude) */
+.rail-toggle{align-self:flex-start;width:38px;height:38px;padding:0;justify-content:center;margin:0 0 2px 3px}
+.rail-toggle .ic{width:20px;height:20px}
+@media (max-width:860px){.rail-toggle{align-self:center;margin:0}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
