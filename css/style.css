@@ -645,6 +645,11 @@ path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
 .tfmt{display:flex;gap:6px}.tfmt button{width:40px;height:36px;border:1.5px solid var(--line-2);border-radius:9px;background:#fff;font-size:16px;cursor:pointer}
 .tfmt button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .gtext{white-space:pre}
+#dlg-tuto{width:min(900px,96vw)}
+#dlg-tuto video{width:100%;max-height:68vh;background:#000;border-radius:12px;display:block}
+.btn-ghost.light{color:#fff;border-color:rgba(255,255,255,.35);background:transparent}
+.btn-ghost.light:hover{background:rgba(255,255,255,.12)}
+@media (max-width:860px){#btn-tuto span{display:none}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
