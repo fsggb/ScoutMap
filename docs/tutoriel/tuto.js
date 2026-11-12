@@ -103,7 +103,7 @@ const STEPS = [
     await p.keyboard.press('End'); await p.keyboard.type(' – Raid des Pyrénées', { delay: 60 }); await wait(1200);
     const th = await p.$('.dthumb:nth-child(2)'); const tb = await th.boundingBox(); await move(tb.x + tb.width / 2, tb.y + tb.height / 2, 14); await p.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2); await wait(1800);
   }, 3],
-  [T, 'La page 2 contient le tableau des étapes, avec les cases de date et d’heure à remplir, puis les notes et un message de bon raid.', async () => { await p.evaluate(() => { const sc = document.querySelector('.doc-scroll'); sc.scrollBy({ top: 520, behavior: 'smooth' }); }); await wait(4500); }, 3],
+  [T, 'La page 2 contient le tableau des étapes, avec la distance et le dénivelé de chaque étape, les cases de date et d’heure à remplir, puis les notes et un message de bon raid.', async () => { await p.evaluate(() => { const sc = document.querySelector('.doc-scroll'); sc.scrollBy({ top: 520, behavior: 'smooth' }); }); await wait(4500); }, 3],
   [T, 'Enfin, cliquez sur Imprimer pour utiliser votre imprimante, ou sur Enregistrer en PDF pour obtenir un fichier.', async () => { await moveTo('#doc-pdf'); await wait(1800); await moveTo('#doc-print'); await wait(1800); }, 3],
   [T, 'Pour changer d’application, revenez à l’accueil avec le bouton maison, en haut à gauche, puis choisissez Créer des azimuts.', async () => { await clickSel('#doc-back'); await wait(700); await p.keyboard.press('Escape'); await wait(400); await clickSel('.rail-btn[data-rail=home]'); await wait(900); await clickSel('.home-card[data-start=az]'); await wait(800); }, 4],
   [T, 'L’application Azimuts sert à la course d’orientation : posez des points, et vous obtenez les azimuts, les contre-azimuts et les distances.', async () => {
@@ -113,19 +113,33 @@ const STEPS = [
   [T, 'L’unité, degrés, grades ou millièmes, et le nord, géographique ou magnétique, se règlent dans le bouton Réglages.', async () => {
     await clickSel('#rail-settings'); await wait(1500); await moveTo('#az-unit'); await wait(1500); await moveTo('#az-ref'); await wait(1500); await clickSel('#rail-mode'); await wait(400);
   }, 4],
+  [T, 'Pour imprimer, cliquez sur Imprimer : vous obtenez une feuille d’azimuts, avec le tableau des azimuts, des contre-azimuts et des distances, la vue d’ensemble et le profil, puis les cartes.', async () => {
+    await clickSel('#btn-pdf'); await wait(3800); await clickSel('#pdf-cancel'); await wait(500);
+  }, 4],
   [T, 'Revenons à l’accueil, et choisissons Créer un grand jeu.', async () => { await clickSel('.rail-btn[data-rail=home]'); await wait(900); await clickSel('.home-card[data-start=game]'); await wait(800); }, 5],
-  [T, 'Dans Grand jeu, choisissez un outil, puis dessinez. Pour une zone, cliquez les sommets l’un après l’autre, puis faites un double-clic pour terminer.', async () => {
+  [T, 'Dans Grand jeu, le panneau a trois onglets : Outils, Style et Éléments. Dans Outils, choisissez un outil, puis dessinez. Pour une zone, cliquez les sommets l’un après l’autre, puis faites un double-clic, ou un clic droit, pour terminer.', async () => {
     await clickSel('#gtools [data-gt=polygon]'); await wait(300);
     for (const [dx, dy] of [[-150, -90], [130, -100], [150, 60]]) { await clickOff(dx, dy); await wait(700); }
-    const [cx, cy] = await centerPx(); await move(cx - 140, cy + 70); await wait(400); await p.mouse.dblclick(cx - 140, cy + 70); await wait(900);
+    const [cx, cy] = await centerPx(); await move(cx - 140, cy + 70); await wait(400); await p.mouse.dblclick(cx - 140, cy + 70); await wait(1200);
   }, 5],
-  [T, 'Les couleurs se règlent avec les pastilles : cliquez sur Remplissage pour la couleur et la transparence, ou sur Contour pour le trait.', async () => {
-    await clickSel('#gbar [data-pop=fill]'); await wait(2200);
-    await clickSel('#gbar [data-pop=stroke]'); await wait(2200);
+  [T, 'La zone est sélectionnée et l’onglet Style s’ouvre. Cliquez sur Remplissage pour choisir la couleur et la transparence, ou sur Contour pour la couleur, l’épaisseur et le type de trait.', async () => {
+    await clickSel('#gb-fill'); await wait(1500); await clickSel('#gpal .gpal-g button:nth-child(' + 5 + ')'); await wait(900);
+    await clickSel('#gb-stroke'); await wait(1300); await clickSel('#gpal .gpal-g button:nth-child(' + 8 + ')'); await wait(700);
+    await clickSel('#gs-weight-p'); await wait(500); await clickSel('#gs-dash [data-d=dash]'); await wait(1200);
   }, 5],
-  [T, 'L’outil Texte permet d’écrire sur la carte, avec la taille, la couleur, le gras et le souligné.', async () => {
-    await clickSel('#gtools [data-gt=text]'); await wait(300); await clickOff(-60, 120); await wait(800);
-    await clickSel('#gbar [data-pop=text]'); await wait(800); await clickSel('#gs-bold'); await wait(1200);
+  [T, 'L’outil Texte écrit sur la carte : cliquez à l’endroit voulu, puis tapez directement votre texte. Vous choisissez ensuite la police, la taille, la couleur, le gras, l’italique et le souligné.', async () => {
+    await clickSel('#gtabs [data-gtab=tools]'); await wait(500); await clickSel('#gtools [data-gt=text]'); await wait(300); await clickOff(-60, 130); await wait(700);
+    await p.keyboard.type('Camp de base', { delay: 90 }); await p.keyboard.press('Enter'); await wait(900);
+    await moveTo('#gs-font'); await wait(400); await p.selectOption('#gs-font', 'comic'); await wait(900);
+    await clickSel('#gs-size-p'); await wait(400); await clickSel('#gs-bold'); await wait(500); await clickSel('#gs-italic'); await wait(500); await clickSel('#gs-underline'); await wait(1200);
+  }, 5],
+  [T, 'Pour modifier un élément, faites un double-clic dessus : un texte se corrige directement sur la carte. L’onglet Éléments liste tout ce que vous avez dessiné.', async () => {
+    const t = await p.$('.gtext'); const b = await t.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 18); await wait(300); await p.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2); await wait(600);
+    await p.keyboard.press('Control+a'); await p.keyboard.type('Base du camp', { delay: 90 }); await p.keyboard.press('Enter'); await wait(1000);
+    await clickSel('#gtabs [data-gtab=list]'); await wait(1800);
+  }, 5],
+  [T, 'La touche Échap, ou un clic droit, relâche l’outil et revient à la sélection. Pour imprimer le jeu, cliquez sur Imprimer : la carte générale est proposée, pour voir toute la zone sur une seule feuille.', async () => {
+    await clickSel('#game-pdf'); await wait(4000); await clickSel('#pdf-cancel'); await wait(500);
   }, 5],
   [T, 'Pour revoir un tutoriel à tout moment, cliquez sur le point d’interrogation en haut, ou ouvrez le menu Aide, où vous trouverez aussi l’adresse du service informatique.', async () => {
     await moveTo('#btn-tuto'); await wait(1500);
