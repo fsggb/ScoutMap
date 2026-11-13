@@ -496,7 +496,7 @@
   }
   function addShape(s, opt) {
     S.vis.game = true; SM.ensureVisible('game');
-    addShape(s); SELID = s.id;
+    insertShape(s); SELID = s.id;
     var keep = $('#gs-keep').checked;
     if (!keep) { GT = 'select'; setTab('style'); }
     SM.persist(); render(); SM.renderLayerList();
@@ -596,7 +596,7 @@
     if (s.kind === 'stamp') return (String(s.icon).indexOf('om:hero-') === 0 || String(s.icon).indexOf('img:') === 0) ? 2 : 3;
     if (s.kind === 'cross') return 3.5; return 4;
   }
-  function addShape(s) { var a = D().shapes, i = a.length, r = rank(s); while (i > 0 && rank(a[i - 1]) > r) i--; a.splice(i, 0, s); }
+  function insertShape(s) { var a = D().shapes, i = a.length, r = rank(s); while (i > 0 && rank(a[i - 1]) > r) i--; a.splice(i, 0, s); }
   function autoOrder() { var a = D().shapes.map(function (x, i) { return [x, i]; }); a.sort(function (u, v) { return rank(u[0]) - rank(v[0]) || u[1] - v[1]; }); D().shapes = a.map(function (x) { return x[0]; }); SM.persist(); render(); renderList(); }
   function reorder(s, toFront) {
     var a = D().shapes, i = a.indexOf(s); if (i < 0) return;
@@ -966,7 +966,7 @@
     loadThemes().then(function () {
       var el = STAMP, keep = $('#gs-keep').checked, s = newStamp(el, p);
       if (mm) s.mm = mm;
-      S.vis.game = true; SM.ensureVisible('game'); addShape(s);
+      S.vis.game = true; SM.ensureVisible('game'); insertShape(s);
       if (!keep) setGT('select');                       // l'outil se relâche après chaque pose (sauf « poser plusieurs fois de suite »)
       SM.persist(); render(); SM.renderLayerList();
     });
@@ -995,7 +995,7 @@
   function wizard() {
     loadThemes().then(function () {
       var host = $('#mapwrap'), old = $('#gwz'); if (old) old.remove();
-      var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov);
+      var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov); document.body.classList.add('gw-open');
       var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage', base: null }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
       var STEPS = ['Thème', 'Échelle et fond de carte'];
       function thNow() { return themeById(pick.th); }
@@ -1040,12 +1040,12 @@
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
         var gb = $('#gw-base', ov); if (gb) gb.addEventListener('change', function () { pick.base = gb.value; preview(); });
-        $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); setTab('tools'); renderThemes(); });
+        $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
         var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { step++; draw(); });
         var go = $('#gwz-go', ov);
         if (go) go.addEventListener('click', function () {
-          killMap(); ov.remove(); setScale(pick.sc); applyTheme(pick.th);
+          killMap(); ov.remove(); document.body.classList.remove('gw-open'); setScale(pick.sc); applyTheme(pick.th);
           var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
           setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
         });

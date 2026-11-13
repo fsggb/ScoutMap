@@ -1170,6 +1170,10 @@ body.lv-open .glegend{display:none!important}
 .gpalette .gtools button span,.gpalette #gkeep-btn span{display:none!important}
 .gpalette .gtools button .ic,.gpalette #gkeep-btn .ic{width:19px!important;height:19px!important}
 .gpalette.two .gtools{grid-template-columns:1fr 1fr!important}
+.gsbar [hidden]{display:none!important}
+body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!important}
+@media (max-width:440px){.menubar{gap:0;padding:0 4px}.brand{margin-right:2px}.menus .menu-btn{padding:6px 4.5px;font-size:12.5px}.menubar .ibtn,.menubar .top-btn,.menubar #btn-undo,.menubar #btn-redo,.menubar #btn-tuto{width:30px;min-width:30px;padding:0}.menubar #btn-pdf{padding:0 8px}}
+.gsbar .gfmt [data-for][hidden],.gsbar .gf-line[data-for][hidden],.gsbar .gfmt>[hidden]{display:none!important}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

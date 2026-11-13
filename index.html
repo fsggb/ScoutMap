@@ -86,36 +86,36 @@
 <header class="menubar">
   <a class="brand" href="./" title="ScoutMap"><img class="brand-logo" src="assets/fsggb.png" alt="FSGGB" width="30" height="30"><span class="brand-name">ScoutMap</span></a>
   <nav class="menus" id="menus" aria-label="Menu principal">
-    <button class="menu-btn" data-menu="file" aria-haspopup="true">Fichier</button>
-    <button class="menu-btn" data-menu="edit" aria-haspopup="true">Édition</button>
-    <button class="menu-btn" data-menu="create" aria-haspopup="true">Outils</button>
-    <button class="menu-btn" data-menu="view" aria-haspopup="true">Affichage</button>
-    <button class="menu-btn" data-menu="help" aria-haspopup="true">Aide</button>
+    <button type="button" class="menu-btn" data-menu="file" aria-haspopup="true">Fichier</button>
+    <button type="button" class="menu-btn" data-menu="edit" aria-haspopup="true">Édition</button>
+    <button type="button" class="menu-btn" data-menu="create" aria-haspopup="true">Outils</button>
+    <button type="button" class="menu-btn" data-menu="view" aria-haspopup="true">Affichage</button>
+    <button type="button" class="menu-btn" data-menu="help" aria-haspopup="true">Aide</button>
   </nav>
   <input id="proj-name" class="proj-name" type="text" placeholder="Projet sans titre" maxlength="80" aria-label="Nom du projet" autocomplete="off">
   <div class="mb-right">
-    <button class="btn-ghost sm light" id="btn-edit" hidden title="Ouvrir ce raid dans ScoutMap pour le modifier"><svg class="ic"><use href="#i-edit"/></svg><span>Modifier</span></button>
-    <button class="mb-ic" id="btn-tuto" title="Aide : tutoriel vidéo" aria-label="Aide : tutoriel vidéo"><svg class="ic"><use href="#i-help"/></svg></button>
-    <button class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
-    <button class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
-    <button class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Imprimer / PDF</span></button>
+    <button type="button" class="btn-ghost sm light" id="btn-edit" hidden title="Ouvrir ce raid dans ScoutMap pour le modifier"><svg class="ic"><use href="#i-edit"/></svg><span>Modifier</span></button>
+    <button type="button" class="mb-ic" id="btn-tuto" title="Aide : tutoriel vidéo" aria-label="Aide : tutoriel vidéo"><svg class="ic"><use href="#i-help"/></svg></button>
+    <button type="button" class="mb-ic" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button type="button" class="mb-ic" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
+    <button type="button" class="btn-primary sm" id="btn-pdf" title="Feuille de route ou carte à imprimer (Ctrl+P)"><svg class="ic"><use href="#i-printer"/></svg><span>Imprimer / PDF</span></button>
   </div>
 </header>
 <div class="dropdown" id="dropdown" hidden role="menu"></div>
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Outils">
-    <button class="rail-btn rail-toggle" id="rail-toggle" title="Masquer ou afficher le panneau" aria-label="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg></button>
-    <button class="rail-btn" data-rail="home" title="Accueil : changer de type de travail"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
+    <button type="button" class="rail-btn rail-toggle" id="rail-toggle" title="Masquer ou afficher le panneau" aria-label="Masquer ou afficher le panneau"><svg class="ic"><use href="#i-panel"/></svg></button>
+    <button type="button" class="rail-btn" data-rail="home" title="Accueil : changer de type de travail"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
     <span class="rail-line"></span>
-    <button class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
+    <button type="button" class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
     <span class="rail-sp"></span>
-    <button class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
-    <button class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
+    <button type="button" class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
+    <button type="button" class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
   </nav>
 
   <aside class="panel" id="panel">
-    <button class="panel-close" id="panel-close" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-x"/></svg></button>
+    <button type="button" class="panel-close" id="panel-close" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-x"/></svg></button>
     <section class="pane" data-pane="game" hidden>
       <h2 class="pane-title">Grand jeu</h2>
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
@@ -150,14 +150,14 @@
         <div id="gcommon" hidden></div>
         <div class="gtools" id="gtools-src" hidden>
           
-            <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
-            <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
-            <button data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
-            <button data-gt="circle" title="Cercle : centre puis rayon"><svg class="ic"><use href="#i-g-circle"/></svg><span>Cercle</span></button>
-            <button data-gt="line" title="Ligne : cliquez les points, double-clic pour finir"><svg class="ic"><use href="#i-g-line"/></svg><span>Ligne</span></button>
-            <button data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
-            <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
-            <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
+            <button type="button" data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
+            <button type="button" data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
+            <button type="button" data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
+            <button type="button" data-gt="circle" title="Cercle : centre puis rayon"><svg class="ic"><use href="#i-g-circle"/></svg><span>Cercle</span></button>
+            <button type="button" data-gt="line" title="Ligne : cliquez les points, double-clic pour finir"><svg class="ic"><use href="#i-g-line"/></svg><span>Ligne</span></button>
+            <button type="button" data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
+            <button type="button" data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
+            <button type="button" data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
                   </div>
         <p class="gtab-help">Un clic pose l’élément ; <b>cliquez-glissez</b> pour choisir sa taille. Échap, clic droit ou double-clic : on revient à la sélection.</p>
       </div>
@@ -228,12 +228,12 @@
       <div class="gpal" id="gpal" hidden></div>
       <input type="color" id="gpal-custom" tabindex="-1" aria-hidden="true" style="position:fixed;left:-99px;opacity:0">
       <div class="btnrow" id="gs-actions">
-        <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
-        <button class="btn-ghost" id="gs-fwd" title="Monter d’un cran" aria-label="Monter d’un cran"><svg class="ic"><use href="#i-fwd"/></svg></button>
-        <button class="btn-ghost" id="gs-bwd" title="Descendre d’un cran" aria-label="Descendre d’un cran"><svg class="ic"><use href="#i-bwd"/></svg></button>
-        <button class="btn-ghost" id="gs-front" title="Mettre au premier plan" aria-label="Premier plan"><svg class="ic"><use href="#i-front"/></svg></button>
-        <button class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan" aria-label="Arrière-plan"><svg class="ic"><use href="#i-back"/></svg></button>
-        <button class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
+        <button type="button" class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
+        <button type="button" class="btn-ghost" id="gs-fwd" title="Monter d’un cran" aria-label="Monter d’un cran"><svg class="ic"><use href="#i-fwd"/></svg></button>
+        <button type="button" class="btn-ghost" id="gs-bwd" title="Descendre d’un cran" aria-label="Descendre d’un cran"><svg class="ic"><use href="#i-bwd"/></svg></button>
+        <button type="button" class="btn-ghost" id="gs-front" title="Mettre au premier plan" aria-label="Premier plan"><svg class="ic"><use href="#i-front"/></svg></button>
+        <button type="button" class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan" aria-label="Arrière-plan"><svg class="ic"><use href="#i-back"/></svg></button>
+        <button type="button" class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
       </div>
 
       </div>
@@ -243,13 +243,13 @@
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
       <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne. Double-clic sur une forme : la modifier.</p>
       </div>
-      <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
+      <button type="button" class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="route" hidden>
       <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
-      <div class="seg full" id="route-mode"><button data-v="oneway">Aller simple</button><button data-v="loop">Boucle</button></div>
+      <div class="seg full" id="route-mode"><button type="button" data-v="oneway">Aller simple</button><button type="button" data-v="loop">Boucle</button></div>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
       <div class="group">
         <div class="group-h">
@@ -264,16 +264,16 @@
       <p class="note" id="wps-help">Cliquez un point pour le sélectionner (surbrillance sur la carte), <kbd>Suppr</kbd> pour le retirer, glissez la poignée pour changer l’ordre de passage.</p>
       <hr class="pane-sep">
       <div class="btnrow">
-        <button class="btn-ghost" id="route-reverse"><svg class="ic"><use href="#i-swap"/></svg>Inverser le sens</button>
-        <button class="btn-ghost" id="route-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
-        <button class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer l’itinéraire</button>
+        <button type="button" class="btn-ghost" id="route-reverse"><svg class="ic"><use href="#i-swap"/></svg>Inverser le sens</button>
+        <button type="button" class="btn-ghost" id="route-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
+        <button type="button" class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer l’itinéraire</button>
       </div>
       <div class="stats" id="route-stats" hidden></div>
       <div id="nat-warn" hidden></div><div id="back-warn" hidden></div>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
       <div id="tracks-box" hidden><h3 class="sub">Traces importées</h3><ul class="layers" id="layer-list"></ul></div>
       <p class="status" id="route-status" role="status"></p>
-      <button class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
+      <button type="button" class="btn-primary block" id="route-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="az" hidden>
@@ -284,17 +284,17 @@
       <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
       <fieldset class="aim"><legend>Placer une étape par azimut et distance</legend>
         <div class="two"><label class="field"><span>Azimut</span><input id="aim-az" type="number" step="any" placeholder="0"></label><label class="field"><span>Distance (m)</span><input id="aim-d" type="number" min="0" step="any" placeholder="500"></label></div>
-        <button class="btn-ghost block" id="aim-add"><svg class="ic"><use href="#i-target"/></svg>Placer depuis le dernier point</button>
+        <button type="button" class="btn-ghost block" id="aim-add"><svg class="ic"><use href="#i-target"/></svg>Placer depuis le dernier point</button>
       </fieldset>
       <hr class="pane-sep">
       <div class="btnrow">
-        <button class="btn-ghost" id="az-close"><svg class="ic"><use href="#i-loop"/></svg>Fermer le circuit</button>
-        <button class="btn-ghost" id="az-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
-        <button class="btn-ghost danger" id="az-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
+        <button type="button" class="btn-ghost" id="az-close"><svg class="ic"><use href="#i-loop"/></svg>Fermer le circuit</button>
+        <button type="button" class="btn-ghost" id="az-undo"><svg class="ic"><use href="#i-undo"/></svg>Retirer le dernier</button>
+        <button type="button" class="btn-ghost danger" id="az-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer</button>
       </div>
       <div class="stats" id="az-stats" hidden></div>
-          <button class="btn-ghost block" id="az-live" title="Partager le parcours : QR code, positions en direct, messages"><svg class="ic"><use href="#i-people"/></svg>Partager en direct…</button>
-          <button class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
+          <button type="button" class="btn-ghost block" id="az-live" title="Partager le parcours : QR code, positions en direct, messages"><svg class="ic"><use href="#i-people"/></svg>Partager en direct…</button>
+          <button type="button" class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
     <section class="pane" data-pane="notif" hidden>
@@ -347,8 +347,8 @@
       <h2 class="pane-title">Simulation du parcours</h2>
       <p class="sim-src"><b id="sim-src">Parcours</b></p>
       <div class="sim-ctl">
-        <button class="sim-btn" id="sim-restart" title="Revenir au départ" aria-label="Revenir au départ"><svg class="ic"><use href="#i-restart"/></svg></button>
-        <button class="sim-btn main" id="sim-play" title="Lecture" aria-label="Lecture"><svg class="ic"><use href="#i-play"/></svg></button>
+        <button type="button" class="sim-btn" id="sim-restart" title="Revenir au départ" aria-label="Revenir au départ"><svg class="ic"><use href="#i-restart"/></svg></button>
+        <button type="button" class="sim-btn main" id="sim-play" title="Lecture" aria-label="Lecture"><svg class="ic"><use href="#i-play"/></svg></button>
       </div>
       <input type="range" id="sim-slider" min="0" max="1000" value="0" aria-label="Position sur le parcours">
       <div class="stats" id="sim-stats">
@@ -357,9 +357,9 @@
       </div>
       <label class="field"><span>Durée de la simulation : <b id="sim-dur-v">6 s</b></span><input type="range" id="sim-dur" min="3" max="10" step="1" value="6" aria-label="Durée de la simulation en secondes"></label>
       <label class="check"><input type="checkbox" id="sim-follow" checked> La carte suit le curseur</label>
-      <button class="btn-primary block" id="sim-video"><svg class="ic"><use href="#i-download"/></svg>Exporter en vidéo…</button>
+      <button type="button" class="btn-primary block" id="sim-video"><svg class="ic"><use href="#i-download"/></svg>Exporter en vidéo…</button>
       <p class="note">La vidéo recadre d’abord la carte sur tout le parcours, puis enregistre la simulation. Vous choisissez ensuite de l’enregistrer ou non.</p>
-      <button class="btn-ghost block" id="sim-close">Fermer la simulation</button>
+      <button type="button" class="btn-ghost block" id="sim-close">Fermer la simulation</button>
     </section>
 
   </aside>
@@ -373,7 +373,7 @@
         <div class="search-row">
           <svg class="ic s-ic"><use href="#i-search"/></svg>
           <input id="q" type="text" placeholder="Rechercher un lieu, une adresse, un sommet…" autocomplete="off" spellcheck="false" aria-label="Rechercher un lieu" aria-autocomplete="list" aria-controls="suggest">
-          <button class="s-clear" id="q-clear" title="Effacer la recherche" aria-label="Effacer la recherche" hidden><svg class="ic"><use href="#i-x"/></svg></button>
+          <button type="button" class="s-clear" id="q-clear" title="Effacer la recherche" aria-label="Effacer la recherche" hidden><svg class="ic"><use href="#i-x"/></svg></button>
         </div>
         <ul id="suggest" class="suggest" role="listbox" hidden></ul>
       </div>
@@ -381,30 +381,30 @@
       <div class="toolhint" id="toolhint" hidden>
         <svg class="ic" id="hint-ic"><use href="#i-route"/></svg>
         <span id="hint-txt"></span>
-        <button class="hint-btn" id="hint-btn"></button>
+        <button type="button" class="hint-btn" id="hint-btn"></button>
       </div>
 
       <div class="zoomctl" aria-label="Zoom">
-        <button id="zoom-in" title="Zoom avant (échelle supérieure)" aria-label="Zoom avant"><svg class="ic"><use href="#i-plus"/></svg></button>
-        <button id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
-        <button id="fit-all" title="Recadrer la carte sur le tracé" aria-label="Recadrer sur le tracé"><svg class="ic"><use href="#i-fit"/></svg></button>
-        <button id="locate" title="Ma position" aria-label="Ma position"><svg class="ic"><use href="#i-locate"/></svg></button>
-        <button id="share-btn" class="share-btn" title="Partager le jeu en direct avec les autres chefs (code QR, positions, discussion)" aria-label="Partager en direct" hidden><svg class="ic"><use href="#i-people"/></svg><span>Partager</span></button>
+        <button type="button" id="zoom-in" title="Zoom avant (échelle supérieure)" aria-label="Zoom avant"><svg class="ic"><use href="#i-plus"/></svg></button>
+        <button type="button" id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
+        <button type="button" id="fit-all" title="Recadrer la carte sur le tracé" aria-label="Recadrer sur le tracé"><svg class="ic"><use href="#i-fit"/></svg></button>
+        <button type="button" id="locate" title="Ma position" aria-label="Ma position"><svg class="ic"><use href="#i-locate"/></svg></button>
+        <button type="button" id="share-btn" class="share-btn" title="Partager le jeu en direct avec les autres chefs (code QR, positions, discussion)" aria-label="Partager en direct" hidden><svg class="ic"><use href="#i-people"/></svg><span>Partager</span></button>
       </div>
 
       <div class="bl">
-        <button class="layerbtn" id="layer-btn" title="Fonds de carte et couches" aria-haspopup="true">
+        <button type="button" class="layerbtn" id="layer-btn" title="Fonds de carte et couches" aria-haspopup="true">
           <img id="layer-thumb" alt=""><span><svg class="ic"><use href="#i-layers"/></svg>Fonds et infos</span><i class="lb-badge" id="lb-badge" hidden></i>
         </button>
-        <button class="scalebtn" id="scale-btn" title="Échelle de la carte (cliquer pour la régler)"><small>Échelle</small><b id="scale-val">1 : 25 000</b></button>
+        <button type="button" class="scalebtn" id="scale-btn" title="Échelle de la carte (cliquer pour la régler)"><small>Échelle</small><b id="scale-val">1 : 25 000</b></button>
       </div>
 
       <div class="pop layer-pop" id="layer-pop" hidden>
-        <div class="pop-h"><b>Fonds et informations</b><button class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="pop-h"><b>Fonds et informations</b><button type="button" class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
         <div class="seg full pop-tabs" id="pop-tabs" role="tablist">
-          <button data-tab="base" class="on" role="tab">Fond de carte</button>
-          <button data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
-          <button data-tab="sharp" role="tab">Netteté</button>
+          <button type="button" data-tab="base" class="on" role="tab">Fond de carte</button>
+          <button type="button" data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
+          <button type="button" data-tab="sharp" role="tab">Netteté</button>
         </div>
         <section class="pop-sec" data-tab="base">
           <p class="note first">Le dessin de la carte (un seul à la fois).</p>
@@ -414,26 +414,26 @@
         <section class="pop-sec" data-tab="info" hidden>
           <p class="note first">Informations ajoutées par-dessus le fond, à combiner comme vous voulez.</p>
           <div class="ov-grid" id="ov-grid"></div>
-          <button class="btn-ghost" id="ov-none"><svg class="ic"><use href="#i-x"/></svg>Tout retirer</button>
+          <button type="button" class="btn-ghost" id="ov-none"><svg class="ic"><use href="#i-x"/></svg>Tout retirer</button>
         </section>
         <section class="pop-sec" data-tab="sharp" hidden>
           <p class="note first">Précision du fond de carte à l’écran et à l’impression.</p>
-          <div class="seg full" id="detail-seg"><button data-v="auto">Auto</button><button data-v="0">Standard</button><button data-v="1">Détaillée</button><button data-v="2">Très détaillée</button></div>
+          <div class="seg full" id="detail-seg"><button type="button" data-v="auto">Auto</button><button type="button" data-v="0">Standard</button><button type="button" data-v="1">Détaillée</button><button type="button" data-v="2">Très détaillée</button></div>
           <p class="note"><b>Auto</b> (recommandé) : fond standard quand vous voyez une grande étendue (toute la France), fond détaillé dès que vous vous approchez. « Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée.</p>
         </section>
         <div class="data-dates" id="data-dates"></div>
       </div>
 
       <div class="pop scale-pop" id="scale-pop" hidden>
-        <div class="pop-h"><b>Échelle</b><button class="ibtn" data-close="scale-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="pop-h"><b>Échelle</b><button type="button" class="ibtn" data-close="scale-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
         <div class="scale-list" id="scale-list"></div>
         <label class="field row-inline"><span>Échelle libre 1 :</span><span class="num"><input id="scale-custom" type="number" min="200" max="20000000" step="100" placeholder="25000"></span></label>
         <p class="note">Le zoom reste libre. Échelle calculée pour un affichage à 96 ppp, identique à l’impression « carte à l’échelle » à 100 %.</p>
       </div>
 
-      <div class="recbar" id="recbar" hidden><i class="rec-dot"></i><span id="rec-txt">Enregistrement…</span><button class="hint-btn" id="rec-cancel">Annuler</button></div>
+      <div class="recbar" id="recbar" hidden><i class="rec-dot"></i><span id="rec-txt">Enregistrement…</span><button type="button" class="hint-btn" id="rec-cancel">Annuler</button></div>
 
-      <button class="coordbox" id="coords" title="Coordonnées WGS 84 au curseur (cliquer pour copier)">—</button>
+      <button type="button" class="coordbox" id="coords" title="Coordonnées WGS 84 au curseur (cliquer pour copier)">—</button>
     </div>
 
     <section class="gsbar" id="gbar" aria-label="Style et apparence" hidden></section>
@@ -441,7 +441,7 @@
     <section class="dock" id="dock">
       <div class="dock-grip" id="dock-grip" title="Glisser pour redimensionner"></div>
       <div class="dock-head" id="dock-head">
-        <button class="dock-toggle" id="dock-toggle" aria-expanded="true" title="Réduire ou afficher le profil"><svg class="ic"><use href="#i-chev-down"/></svg></button>
+        <button type="button" class="dock-toggle" id="dock-toggle" aria-expanded="true" title="Réduire ou afficher le profil"><svg class="ic"><use href="#i-chev-down"/></svg></button>
         <svg class="ic dock-ic"><use href="#i-mountain"/></svg><strong>Profil d’altitude</strong>
         <select id="profile-src" class="pill-select" aria-label="Source du profil"></select>
         <div class="chips" id="pstats"></div>
@@ -463,7 +463,7 @@
   <h2>Exporter en GPX</h2>
   <p class="dlg-sub">Choisissez les éléments à inclure dans le fichier.</p>
   <div class="checks" id="export-opts"></div>
-  <div class="dlg-actions"><button class="btn-ghost" id="export-cancel">Annuler</button><button class="btn-primary" id="export-ok">Enregistrer</button></div>
+  <div class="dlg-actions"><button type="button" class="btn-ghost" id="export-cancel">Annuler</button><button type="button" class="btn-primary" id="export-ok">Enregistrer</button></div>
 </dialog>
 
 <div class="home" id="home" hidden>
@@ -472,10 +472,10 @@
     <h1>Que voulez-vous faire ?</h1>
     <p class="home-sub">Un outil de la Fédération des Scouts et Guides Godefroy de Bouillon pour préparer les raids : itinéraires, azimuts et grand jeu, sur de vraies cartes imprimables.</p>
     <div class="home-grid">
-      <button class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Une page web enregistrée (.html) ou une trace GPX, KML, GeoJSON.</small></button>
-      <button class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Créer un itinéraire</b><small>Parcours ou boucle à pied, profil d’altitude, feuille de route.</small></button>
-      <button class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Créer des azimuts</b><small>Course d’orientation : azimuts, contre-azimuts, distances.</small></button>
-      <button class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Créer un grand jeu</b><small>Zones, flèches, croix et textes de couleur sur la carte.</small></button>
+      <button type="button" class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Une page web enregistrée (.html) ou une trace GPX, KML, GeoJSON.</small></button>
+      <button type="button" class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Créer un itinéraire</b><small>Parcours ou boucle à pied, profil d’altitude, feuille de route.</small></button>
+      <button type="button" class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Créer des azimuts</b><small>Course d’orientation : azimuts, contre-azimuts, distances.</small></button>
+      <button type="button" class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Créer un grand jeu</b><small>Zones, flèches, croix et textes de couleur sur la carte.</small></button>
     </div>
     <div class="home-tutos"><span>Tutoriels vidéo</span>
       <button class="tuto-chip" data-tuto="global" type="button"><svg class="ic"><use href="#i-play"/></svg>Global</button>
@@ -493,7 +493,7 @@
   <button class="dlg-x" id="tuto-close" type="button" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
   <h2>Tutoriels vidéo</h2>
   <div class="tuto-tabs" id="tuto-tabs">
-    <button data-t="global" class="on">Tutoriel global</button><button data-t="route">Itinéraire</button><button data-t="az">Azimuts</button><button data-t="game">Grand jeu</button>
+    <button type="button" data-t="global" class="on">Tutoriel global</button><button type="button" data-t="route">Itinéraire</button><button type="button" data-t="az">Azimuts</button><button type="button" data-t="game">Grand jeu</button>
   </div>
   <video id="tuto-video" controls preload="none" playsinline poster="assets/tuto-poster-global.png"></video>
   <div class="tuto-info">
@@ -512,21 +512,21 @@
   <div class="dcards" id="doc-types"></div>
   <div class="pdf-set" id="pdf-set"></div>
   <p class="pdf-empty" id="pdf-empty" hidden>Tracez d’abord quelque chose sur la carte pour pouvoir l’imprimer.</p>
-  <div class="dlg-actions"><button class="btn-ghost" id="pdf-cancel">Annuler</button><button class="btn-primary" id="pdf-ok"><svg class="ic"><use href="#i-eye"/></svg>Voir l’aperçu</button></div>
+  <div class="dlg-actions"><button type="button" class="btn-ghost" id="pdf-cancel">Annuler</button><button type="button" class="btn-primary" id="pdf-ok"><svg class="ic"><use href="#i-eye"/></svg>Voir l’aperçu</button></div>
 </dialog>
 
 <dialog id="dlg-video">
   <h2>Exporter la simulation en vidéo</h2>
   <p class="dlg-sub">La carte est d’abord recadrée sur l’ensemble du parcours, puis la simulation est enregistrée (<b id="vid-dur">6 s</b>). Rien n’est enregistré sur votre ordinateur sans votre accord.</p>
   <div class="checks"><label><input type="checkbox" id="vid-profile" checked> Afficher le profil d’altitude dans la vidéo</label></div>
-  <div class="dlg-actions"><button class="btn-ghost" id="vid-cancel">Annuler</button><button class="btn-primary" id="vid-go">Lancer l’enregistrement</button></div>
+  <div class="dlg-actions"><button type="button" class="btn-ghost" id="vid-cancel">Annuler</button><button type="button" class="btn-primary" id="vid-go">Lancer l’enregistrement</button></div>
 </dialog>
 
 <dialog id="dlg-video-done">
   <h2>Vidéo prête</h2>
   <video id="vid-preview" controls loop muted playsinline></video>
   <p class="dlg-sub" id="vid-info"></p>
-  <div class="dlg-actions"><button class="btn-ghost" id="vid-discard">Ne pas enregistrer</button><button class="btn-primary" id="vid-save"><svg class="ic"><use href="#i-download"/></svg>Enregistrer la vidéo</button></div>
+  <div class="dlg-actions"><button type="button" class="btn-ghost" id="vid-discard">Ne pas enregistrer</button><button type="button" class="btn-primary" id="vid-save"><svg class="ic"><use href="#i-download"/></svg>Enregistrer la vidéo</button></div>
 </dialog>
 
 <dialog id="dlg-help">
@@ -545,15 +545,15 @@
     <dt>Double-clic sur une forme</dt><dd>Grand jeu : la modifier (onglet Style) ; sur un texte, le modifier directement sur la carte (Entrée valide, Échap annule)</dd>
     <dt>Clic sur A</dt><dd>Ferme la boucle (itinéraire ou azimuts)</dd>
   </dl>
-  <div class="dlg-actions"><button class="btn-primary" data-close-dlg>Fermer</button></div>
+  <div class="dlg-actions"><button type="button" class="btn-primary" data-close-dlg>Fermer</button></div>
 </dialog>
 
 <div id="doc" class="doc" hidden>
   <div class="doc-bar">
-    <button class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
+    <button type="button" class="btn-ghost" id="doc-back"><svg class="ic"><use href="#i-chev-left"/></svg>Retour</button>
     <input class="doc-title" id="doc-title" type="text" maxlength="100" placeholder="Nom de l’itinéraire" aria-label="Nom de l’itinéraire (modifiable)" title="Nom de l’itinéraire : modifié sur toutes les pages">
     <div class="doc-bar-txt"><b>Aperçu avant impression</b><small><i class="spin" id="doc-spin" hidden></i><span id="doc-status"></span></small></div>
-    <div class="doc-go"><button class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
+    <div class="doc-go"><button type="button" class="btn-ghost" id="doc-pdf"><svg class="ic"><use href="#i-download"/></svg>Enregistrer en PDF</button><button type="button" class="btn-primary" id="doc-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer</button></div>
   </div>
   <div class="doc-prog" id="doc-prog" hidden><i id="doc-prog-i"></i></div>
   <div class="doc-body">
