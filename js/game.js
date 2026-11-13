@@ -89,7 +89,7 @@
       var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
       if (!im || !im._ok || !def) return;
       var ox = sz.x * pad, oy = sz.y * pad, lat0 = m.getCenter().lat, mpp = 156543.03392 * Math.cos(lat0 * Math.PI / 180) / Math.pow(2, m.getZoom());
-      var pxmm = ((s._sc || D().scale || 10000) / 1000) / mpp, hpx = Math.max(7, Math.min(120, 2.6 * (s.weight || 4) / 4 * pxmm)), wpx = hpx * def.w / def.h * 0.94;
+      var pxmm = ((s._sc || D().scale || 10000) / 1000) / mpp, hpx = Math.max(9, Math.min(160, 5.8 * (s.weight || 4) / 4 * pxmm)), wpx = hpx * def.w / def.h * 0.94;
       var pts = s.pts.map(function (ll) { var q = m.latLngToContainerPoint(L.latLng(ll[0], ll[1])); return [q.x + ox, q.y + oy]; });
       var next = wpx / 2, run = 0;
       for (var i = 0; i < pts.length - 1; i++) {
@@ -97,7 +97,7 @@
         var ang = Math.atan2(dy, dx); if (Math.abs(ang) > Math.PI / 2) ang += ang > 0 ? -Math.PI : Math.PI;
         while (next <= run + len) {
           var t = (next - run) / len, x = a[0] + dx * t, y = a[1] + dy * t;
-          if (x > -wpx && y > -wpx && x < w + wpx && y < h + wpx) { ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.drawImage(im, -wpx / 2, -hpx * 0.86, wpx, hpx); ctx.restore(); }
+          if (x > -wpx && y > -wpx && x < w + wpx && y < h + wpx) { ctx.save(); ctx.globalAlpha = opv(s); ctx.translate(x, y); ctx.rotate(ang); ctx.shadowColor = '#fff'; ctx.shadowBlur = Math.max(3, hpx * 0.14); ctx.drawImage(im, -wpx / 2, -hpx * 0.86, wpx, hpx); ctx.drawImage(im, -wpx / 2, -hpx * 0.86, wpx, hpx); ctx.shadowBlur = 0; ctx.drawImage(im, -wpx / 2, -hpx * 0.86, wpx, hpx); ctx.restore(); }
           next += wpx;
         }
         run += len;
@@ -119,17 +119,18 @@
     var da = s.dash === 'dot' ? '1 9' : s.dash ? '10 8' : null;
     if (s.deco === 'border') da = '12 6 3 6'; else if (s.deco === 'sea') da = '1 9'; else if (s.deco === 'path') da = '7 6';
     var tex = s.tex && TEXG[s.tex];
-    return { color: s.stroke, weight: s.weight, opacity: 1, fillColor: tex ? 'url(#' + texId(s) + ')' : s.fill, fillOpacity: tex ? 1 : s.alpha, dashArray: da, lineJoin: 'round', lineCap: 'round' };
+    return { color: s.stroke, weight: s.weight, opacity: opv(s), fillColor: tex ? 'url(#' + texId(s) + ')' : s.fill, fillOpacity: (tex ? 1 : s.alpha) * opv(s), dashArray: da, lineJoin: 'round', lineCap: 'round' };
   }
+  function opv(s) { return s.op == null ? 1 : s.op; }
   function arrowIcon(s, ang) {
     var sz = 14 + s.weight * 3;
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
-      html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" style="transform:rotate(' + ang.toFixed(1) + 'deg)"><path d="M12 1L22 22L12 17L2 22Z" fill="' + s.stroke + '" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>' });
+      html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" style="transform:rotate(' + ang.toFixed(1) + 'deg);opacity:' + opv(s) + '"><path d="M12 1L22 22L12 17L2 22Z" fill="' + s.stroke + '" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>' });
   }
   function crossIcon(s) {
     var sz = 18 + s.weight * 4, sw = (s.weight * 1.3 + 1) * 24 / sz;
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
-      html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M4 4L20 20M20 4L4 20" stroke="#fff" stroke-width="' + (sw + 2.2) + '"/><path d="M4 4L20 20M20 4L4 20" stroke="' + s.stroke + '" stroke-width="' + sw + '"/></svg>' });
+      html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke-linecap="round" style="opacity:' + opv(s) + '"><path d="M4 4L20 20M20 4L4 20" stroke="#fff" stroke-width="' + (sw + 2.2) + '"/><path d="M4 4L20 20M20 4L4 20" stroke="' + s.stroke + '" stroke-width="' + sw + '"/></svg>' });
   }
   var FONTS = { arial: 'Arial,Helvetica,sans-serif', verdana: 'Verdana,Geneva,sans-serif', tahoma: 'Tahoma,Geneva,sans-serif', trebuchet: '\'Trebuchet MS\',Helvetica,sans-serif', georgia: 'Georgia,serif',
     times: '\'Times New Roman\',Times,serif', palatino: '\'Palatino Linotype\',\'Book Antiqua\',Palatino,serif', comic: '\'Comic Sans MS\',\'Comic Sans\',\'Chalkboard SE\',cursive', courier: '\'Courier New\',Courier,monospace',
@@ -139,7 +140,7 @@
   function textIcon(s) {
     var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2);
     return L.divIcon({ className: 'g-icon', iconSize: [0, 0],
-      html: '<div class="gtext" title="Double-clic : modifier le texte" style="background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
+      html: '<div class="gtext" title="Double-clic : modifier le texte" style="' + ((s.rot || s.op != null) ? 'transform:translate(-50%,-50%) rotate(' + (s.rot || 0) + 'deg);opacity:' + opv(s) + ';' : '') + 'background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
   }
   // ---------- Éléments de thème : icônes dont la taille suit l'échelle du jeu (millimètres sur le papier à cette échelle) ----------
   var themesP = null;
@@ -175,9 +176,10 @@
     var d = window.SM_ICONS && window.SM_ICONS[s.icon], sw = px < 30 ? 36 : 26;
     var svg = s.icon === 'flag' ? flagSvg(esc(s.stroke), px) : isArt(s.icon) ? (artUri(s.icon, s.tc) ? '<img src="' + artUri(s.icon, s.tc) + '" width="' + px + '" height="' + px + '" draggable="false" alt="">' : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="#ccc" opacity=".6"/></svg>') : d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
       : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="' + esc(s.stroke) + '" opacity=".5"/></svg>';
+    if (s.rot) svg = '<span style="display:block;width:' + px + 'px;height:' + px + 'px;transform:rotate(' + s.rot + 'deg)">' + svg + '</span>';
     var cap = px < 22 ? '' : (s.text || (D().captions ? s.name : ''));
     var lab = cap ? '<span class="gstamp-l" style="color:' + esc(s.fontColor) + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + '">' + esc(cap).replace(/\n/g, '<br>') + '</span>' : '';
-    return L.divIcon({ className: 'g-icon', iconSize: [px, px], iconAnchor: [px / 2, px / 2], html: '<div class="gstamp" style="width:' + px + 'px;height:' + px + 'px">' + svg + lab + '</div>' });
+    return L.divIcon({ className: 'g-icon', iconSize: [px, px], iconAnchor: [px / 2, px / 2], html: '<div class="gstamp" style="width:' + px + 'px;height:' + px + 'px' + (s.op != null && s.op < 1 ? ';opacity:' + s.op : '') + '">' + svg + lab + '</div>' });
   }
   var StampMarker = L.Marker.extend({
     initialize: function (ll, s, opts) { L.Marker.prototype.initialize.call(this, ll, opts); this._s = s; this._px = 0; },
@@ -243,7 +245,7 @@
 
   // ---------- Construction des formes (carte principale, calques stockés, cartes imprimées) ----------
   function buildShape(s, group, o) {
-    var ls = [], ob = {}, inter = !!(o.stored || (o.active && o.select));
+    var ls = [], ob = {}, inter = !!(o.stored || (o.active && o.select && !s.locked));
     function wire(l) {
       if (!inter) return;
       if (o.stored) { if (o.click) l.on('click', o.click); if (o.ctx) l.on('contextmenu', o.ctx); if (o.tip && l.bindTooltip) l.bindTooltip(o.tip, { sticky: true }); }
@@ -263,7 +265,7 @@
         var dd = s.kind === 'line' && s.deco && decoDefs(s); ob.extra = [];
         var mot = s.kind === 'line' && String(s.deco || '').indexOf('motif:') === 0;
         if (mot) { var ml = new MotifLine(s).addTo(group); ls.push(ml); st = Object.assign({}, st, { weight: 1.4, opacity: 0.45, dashArray: null }); }
-        function addX(o) { var l = L.polyline(s.pts, Object.assign({ interactive: false, lineCap: 'round', lineJoin: 'round', opacity: 1, fill: false }, o)).addTo(group); ls.push(l); ob.extra.push(l); }
+        function addX(o) { var oo = Object.assign({}, o); oo.opacity = (o.opacity == null ? 1 : o.opacity) * opv(s); var l = L.polyline(s.pts, Object.assign({ interactive: false, lineCap: 'round', lineJoin: 'round', opacity: 1, fill: false }, oo)).addTo(group); ls.push(l); ob.extra.push(l); }
         if (dd) dd.under.forEach(addX);
         ob.main = add(L.polyline(s.pts, Object.assign({}, st, { fill: false })));
         if (dd) dd.over.forEach(addX);
@@ -286,7 +288,7 @@
   }
   function build(d, group, o) {
     o = o || {}; var out = {};
-    d.shapes.forEach(function (s) { out[s.id] = buildShape(s, group, o); });
+    d.shapes.forEach(function (s, i) { if (s.hidden) return; var ob = out[s.id] = buildShape(s, group, o); if (ob && ob.marker && ob.marker.setZIndexOffset) ob.marker.setZIndexOffset(i * 10); });
     return out;
   }
   // Tous les points d'un calque (pour cadrer la carte).
@@ -335,7 +337,7 @@
   function render() {
     if (lastTh !== D().theme) { lastTh = D().theme; if ($('#gstamps')) { loadThemes().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ }); } }
     if (SM.gameGuide) SM.gameGuide();
-    applyParch(); screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
+    applyParch(); if ($('#gparch')) { $('#gparch').checked = !!D().parch; $('#gparch-lv').value = Math.round((D().parchLevel == null ? 0.62 : D().parchLevel) * 100); } screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
     drawDraft();
@@ -347,6 +349,45 @@
   // ---------- Poignées d'édition ----------
   function hmark(p, cls, size) {
     return L.marker(p, { draggable: true, keyboard: false, zIndexOffset: 5000, icon: L.divIcon({ className: 'g-handle ' + (cls || ''), iconSize: [size || 12, size || 12], html: cls && cls.indexOf('move') >= 0 ? '✥' : '' }) }).addTo(gHandles);
+  }
+  var SHIFT = false;
+  document.addEventListener('keydown', function (e) { SHIFT = e.shiftKey; }); document.addEventListener('keyup', function (e) { SHIFT = e.shiftKey; });
+  map.on('zoomend', function () { var q = selShape(); if (q && (q.kind === 'stamp' || q.kind === 'text') && S.mode === 'game') updateHandles(); });
+  // Cadre façon traitement de texte : 8 poignées pour agrandir ou réduire, une poignée ronde pour faire pivoter (Maj : par pas de 15°)
+  function frameHandles(s) {
+    var ob = live[s.id]; if (!ob || !ob.marker) return;
+    var kind = s.kind, hs = [];
+    function dims() {
+      if (kind === 'stamp') { var px = stampPx(s, L.latLng(s.pts[0][0], s.pts[0][1]), map); return [px / 2 + 2, px / 2 + 2]; }
+      var el = ob.marker.getElement(), t = el && el.querySelector('.gtext'); return t ? [t.offsetWidth / 2 + 4, t.offsetHeight / 2 + 4] : [40, 16];
+    }
+    function C() { return map.latLngToLayerPoint(L.latLng(s.pts[0][0], s.pts[0][1])); }
+    function at(ox, oy) { var c = C(), a = (s.rot || 0) * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a); return map.layerPointToLatLng(L.point(c.x + ox * cs - oy * sn, c.y + ox * sn + oy * cs)); }
+    var poly = L.polygon([[0, 0], [0, 0], [0, 0]], { color: '#000761', weight: 1.6, dashArray: '5 4', fill: false, interactive: false }).addTo(gHandles);
+    var link = L.polyline([[0, 0], [0, 0]], { color: '#000761', weight: 1.4, interactive: false }).addTo(gHandles);
+    function layout(skip) {
+      var d = dims(), hw = d[0], hh = d[1];
+      poly.setLatLngs([at(-hw, -hh), at(hw, -hh), at(hw, hh), at(-hw, hh)]); link.setLatLngs([at(0, -hh), at(0, -hh - 26)]);
+      hs.forEach(function (h) { if (h.m === skip) return; h.m.setLatLng(h.rot ? at(0, -hh - 26) : at(h.k[0] * hw, h.k[1] * hh)); });
+    }
+    function repaint() { if (kind === 'stamp') ob.marker.refresh(); else ob.marker.setIcon(textIcon(s)); }
+    [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [1, 0], [0, 1], [-1, 0]].forEach(function (k) {
+      var m = hmark([0, 0], 'frm', 11), d0 = 1, st = 1; hs.push({ k: k, m: m });
+      m.on('dragstart', function () { var d = dims(); d0 = Math.hypot(k[0] * d[0], k[1] * d[1]); st = kind === 'stamp' ? (s.mm || D().stampMm || 16) : s.size; });
+      m.on('drag', function () {
+        var c = C(), q = map.latLngToLayerPoint(m.getLatLng()), f = Math.hypot(q.x - c.x, q.y - c.y) / Math.max(1, d0);
+        if (kind === 'stamp') s.mm = Math.max(4, Math.min(120, Math.round(st * f))); else s.size = Math.max(6, Math.min(160, Math.round(st * f)));
+        repaint(); layout(m);
+      });
+      m.on('dragend', function () { SM.persist(); renderPane(); updateHandles(); });
+    });
+    var rm = hmark([0, 0], 'frm rot', 15); hs.push({ rot: 1, m: rm });
+    rm.on('drag', function () {
+      var c = C(), q = map.latLngToLayerPoint(rm.getLatLng()), a = Math.atan2(q.x - c.x, -(q.y - c.y)) * 180 / Math.PI;
+      if (SHIFT) a = Math.round(a / 15) * 15; s.rot = Math.round(a) || 0; repaint(); layout(rm);
+    });
+    rm.on('dragend', function () { SM.persist(); renderPane(); updateHandles(); });
+    layout();
   }
   function updateHandles() {
     gHandles.clearLayers();
@@ -378,10 +419,8 @@
         m.on('drag', function () { var q = m.getLatLng(); s.pts = [fixed.slice(), [q.lat, q.lng]]; geom(); });
         m.on('dragend', done);
       });
-    } else if (s.kind === 'stamp') {
-      var ob = live[s.id], half = (s.mm || D().stampMm || 16) * (D().scale || 10000) / 1000 / 2, sh = hmark(G.destination(s.pts[0], 90, half), 'round', 14);
-      sh.on('drag', function () { var dm = G.haversine(s.pts[0], [sh.getLatLng().lat, sh.getLatLng().lng]) * 2; s.mm = Math.max(4, Math.min(80, Math.round(dm / ((D().scale || 10000) / 1000)))); if (ob && ob.marker) ob.marker.refresh(); });
-      sh.on('dragend', function () { SM.persist(); renderPane(); updateHandles(); });
+    } else if (s.kind === 'stamp' || s.kind === 'text') {
+      frameHandles(s);
     } else if (s.kind === 'circle') {
       var rh = hmark(G.destination(s.pts[0], 90, s.r || 1), 'round', 13);
       rh.on('drag', function () { s.r = Math.max(2, G.haversine(s.pts[0], [rh.getLatLng().lat, rh.getLatLng().lng])); geom(); });
@@ -563,15 +602,20 @@
     var a = D().shapes, ul = $('#gs-list'); if (!ul) return;
     $('#gs-count').textContent = a.length ? '(' + a.length + ')' : ''; $('#gs-empty').hidden = a.length > 0;
     ul.innerHTML = a.slice().reverse().map(function (s) {
-      return '<li data-id="' + s.id + '"' + (s.id === SELID ? ' class="sel"' : '') + '><span class="gsw" style="background:' + (s.kind === 'line' || s.kind === 'arrow' || s.kind === 'cross' || s.kind === 'stamp' ? s.stroke : rgba(s.fill, Math.max(0.25, s.alpha))) + ';border-color:' + s.stroke + '"></span>' +
-        '<span class="gt">' + ic(KINDS[s.kind].icon) + ' ' + esc(labelOf(s)) + '</span><button class="ibtn danger" data-del="' + s.id + '" title="Supprimer" aria-label="Supprimer">' + ic('x') + '</button></li>';
+      var sw = s.kind === 'stamp' && isArt(s.icon) && artUri(s.icon, s.tc) ? '<span class="gsw img" style="background-image:url(&quot;' + artUri(s.icon, s.tc) + '&quot;)"></span>' : '<span class="gsw" style="background:' + (s.kind === 'line' || s.kind === 'arrow' || s.kind === 'cross' || s.kind === 'stamp' ? s.stroke : rgba(s.fill, Math.max(0.25, s.alpha || 0.25))) + ';border-color:' + s.stroke + '"></span>';
+      return '<li draggable="true" data-id="' + s.id + '" class="' + (s.id === SELID ? 'sel ' : '') + (s.hidden ? 'off ' : '') + (s.locked ? 'lk' : '') + '"><span class="gdrag" title="Glisser pour changer la superposition" aria-hidden="true">⋮⋮</span>' + sw +
+        '<span class="gt">' + ic(KINDS[s.kind].icon) + ' ' + esc(s.name && s.kind !== 'text' ? s.name : labelOf(s)) + (s.op != null && s.op < 1 ? '<small>' + Math.round(s.op * 100) + ' %</small>' : '') + '</span>' +
+        '<button class="ibtn' + (s.hidden ? ' off' : '') + '" data-act="vis" data-id="' + s.id + '" title="' + (s.hidden ? 'Afficher' : 'Masquer') + '" aria-label="Afficher ou masquer">' + ic(s.hidden ? 'eye-off' : 'eye') + '</button>' +
+        '<button class="ibtn' + (s.locked ? ' on' : '') + '" data-act="lock" data-id="' + s.id + '" title="' + (s.locked ? 'Déverrouiller' : 'Verrouiller (non sélectionnable sur la carte)') + '" aria-label="Verrouiller">' + ic('lock') + '</button>' +
+        '<button class="ibtn" data-act="up" data-id="' + s.id + '" title="Monter (au-dessus)" aria-label="Monter">' + ic('up') + '</button><button class="ibtn" data-act="down" data-id="' + s.id + '" title="Descendre (en dessous)" aria-label="Descendre">' + ic('down') + '</button>' +
+        '<button class="ibtn danger" data-del="' + s.id + '" title="Supprimer" aria-label="Supprimer">' + ic('x') + '</button></li>';
     }).join('');
   }
   // ---------- Thèmes ----------
   var STAMP = null, GCAT = 'all';
   var SCALES = [[2000, '1 : 2 000', 'Terrain de camp'], [5000, '1 : 5 000', 'Quartier, petit village'], [10000, '1 : 10 000', 'Commune'], [25000, '1 : 25 000', 'Secteur, vallée'], [50000, '1 : 50 000', 'Grande zone']];
   function themeById(id) { return (window.SM_THEMES || []).filter(function (t) { return t.id === id; })[0]; }
-  function applyParch() { var on = !!D().parch && S.mode === 'game'; map.getContainer().classList.toggle('parch', on); }
+  function applyParch() { var on = !!D().parch && S.mode === 'game'; var el = map.getContainer(); el.classList.toggle('parch', on); el.style.setProperty('--pa', D().parchLevel == null ? 0.62 : D().parchLevel); }
   function setScale(v) {
     D().scale = v; SM.persist();
     var c = map.getCenter(); map.setView(c, SM.zoomFor(v, c.lat), { animate: true });
@@ -582,7 +626,7 @@
     D().themeLocked = true;
     if (id === 'perso') { D().theme = 'perso'; D().parch = false; SM.persist(); render(); renderThemes(); return; }
     var th = themeById(id); if (!th) return;
-    D().theme = id; D().parch = !!th.parch; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });
+    D().theme = id; D().parch = false; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });
     if (SM.applyLayers) SM.applyLayers();
     STY.font = th.font; STY.iconColor = th.color; STY.iconText = th.color; STY.fill = th.fill; STY.stroke = th.fill; STY.fontColor = th.color; STY.linked = true;
     applyParch(); SM.persist(); render(); renderThemes(); renderPane();
@@ -770,7 +814,7 @@
     // réglages du jeu (panneau Réglages)
     if ($('#gscale')) {
       $('#gscale').innerHTML = scaleBtns(D().scale || 0);
-      $('#gs-st-size').textContent = (D().stampMm || 16) + ' mm'; $('#gcaptions').checked = !!D().captions; $('#gparch').checked = !!D().parch;
+      $('#gs-st-size').textContent = (D().stampMm || 16) + ' mm'; $('#gcaptions').checked = !!D().captions;
       $('#gtheme-info').textContent = th ? 'Thème : ' + th.name + '. Il se choisit à la création du jeu ; pour en changer, créez un nouveau grand jeu.' : perso ? 'Jeu personnalisé (sans thème).' : 'Aucun thème choisi pour ce jeu.';
       $('#gtheme-choose').hidden = !!D().themeLocked;
       $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ') + ' — Illustrations en couleur : OpenMoji (CC BY-SA 4.0), openmoji.org';
@@ -861,7 +905,6 @@
         var base = baseNow();
         if (pl && pl._k !== base) { pm.removeLayer(pl); pl = null; }
         if (!pl) { pl = SM.tile(base, 1).addTo(pm); pl._k = base; }
-        el.classList.toggle('parch', !!(th && th.parch));
         pm.invalidateSize(); pm.setView(center, SM.zoomFor(pick.sc, center.lat), { animate: false });
         pmk.forEach(function (m) { pm.removeLayer(m); }); pmk = [];
         var w = el.clientWidth || 300, h = el.clientHeight || 300, spots = [[.27, .3], [.68, .27], [.34, .68], [.72, .7]];
@@ -929,7 +972,7 @@
     var h3 = tp.querySelector('h3.sub'); if (h3) elems.unshift(h3);
     secs.elements = elems;
     var bar = document.createElement('nav'); bar.className = 'gsub'; bar.id = 'gsub'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Contenu de l’onglet Poser');
-    bar.innerHTML = [['elements', 'Éléments', 'g-stamp'], ['teams', 'Équipes', 'people'], ['zones', 'Terrains', 'g-polygon'], ['lines', 'Lignes', 'g-line'], ['images', 'Images', 'upload']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '"><svg class="ic"><use href="#i-' + x[2] + '"/></svg><span>' + x[1] + '</span></button>'; }).join('');
+    bar.innerHTML = [['elements', 'Icônes', 'g-stamp'], ['teams', 'Équipes', 'people'], ['zones', 'Terrains', 'g-polygon'], ['lines', 'Lignes', 'g-line'], ['images', 'Images', 'upload']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '"><svg class="ic"><use href="#i-' + x[2] + '"/></svg><span>' + x[1] + '</span></button>'; }).join('');
     var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher un élément (château, drapeau…)" aria-label="Chercher un élément" autocomplete="off">';
     var guide = document.createElement('div'); guide.className = 'gguide'; guide.id = 'gguide'; guide.hidden = true;
     guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton « Partager », à droite de la carte)</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
@@ -981,6 +1024,7 @@
     $('#gscale').addEventListener('click', function (e) { var b = e.target.closest('button[data-sc]'); if (b) setScale(+b.dataset.sc); });
     $('#gtheme-choose').addEventListener('click', function () { wizard(); });
     $('#gparch').addEventListener('change', function () { D().parch = this.checked; applyParch(); SM.persist(); });
+    $('#gparch-lv').addEventListener('input', function () { D().parchLevel = +this.value / 100; applyParch(); SM.persist(); });
     $('#gcaptions').addEventListener('change', function () { D().captions = this.checked; SM.persist(); render(); });
     $('#gcats').addEventListener('click', function (e) { var b = e.target.closest('button[data-c]'); if (b) { GCAT = b.dataset.c; renderThemes(); } });
     function pick(e) {
@@ -1008,6 +1052,9 @@
     $('#gs-stamp-m').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.max(4, (s.mm || D().stampMm || 16) - 2)); });
     $('#gs-stamp-p').addEventListener('click', function () { var s = selShape(); if (s) setProp('mm', Math.min(80, (s.mm || D().stampMm || 16) + 2)); });
     $('#gs-stamp-auto').addEventListener('click', function () { var s = selShape(); if (s) { delete s.mm; refreshStyle(s); SM.persist(); renderPane(); updateHandles(); } });
+    $('#gs-op').addEventListener('input', function () { var q = selShape(); if (!q) return; q.op = +this.value / 100; $('#gs-op-v').textContent = this.value + ' %'; refreshStyle(q); SM.persist(); });
+    function rot(d) { var q = selShape(); if (!q) return; q.rot = d === 0 ? 0 : (((Math.round(((q.rot || 0) + d) / 15) * 15 + 180) % 360) + 360) % 360 - 180; refreshStyle(q); SM.persist(); renderPane(); updateHandles(); }
+    $('#gs-rot-m').addEventListener('click', function () { rot(-15); }); $('#gs-rot-p').addEventListener('click', function () { rot(15); }); $('#gs-rot-0').addEventListener('click', function () { rot(0); });
     $('#gs-tex').addEventListener('change', function () { var s = selShape(); if (!s) return; if (this.value) s.tex = this.value; else delete s.tex; if (this.value && !(s.alpha > 0)) s.alpha = 0.4; refreshStyle(s); SM.persist(); renderPane(); });
     $('#gs-name').addEventListener('input', function () { var s = selShape(); if (s) { s.name = this.value; refreshStyle(s); screenLegend.update(); SM.persist(); renderList(); } });
     // sections repliables : une seule ouverte à la fois
@@ -1045,6 +1092,8 @@
       else if (f === 'legendname') on = !!s && s.kind !== 'text';
       else if (f === 'stroke' && s && s.kind === 'stamp' && isArt(s.icon)) on = false;
       else if (f === 'text') on = isT || kind === 'stamp';
+      else if (f === 'opacity') on = !!s;
+      else if (f === 'rot') on = !!s && (s.kind === 'stamp' || s.kind === 'text');
       show(r, on);
     });
     $('#gb-fill-l').textContent = isT ? 'Fond' : 'Remplissage';
@@ -1058,6 +1107,7 @@
     if (s && document.activeElement !== $('#gs-name')) $('#gs-name').value = s.name || '';
     if ($('#gs-tex')) $('#gs-tex').value = (s && s.tex) || '';
     $('#gs-stamp-auto').hidden = !(s && s.mm);
+    if (s) { $('#gs-op').value = Math.round(opv(s) * 100); $('#gs-op-v').textContent = Math.round(opv(s) * 100) + ' %'; $('#gs-rot-v').textContent = (s.rot || 0) + '°'; }
     var ga = $('#gactive'); if (ga) { var act = GT !== 'select'; ga.hidden = !act; if (act) $('#gactive-t').textContent = PRE ? (PRE.ln ? 'Ligne « ' + PRE.l + ' » : cliquez les points, double-clic ou clic droit pour terminer.' : 'Zone « ' + PRE.l + ' » : tracez-la sur la carte.') : (GT === 'stamp' && STAMP ? 'Pose de « ' + STAMP.l + ' » : cliquez sur la carte, ou cliquez-glissez pour choisir la taille.' : 'Outil « ' + (KINDS[GT] ? KINDS[GT].label : GT) + ' » actif.'); }
     $$('#gs-dash button').forEach(function (b) { b.classList.toggle('on', (b.dataset.d || '') === String(src.dash === true ? 'dash' : src.dash || '')); });
     $('#gs-size-v').textContent = src.size; $('#gc-font').style.background = src.fontColor; $('#gs-font').value = fontKey(src);
@@ -1157,7 +1207,32 @@
     $('#gs-front').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, true); });
     $('#gs-back').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, false); });
     $('#gs-del').addEventListener('click', deleteSel);
+    (function listDnd() {
+      var ul = $('#gs-list'), drag = null;
+      ul.addEventListener('dragstart', function (e) { var li = e.target.closest('li[data-id]'); if (!li) return; drag = +li.dataset.id; li.classList.add('drag'); try { e.dataTransfer.setData('text/plain', String(drag)); e.dataTransfer.effectAllowed = 'move'; } catch (er) { /* ignoré */ } });
+      ul.addEventListener('dragend', function () { drag = null; $$('#gs-list li').forEach(function (l) { l.classList.remove('drag', 'ov-t', 'ov-b'); }); });
+      ul.addEventListener('dragover', function (e) {
+        var li = e.target.closest('li[data-id]'); if (!li || drag == null) return; e.preventDefault();
+        var r = li.getBoundingClientRect(), top = e.clientY < r.top + r.height / 2;
+        $$('#gs-list li').forEach(function (l) { l.classList.remove('ov-t', 'ov-b'); }); li.classList.add(top ? 'ov-t' : 'ov-b');
+      });
+      ul.addEventListener('drop', function (e) {
+        var li = e.target.closest('li[data-id]'); if (!li || drag == null) return; e.preventDefault();
+        var r = li.getBoundingClientRect(), top = e.clientY < r.top + r.height / 2, a = D().shapes, sh = shapeById(drag), tg = shapeById(+li.dataset.id);
+        if (!sh || !tg || sh === tg) return;
+        a.splice(a.indexOf(sh), 1); var t = a.indexOf(tg); a.splice(top ? t + 1 : t, 0, sh);       // affichage inversé : en haut de la liste = au premier plan
+        SM.persist(); render(); renderList();
+      });
+    })();
     $('#gs-list').addEventListener('click', function (e) {
+      var act = e.target.closest('[data-act]');
+      if (act) {
+        var q = shapeById(+act.dataset.id); if (!q) return; e.stopPropagation();
+        if (act.dataset.act === 'vis') q.hidden = !q.hidden;
+        else if (act.dataset.act === 'lock') q.locked = !q.locked;
+        else { var a = D().shapes, i = a.indexOf(q), j = act.dataset.act === 'up' ? i + 1 : i - 1; if (j >= 0 && j < a.length) { a.splice(i, 1); a.splice(j, 0, q); } }
+        SM.persist(); render(); renderList(); return;
+      }
       var del = e.target.closest('[data-del]');
       if (del) { SELID = +del.dataset.del; deleteSel(); return; }
       var li = e.target.closest('li[data-id]'); if (!li) return;
