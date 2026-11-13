@@ -702,8 +702,7 @@
   var SAMPLE = '<svg viewBox="0 0 96 58" preserveAspectRatio="none"><rect width="96" height="58" fill="#f1efe4"/><path d="M0 40C20 34 40 46 96 36V58H0Z" fill="#cfe3b7"/><path d="M60 0C56 20 70 30 66 58" stroke="#f2d27a" stroke-width="3" fill="none"/><path d="M0 18C30 12 50 26 96 14" stroke="#7fb5e6" stroke-width="2" fill="none"/><rect x="14" y="22" width="8" height="6" fill="#b9a98f"/><rect x="26" y="26" width="6" height="5" fill="#b9a98f"/><circle cx="80" cy="44" r="6" fill="#9fcf86"/></svg>';
   var BASEQ = ['plan', 'ortho', 'otm', 'osm', 'etat', 'cassini'], BASEN = { plan: 'Plan IGN', ortho: 'Photo aérienne', otm: 'Topo', osm: 'OpenStreetMap', etat: 'État-major (1820)', cassini: 'Cassini (XVIIIe)' };
   function renderFx() {
-    var bx = $('#gfx-base'), lx = $('#gfx-list'); if (!bx || !lx) return;
-    bx.innerHTML = BASEQ.filter(function (k) { return SM.LAYERS[k]; }).map(function (k) { return '<button type="button" class="gfxb' + (S.base === k ? ' on' : '') + '" data-base="' + k + '">' + esc(BASEN[k] || SM.LAYERS[k].label) + '</button>'; }).join('');
+    var lx = $('#gfx-list'); if (!lx) return;
     var fx = D().fx; if (!fx) { fx = D().fx = Object.assign({}, fxOf(D())); }
     lx.innerHTML = Object.keys(FXM).map(function (k) {
       var on = fx[k] != null, m = FXM[k];
@@ -716,14 +715,13 @@
     });
   }
   function fxInit() {
-    var lx = $('#gfx-list'), bx = $('#gfx-base'); if (!lx) return;
+    var lx = $('#gfx-list'); if (!lx) return;
     lx.addEventListener('click', function (e) {
       var b = e.target.closest('[data-fx]'); if (!b) return; var k = b.dataset.fx, fx = D().fx || (D().fx = Object.assign({}, fxOf(D())));
       if (fx[k] != null) delete fx[k]; else fx[k] = FXM[k].v; delete D().parch;
       SM.persist(); applyParch(); renderFx();
     });
     lx.addEventListener('input', function (e) { var r = e.target.closest('[data-fxv]'); if (!r) return; var fx = D().fx; fx[r.dataset.fxv] = +r.value / 100; SM.persist(); applyParch(); });
-    bx.addEventListener('click', function (e) { var b = e.target.closest('[data-base]'); if (!b) return; S.base = b.dataset.base; if (SM.applyLayers) SM.applyLayers(); SM.persist(); renderFx(); });
     var t = $('#gtabs [data-gtab=fx]'); if (t) t.addEventListener('click', renderFx);
   }
   function setScale(v) {
@@ -1202,7 +1200,7 @@
       else if (f === 'stampsize') on = kind === 'stamp';
       else if (f === 'legendname') on = !!s && s.kind !== 'text';
       else if (f === 'stroke' && s && s.kind === 'stamp' && isArt(s.icon)) on = false;
-      else if (f === 'text') on = isT || kind === 'stamp';
+      else if (f === 'text') on = isT;
       else if (f === 'opacity') on = !!s;
       else if (f === 'rot') on = !!s && (s.kind === 'stamp' || s.kind === 'text');
       show(r, on);
@@ -1316,6 +1314,9 @@
     $('#gactive-end').addEventListener('click', function () { setGT('select'); });
     $('#gs-dup').addEventListener('click', function () { var s = selShape(); if (s) dupShape(s); });
     $('#gs-auto').addEventListener('click', function () { autoOrder(); SM.toast('Ordre automatique appliqué : terrains, lignes, bases, pictogrammes, textes.'); });
+    function stepOrder(q, up) { var a = D().shapes, i = a.indexOf(q), j = up ? i + 1 : i - 1; if (i < 0 || j < 0 || j >= a.length) return; a.splice(i, 1); a.splice(j, 0, q); SM.persist(); render(); renderList(); }
+    $('#gs-fwd').addEventListener('click', function () { var q = selShape(); if (q) stepOrder(q, true); });
+    $('#gs-bwd').addEventListener('click', function () { var q = selShape(); if (q) stepOrder(q, false); });
     $('#gs-front').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, true); });
     $('#gs-back').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, false); });
     $('#gs-del').addEventListener('click', deleteSel);
