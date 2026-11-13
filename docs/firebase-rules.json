@@ -4,29 +4,56 @@
     ".write": false,
     "rooms": {
       "$room": {
-        ".read": "auth != null",
         ".write": "auth != null && data.child('owner').val() === auth.uid",
         "owner": {
+          ".read": "auth != null",
           ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
           ".validate": "newData.isString() && newData.val().length < 80"
         },
-        "created": { ".validate": "newData.isNumber()" },
-        "closed": { ".validate": "newData.isBoolean()" },
-        "game": { ".validate": "newData.isString() && newData.val().length < 1500000" },
-        "gameT": { ".validate": "newData.isNumber()" },
+        "created": {
+          ".read": "auth != null",
+          ".validate": "newData.isNumber()"
+        },
+        "closed": {
+          ".read": "auth != null",
+          ".validate": "newData.isBoolean()"
+        },
+        "game": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('rooms/' + $room + '/admins/' + auth.uid).exists()",
+          ".validate": "newData.isString() && newData.val().length < 1500000"
+        },
+        "gameT": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('rooms/' + $room + '/admins/' + auth.uid).exists()",
+          ".validate": "newData.isNumber()"
+        },
+        "admtok": {
+          ".validate": "newData.isString() && newData.val().length >= 12 && newData.val().length < 60"
+        },
+        "admins": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && newData.val() === root.child('rooms/' + $room + '/admtok').val()",
+            ".validate": "newData.isString()"
+          }
+        },
         "pos": {
+          ".read": "auth != null",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
             ".validate": "newData.hasChildren(['d','t']) && newData.child('d').isString() && newData.child('d').val().length < 600 && newData.child('t').isNumber()"
           }
         },
         "chat": {
+          ".read": "auth != null",
           "$msg": {
             ".write": "auth != null && !data.exists()",
             ".validate": "newData.hasChildren(['d','t']) && newData.child('d').isString() && newData.child('d').val().length < 1400 && newData.child('t').isNumber()"
           }
         },
-        "$other": { ".validate": false }
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }
