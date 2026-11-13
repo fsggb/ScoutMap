@@ -819,7 +819,7 @@
       var host = $('#mapwrap'), old = $('#gwz'); if (old) old.remove();
       var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov);
       var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage', base: null }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
-      var STEPS = ['Thème', 'Échelle', 'Fond de carte'];
+      var STEPS = ['Thème', 'Échelle et fond de carte'];
       function thNow() { return themeById(pick.th); }
       function baseNow() { var th = thNow(), b = pick.base || (th ? th.base : S.base); return SM.LAYERS[b] ? b : 'otm'; }
       function sample(th) {
@@ -846,24 +846,23 @@
         });
         var cap = $('#gw-cap', ov); if (cap) cap.textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
       }
-      function baseBtns() {
+      function baseSel() {
         var th = thNow(), rec = th ? th.base : null, cur = baseNow();
         var keys = Object.keys(SM.LAYERS).filter(function (k) { return SM.LAYERS[k].base; });
         keys.sort(function (a, b) { return (b === rec) - (a === rec); });
-        return keys.map(function (k) { return '<button type="button" data-bs="' + k + '" class="gwz-b' + (k === cur ? ' on' : '') + '"><b>' + esc(SM.LAYERS[k].label) + '</b>' + (k === rec ? '<small>Conseillé pour ce thème</small>' : '') + '</button>'; }).join('');
+        return '<label class="gwz-bs">Fond de carte <select id="gw-base">' + keys.map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + esc(SM.LAYERS[k].label) + (k === rec ? ' — conseillé pour ce thème' : '') + '</option>'; }).join('') + '</select></label>';
       }
       function draw() {
         killMap();
         var body, foot;
         if (step === 1) body = '<h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
-        else if (step === 2) body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
-        else body = '<div class="gwz-cols"><div><h2>Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est proposé : changez-le si vous préférez.</p><div class="gwz-bases">' + baseBtns() + '</div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
+        else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
-          (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
+          (step < 2 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
         ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
-        $$('[data-bs]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.base = b.dataset.bs; $$('[data-bs]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        var gb = $('#gw-base', ov); if (gb) gb.addEventListener('change', function () { pick.base = gb.value; preview(); });
         $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); setTab('tools'); renderThemes(); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
         var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { step++; draw(); });

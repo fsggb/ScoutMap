@@ -1032,6 +1032,7 @@ body.doc-open .home{display:none!important}
 .gbl-f{display:grid;gap:8px}.gbl-f label{display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--muted)}.gbl-f input[type=text],.gbl-f select{height:34px;border:1.5px solid var(--line-2);border-radius:9px;padding:0 8px;font:inherit;font-size:13px;color:var(--navy)}
 .gbl-c{display:flex;gap:10px}.gbl-c input[type=color]{width:56px;height:34px;padding:0;border:1.5px solid var(--line-2);border-radius:9px;background:#fff}
 @media (max-width:520px){.gbl{grid-template-columns:1fr}}
+.gwz-h2b{margin-top:22px!important}.gwz-bs{display:grid;gap:4px;font-size:12.5px;font-weight:600;color:var(--muted)}.gwz-bs select{height:40px;border:1.5px solid var(--line-2);border-radius:10px;font:inherit;font-size:14px;color:var(--navy);background:#fff;padding:0 10px}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
