@@ -334,6 +334,7 @@
   var lastTh = null;
   function render() {
     if (lastTh !== D().theme) { lastTh = D().theme; if ($('#gstamps')) { loadThemes().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ }); } }
+    if (SM.gameGuide) SM.gameGuide();
     applyParch(); screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
@@ -471,8 +472,10 @@
     if (S.mode !== 'game' || RT.tool !== 'game' || typing() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.body.classList.contains('doc-open') || document.querySelector('dialog[open]')) return;
     if (e.key === 'Enter' && DR) { e.preventDefault(); if (finishable()) finishDraft(); }
-    else if (e.key.toLowerCase() === 'v') setGT('select');
+    else if (e.key === 'Escape') { if (GT !== 'select') { PRE = null; setGT('select'); } }
+    else if (!e.shiftKey && KEYS[e.key.toLowerCase()]) { PRE = null; setGT(KEYS[e.key.toLowerCase()]); }
   });
+  var KEYS = { v: 'select', p: 'polygon', r: 'rect', c: 'circle', l: 'line', a: 'arrow', x: 'cross', t: 'text' };
 
   // Clic droit pendant le dessin : on termine la forme si elle est complète, sinon on l'abandonne ; dans les deux cas retour à la sélection.
   function rightClick() {
@@ -877,6 +880,57 @@
       draw();
     }).catch(function () { setTab('tools'); });
   }
+  // ---------- Palette d'outils flottante, sous-onglets de la bibliothèque, recherche, guide de démarrage ----------
+  var SUB = 'elements', QUERY = '';
+  var TOOLTIPS = { select: 'Sélection (V) : cliquer, déplacer, modifier', polygon: 'Zone (P) : cliquez les sommets, double-clic pour finir', rect: 'Rectangle (R) : deux clics', circle: 'Cercle (C) : centre puis rayon', line: 'Ligne (L) : cliquez les points, double-clic pour finir', arrow: 'Flèche (A) : deux clics', cross: 'Croix (X) : un clic', text: 'Texte (T) : un clic' };
+  (function proUi() {
+    var pal = $('#gpalette'), src = $('#gtools-src'); if (!pal || !src) return;
+    var g = document.createElement('div'); g.className = 'gtools'; g.id = 'gtools';
+    $$('button', src).forEach(function (b) { b.title = TOOLTIPS[b.dataset.gt] || b.title; b.setAttribute('aria-label', TOOLTIPS[b.dataset.gt] || ''); g.appendChild(b); });
+    src.remove(); pal.appendChild(g);
+    var gp = document.querySelector('.pane[data-pane=game]');
+    function sync() { pal.hidden = !(gp && !gp.hidden); }
+    if (gp) new MutationObserver(sync).observe(gp, { attributes: true, attributeFilter: ['hidden'] }); sync();
+    // sous-onglets : une seule section visible à la fois, sans défilement
+    var tp = document.querySelector('[data-gtabp=tools]'); if (!tp) return;
+    var secs = {};
+    var dets = $$('details.gdet', tp);
+    function det(txt) { return dets.filter(function (d) { return d.querySelector('summary').textContent.indexOf(txt) === 0; })[0]; }
+    secs.teams = [det('Équipes')]; secs.zones = [det('Terrains')]; secs.lines = [det('Lignes')]; secs.images = [det('Mes images')];
+    var elems = []; var n = $('#gactive');
+    [$('#gcats'), $('#gstamps'), det('Repères')].forEach(function (e) { if (e) elems.push(e); });
+    var h3 = tp.querySelector('h3.sub'); if (h3) elems.unshift(h3);
+    secs.elements = elems;
+    var bar = document.createElement('div'); bar.className = 'gsub'; bar.id = 'gsub'; bar.setAttribute('role', 'tablist');
+    bar.innerHTML = [['elements', 'Éléments'], ['teams', 'Équipes'], ['zones', 'Terrains'], ['lines', 'Lignes'], ['images', 'Images']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('');
+    var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher un élément (château, drapeau…)" aria-label="Chercher un élément" autocomplete="off">';
+    var guide = document.createElement('div'); guide.className = 'gguide'; guide.id = 'gguide'; guide.hidden = true;
+    guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton en bas)</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
+    tp.insertBefore(bar, tp.firstChild); bar.after(guide); guide.after(search);
+    Object.keys(secs).forEach(function (k) { secs[k].forEach(function (e) { if (e && e.tagName === 'DETAILS') { e.open = true; e.classList.add('gsubd'); } }); });
+    function applyQuery() {
+      var q = QUERY.trim().toLowerCase();
+      $$('#gstamps .gst').forEach(function (b) { var t = ((b.dataset.l || '') + ' ' + (b.textContent || '')).toLowerCase(); b.hidden = !!q && t.indexOf(q) < 0; });
+    }
+    function showSub(k) {
+      SUB = k; if (!secs[k]) SUB = k = 'elements';
+      $$('#gsub button').forEach(function (b) { var on = b.dataset.sub === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+      Object.keys(secs).forEach(function (kk) { secs[kk].forEach(function (e) { if (e) e.hidden = kk !== k; }); });
+      $('#gsearch').hidden = k !== 'elements';
+      var gp2 = $('#gcats'); if (gp2 && k !== 'elements') gp2.hidden = true; else if (gp2) gp2.hidden = !themeById(D().theme);
+      applyQuery();
+    }
+    SM.gameSub = function (k) { showSub(k); renderGuide(); }; SM.gameGuide = function () { renderGuide(); };
+    function renderGuide() { var gd = $('#gguide'); if (gd) { var off = false; try { off = localStorage.getItem('scoutmap.guide.off') === '1'; } catch (e) { /* ignoré */ } gd.hidden = off || (D().shapes || []).length > 0 || (D().teams || []).length > 0; } }
+    bar.addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b) showSub(b.dataset.sub); });
+    guide.addEventListener('click', function (e) { var b = e.target.closest('button[data-sub]'); if (b) showSub(b.dataset.sub); });
+    $('#gguide-x').addEventListener('click', function () { try { localStorage.setItem('scoutmap.guide.off', '1'); } catch (er) { /* ignoré */ } renderGuide(); });
+    $('#gsearch-in').addEventListener('input', function () { QUERY = this.value; applyQuery(); });
+    // après chaque rendu de la bibliothèque (le panneau est reconstruit), on remet l'onglet et le filtre
+    var oldRT = renderThemes;
+    renderThemes = function () { oldRT(); showSub(SUB); renderGuide(); };
+    showSub('elements'); renderGuide();
+  })();
   // ---------- Barre de style en bas de la carte (comme dans un logiciel de dessin) ----------
   (function styleBar() {
     var bar = $('#gbar'), st = $('#gstyle'); if (!bar || !st) return;
@@ -924,7 +978,7 @@
     $('#gs-tex').addEventListener('change', function () { var s = selShape(); if (!s) return; if (this.value) s.tex = this.value; else delete s.tex; if (this.value && !(s.alpha > 0)) s.alpha = 0.4; refreshStyle(s); SM.persist(); renderPane(); });
     $('#gs-name').addEventListener('input', function () { var s = selShape(); if (s) { s.name = this.value; refreshStyle(s); screenLegend.update(); SM.persist(); renderList(); } });
     // sections repliables : une seule ouverte à la fois
-    $$('.gdet').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) $$('.gdet').forEach(function (o) { if (o !== d) o.open = false; }); }); });
+
     loadThemes().then(renderThemes).catch(function () { /* hors ligne */ });
   })();
 
@@ -946,7 +1000,7 @@
     $$('#gtools button').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
     var s = selShape(), src = s || STY, kind = s ? s.kind : (GT !== 'select' ? GT : null);
     if ($('#gtabs') && !$('#gtabs .on')) setTab(GTAB);
-    $('#gs-target').textContent = s ? 'Élément sélectionné : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style des prochaines : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style des prochaines formes');
+    $('#gs-target').textContent = s ? 'Sélection : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style par défaut');
     var filled = !kind || kind === 'polygon' || kind === 'rect' || kind === 'circle' || kind === 'text', isT = kind === 'text';
     $$('#gstyle [data-for]').forEach(function (r) {
       var f = r.dataset.for, on = true;
