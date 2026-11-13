@@ -64,14 +64,14 @@
       var sl = new Array(z.length), sa = [];
       for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) { var gx = (Z(r, c + 1) - Z(r, c - 1)) / 2, gy = (Z(r + 1, c) - Z(r - 1, c)) / 2, s = Math.sqrt(gx * gx + gy * gy); sl[r * cols + c] = s; sa.push(s); }
       sa.sort(function (a, b) { return a - b; }); var s90 = sa[Math.floor(sa.length * 0.9)] || 1;
-      var rnd = rng(Math.round(b.s * 1e4) ^ Math.round(b.w * 1e4)), g = [];
+      var big = range >= 120, fa = Math.min(1, 0.35 + range / 300), rnd = rng(Math.round(b.s * 1e4) ^ Math.round(b.w * 1e4)), g = [];
       for (var r2 = 0; r2 < rows; r2++) for (var c2 = 0; c2 < cols; c2++) {
         var n = Math.max(0, Math.min(1, (z[r2 * cols + c2] - p5) / range)), sn = Math.min(1, sl[r2 * cols + c2] / s90), score = 0.62 * n + 0.38 * sn;
         var kind = 0, prob = 0;
-        if (score > 0.6) { kind = 1; prob = 0.78; } else if (score > 0.4) { kind = 0; prob = Math.pow((score - 0.4) / 0.2, 1.2) * 0.55; }
+        if (score > 0.6) { kind = big ? 1 : 0; prob = big ? 0.78 : 0.45; } else if (score > 0.4) { kind = 0; prob = Math.pow((score - 0.4) / 0.2, 1.2) * 0.55; }   // pas de « montagnes » sur un simple coteau
         if (!prob || rnd() > prob) continue;
         var jr = (rnd() - 0.5) * 0.8, jc = (rnd() - 0.5) * 0.8;
-        g.push([r5(b.n - (r2 + 0.5 + jr) / rows * (b.n - b.s)), r5(b.w + (c2 + 0.5 + jc) / cols * (b.e - b.w)), Math.round(n * 100) / 100, kind]);
+        g.push([r5(b.n - (r2 + 0.5 + jr) / rows * (b.n - b.s)), r5(b.w + (c2 + 0.5 + jc) / cols * (b.e - b.w)), Math.round(n * fa * 100) / 100, kind]);
       }
       if (!g.length) throw new Error('Pas assez de relief marqué sur cette zone.');
       g.sort(function (a, b) { return b[0] - a[0]; });
