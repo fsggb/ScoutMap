@@ -58,6 +58,52 @@
     if (!defs) { defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); svg.insertBefore(defs, svg.firstChild); }
     defs.insertAdjacentHTML('beforeend', '<pattern id="' + id + '" patternUnits="userSpaceOnUse" width="28" height="28"><rect width="28" height="28" fill="' + s.fill + '" fill-opacity="' + Math.min(1, s.alpha || 0.35) + '"/>' + TEXG[s.tex](shade(s.fill, 0.5)) + '</pattern>');
   }
+  // ---------- Lignes à motif : une petite illustration répétée le long du tracé (palissade, barbelés, haie…) ----------
+  var MOTIMG = {}, MOTL = [];
+  function motifImg(id) {
+    var m = window.SM_MOTIFS && window.SM_MOTIFS[id]; if (!m) return null;
+    var im = MOTIMG[id];
+    if (!im) { im = MOTIMG[id] = new Image(); im.onload = function () { im._ok = 1; MOTL.slice().forEach(function (l) { l.redraw(); }); }; im.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(m.svg); }
+    return im;
+  }
+  function motifUri(id) { var m = window.SM_MOTIFS && window.SM_MOTIFS[id]; return m ? 'data:image/svg+xml;utf8,' + encodeURIComponent(m.svg) : ''; }
+  var MotifLine = L.Layer.extend({
+    initialize: function (s) { this._s = s; },
+    onAdd: function (m) {
+      var pn = m.getPane('motifs') || m.createPane('motifs'); pn.style.zIndex = 360; pn.style.pointerEvents = 'none';
+      this._cv = L.DomUtil.create('canvas', 'gmotif-cv', pn); this._cv.style.position = 'absolute';
+      m.on('moveend zoomend resize', this.redraw, this); m.on('zoomstart', this._hide, this); MOTL.push(this); this.redraw();
+      if (!window.SM_MOTIFS) loadArt().then(function () { this.redraw(); }.bind(this)).catch(function () { /* hors ligne */ });
+    },
+    onRemove: function (m) {
+      m.off('moveend zoomend resize', this.redraw, this); m.off('zoomstart', this._hide, this); MOTL = MOTL.filter(function (x) { return x !== this; }, this);
+      if (this._cv && this._cv.parentNode) this._cv.parentNode.removeChild(this._cv); this._cv = null;
+    },
+    _hide: function () { if (this._cv) this._cv.style.opacity = 0; },
+    redraw: function () {
+      var m = this._map, cv = this._cv, s = this._s; if (!m || !cv || !s) return;
+      var id = String(s.deco || '').replace('motif:', ''), im = motifImg(id), def = window.SM_MOTIFS && window.SM_MOTIFS[id];
+      var sz = m.getSize(), pad = 0.25, w = Math.round(sz.x * (1 + 2 * pad)), h = Math.round(sz.y * (1 + 2 * pad)), dpr = Math.min(2, window.devicePixelRatio || 1);
+      L.DomUtil.setPosition(cv, m.containerPointToLayerPoint([-sz.x * pad, -sz.y * pad]));
+      cv.width = w * dpr; cv.height = h * dpr; cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.style.opacity = 1;
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      if (!im || !im._ok || !def) return;
+      var ox = sz.x * pad, oy = sz.y * pad, lat0 = m.getCenter().lat, mpp = 156543.03392 * Math.cos(lat0 * Math.PI / 180) / Math.pow(2, m.getZoom());
+      var pxmm = ((s._sc || D().scale || 10000) / 1000) / mpp, hpx = Math.max(7, Math.min(120, 2.6 * (s.weight || 4) / 4 * pxmm)), wpx = hpx * def.w / def.h * 0.94;
+      var pts = s.pts.map(function (ll) { var q = m.latLngToContainerPoint(L.latLng(ll[0], ll[1])); return [q.x + ox, q.y + oy]; });
+      var next = wpx / 2, run = 0;
+      for (var i = 0; i < pts.length - 1; i++) {
+        var a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy); if (!len) continue;
+        var ang = Math.atan2(dy, dx); if (Math.abs(ang) > Math.PI / 2) ang += ang > 0 ? -Math.PI : Math.PI;
+        while (next <= run + len) {
+          var t = (next - run) / len, x = a[0] + dx * t, y = a[1] + dy * t;
+          if (x > -wpx && y > -wpx && x < w + wpx && y < h + wpx) { ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.drawImage(im, -wpx / 2, -hpx * 0.86, wpx, hpx); ctx.restore(); }
+          next += wpx;
+        }
+        run += len;
+      }
+    }
+  });
   function decoDefs(s) {
     var w = s.weight, c = s.stroke;
     switch (s.deco) {
@@ -151,6 +197,7 @@
     if (s.kind === 'stamp' && s.icon === 'flag') return flagSvg(esc(c), 20);
     if (s.kind === 'stamp' && isArt(s.icon)) return artUri(s.icon, s.tc) ? '<img src="' + artUri(s.icon, s.tc) + '" alt="">' : '';
     if (s.kind === 'stamp') { var d = window.SM_ICONS && window.SM_ICONS[s.icon]; return d ? '<svg viewBox="0 0 512 512"><path d="' + d + '" fill="' + esc(c) + '"/></svg>' : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="' + esc(c) + '"/></svg>'; }
+    if (s.kind === 'line' && String(s.deco || '').indexOf('motif:') === 0 && motifUri(s.deco.slice(6))) return '<i class="gl-mo" style="background-image:url(&quot;' + motifUri(s.deco.slice(6)) + '&quot;)"></i>';
     if (s.kind === 'line') return '<svg viewBox="0 0 24 14"><path d="M2 7h20" stroke="' + esc(c) + '" stroke-width="3" fill="none"' + da + '/></svg>';
     if (s.kind === 'arrow') return '<svg viewBox="0 0 24 14"><path d="M2 7h17M14 2l6 5-6 5" stroke="' + esc(c) + '" stroke-width="2.5" fill="none"/></svg>';
     if (s.kind === 'cross') return '<svg viewBox="0 0 24 14"><path d="M7 2l10 10M17 2L7 12" stroke="' + esc(c) + '" stroke-width="3" fill="none"/></svg>';
@@ -213,6 +260,8 @@
       case 'circle': ob.main = add(L.circle(s.pts[0], Object.assign({ radius: Math.max(1, s.r || 1) }, st))); ensureTex(ob.main, s); break;
       case 'line': case 'arrow':
         var dd = s.kind === 'line' && s.deco && decoDefs(s); ob.extra = [];
+        var mot = s.kind === 'line' && String(s.deco || '').indexOf('motif:') === 0;
+        if (mot) { var ml = new MotifLine(s).addTo(group); ls.push(ml); st = Object.assign({}, st, { weight: 1.4, opacity: 0.45, dashArray: null }); }
         function addX(o) { var l = L.polyline(s.pts, Object.assign({ interactive: false, lineCap: 'round', lineJoin: 'round', opacity: 1, fill: false }, o)).addTo(group); ls.push(l); ob.extra.push(l); }
         if (dd) dd.under.forEach(addX);
         ob.main = add(L.polyline(s.pts, Object.assign({}, st, { fill: false })));
@@ -281,7 +330,9 @@
 
   // ---------- Rendu du calque en cours ----------
   function selectTool() { return RT.tool === 'game' && GT === 'select'; }
+  var lastTh = null;
   function render() {
+    if (lastTh !== D().theme) { lastTh = D().theme; if ($('#gstamps')) { loadThemes().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ }); } }
     applyParch(); screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
@@ -548,20 +599,29 @@
     }).join('');
   }
   function zoneBtns(list) { return list.map(function (z) { return '<button type="button" class="gz' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '"><i style="background:' + z.f + ';opacity:' + (0.4 + z.a) + '"></i><span>' + esc(z.l) + '</span></button>'; }).join(''); }
+  function motifBtns(ids) {
+    return ids.filter(function (id) { return window.SM_MOTIFS && window.SM_MOTIFS[id]; }).map(function (id) {
+      var m = window.SM_MOTIFS[id];
+      return '<button type="button" class="gz gl gm' + (PRE && PRE.ln && PRE.x === 'motif:' + id ? ' on' : '') + '" data-mo="' + id + '" title="' + esc(m.n) + '"><i style="background-image:url(&quot;' + motifUri(id) + '&quot;);background-size:auto 100%;background-repeat:repeat-x;background-position:left bottom"></i><span>' + esc(m.n) + '</span></button>';
+    }).join('');
+  }
   function lineBtns(list) { return list.map(function (l) { return '<button type="button" class="gz gl" data-ln="' + l.k + '" title="' + esc(l.l) + '"><i style="background:' + l.f + ';height:' + Math.max(4, Math.min(9, l.w)) + 'px"></i><span>' + esc(l.l) + '</span></button>'; }).join(''); }
   // ---------- Équipes et bases ----------
   var TCOL = ['#c0262d', '#2563eb', '#1a7f37', '#e0a800', '#7c3aed', '#ea580c'];
   function teams() { return D().teams || (D().teams = []); }
+  function heroList() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; }) : []; return a.length ? a : [{ i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }]; }
+  function heroFor(t) { var l = heroList(); return l.filter(function (e) { return e.i === t.base; })[0] || l[0]; }
   function heroOf() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES && (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; })[0]; return a || { i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }; }
   function renderTeams() {
     var box = $('#gteams'); if (!box) return;
     if (!window.SM_ART && themeById(D().theme)) loadArt().then(renderTeams).catch(function () { /* hors ligne */ });
-    var h = heroOf(), tl = teams();
+    var hs = heroList(), tl = teams();
     box.innerHTML = tl.map(function (t) {
       var nb = D().shapes.filter(function (x) { return x.team === t.id && x.kind === 'stamp'; }).length, on = STAMP && STAMP.team === t.id;
       return '<div class="gteam" data-t="' + t.id + '"><div class="gteam-h"><label class="gteam-c" title="Couleur de l’équipe"><input type="color" value="' + esc(t.color) + '" data-tc><i style="background:' + esc(t.color) + '"></i></label>' +
         '<input class="gteam-n" type="text" maxlength="24" value="' + esc(t.name) + '" aria-label="Nom de l’équipe" data-tn><button type="button" class="ibtn" data-tdel title="Supprimer l’équipe" aria-label="Supprimer l’équipe"><svg class="ic"><use href="#i-trash"/></svg></button></div>' +
-        '<div class="gteam-b"><button type="button" class="btn-ghost sm' + (on && STAMP.hero ? ' on' : '') + '" data-tbase title="Cliquez sur la carte pour poser la base de cette équipe (étirez pour choisir sa taille)">' + (artUri(h.i, t.color) ? '<img src="' + artUri(h.i, t.color) + '" alt="">' : '') + 'Poser la base</button>' +
+        (hs.length > 1 ? '<label class="gteam-s">Image de la base <select data-tb aria-label="Image de la base">' + hs.map(function (e) { return '<option value="' + esc(e.i) + '"' + (heroFor(t).i === e.i ? ' selected' : '') + '>' + esc(e.l) + '</option>'; }).join('') + '</select></label>' : '') +
+        '<div class="gteam-b"><button type="button" class="btn-ghost sm' + (on && STAMP.hero ? ' on' : '') + '" data-tbase title="Cliquez sur la carte pour poser la base de cette équipe (étirez pour choisir sa taille)">' + (artUri(heroFor(t).i, t.color) ? '<img src="' + artUri(heroFor(t).i, t.color) + '" alt="">' : '') + 'Poser la base</button>' +
         '<button type="button" class="btn-ghost sm' + (on && !STAMP.hero ? ' on' : '') + '" data-tstart title="Poser un point de départ pour une patrouille de cette équipe">' + flagSvg(t.color, 20) + 'Poser un départ</button></div>' +
         (nb ? '<p class="gteam-i">' + nb + ' élément' + (nb > 1 ? 's' : '') + ' sur la carte</p>' : '') + '</div>';
     }).join('') || '<p class="gtab-help">Aucune équipe pour l’instant. Ajoutez-en une, donnez-lui un nom et une couleur, puis posez sa base et ses départs sur la carte.</p>';
@@ -569,7 +629,7 @@
   function teamPlace(id, hero) {
     var t = teams().filter(function (x) { return x.id === id; })[0]; if (!t) return;
     if (hero && !window.SM_ART && themeById(D().theme)) { loadArt().then(function () { teamPlace(id, hero); }).catch(function () { /* hors ligne */ }); return; }
-    var h = heroOf();
+    var h = heroFor(t);
     STAMP = hero ? { i: h.i, l: 'Base ' + t.name, col: '', art: true, hero: true, team: id } : { i: 'flag', l: 'Départ ' + t.name, col: t.color, flag: true, team: id };
     PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane(); SM.toast(hero ? 'Cliquez sur la carte (ou cliquez-étirez) pour poser la base de ' + t.name + '.' : 'Cliquez sur la carte pour poser un départ de ' + t.name + '.');
   }
@@ -591,6 +651,7 @@
     });
     box.addEventListener('input', function (e) {
       var row = e.target.closest('.gteam'); if (!row) return; var t = teams().filter(function (x) { return x.id === row.dataset.t; })[0]; if (!t) return;
+      if (e.target.matches('[data-tb]')) { t.base = e.target.value; SM.persist(); renderTeams(); return; }
       if (e.target.matches('[data-tn]')) {
         var old = t.name; t.name = e.target.value;
         D().shapes.forEach(function (x) { if (x.team === t.id) x.name = (x.icon === 'flag' ? 'Départ ' : 'Base ') + t.name; });
@@ -601,7 +662,7 @@
         SM.persist(); render();
       }
     });
-    box.addEventListener('change', function (e) { if (e.target.matches('[data-tc]')) renderTeams(); });
+    box.addEventListener('change', function (e) { if (e.target.matches('[data-tb]')) { var row = e.target.closest('.gteam'), t = teams().filter(function (x) { return x.id === row.dataset.t; })[0]; if (t) { t.base = e.target.value; SM.persist(); renderTeams(); } } else if (e.target.matches('[data-tc]')) renderTeams(); });
   }
   function renderThemes() {
     if (!$('#gstamps')) return;
@@ -618,6 +679,7 @@
     // palette (onglet Poser)
     var artL = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []) : [];
     if (!window.SM_ART && th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
+    if (!window.SM_ART && !th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
     var cats = th ? ['all'].concat(th.cats).concat(artL.some(function (e) { return e.hero; }) ? ['Bases'] : []).concat(artL.some(function (e) { return !e.hero; }) ? ['Illustrations'] : []) : [];
     $('#gcats').innerHTML = cats.map(function (c) { return '<button type="button" data-c="' + esc(c) + '" class="' + (GCAT === c ? 'on' : '') + '">' + (c === 'all' ? 'Tout' : esc(c)) + '</button>'; }).join('');
     $('#gcats').hidden = !th;
@@ -628,7 +690,8 @@
     var FLAGS = [['#c0262d', 'rouge'], ['#2563eb', 'bleu'], ['#1a7f37', 'vert'], ['#e0a800', 'jaune']].map(function (f) { return { i: 'flag', l: 'Équipe ' + f[1], c: 'Repères', col: f[0], flag: 1 }; });
     $('#gcommon').innerHTML = stampBtns(FLAGS.concat(window.SM_ART_COMMON || [], window.SM_COMMON || []), '#12142b');
     $('#gzones').innerHTML = zoneBtns((th ? th.z : []).concat(window.SM_ZONES || []));
-    $('#glines').innerHTML = lineBtns(th ? th.ln : []);
+    var mids = th && window.SM_MOTIF_THEMES ? (window.SM_MOTIF_THEMES[th.id] || []) : (window.SM_MOTIF_COMMON || []);
+    $('#glines').innerHTML = lineBtns(th ? th.ln : []) + motifBtns(mids);
     $$('#gzshape button').forEach(function (b) { b.classList.toggle('on', b.dataset.zs === ZSHAPE); });
   }
   // Pose d'un élément : un clic = taille générale ; clic-glissé = on étire pour choisir la taille
@@ -731,6 +794,8 @@
       setGT(ZSHAPE); PRE = z; STAMP = null; setTab('tools'); renderThemes(); renderPane();
     });
     $('#glines').addEventListener('click', function (e) {
+      var mb = e.target.closest('button[data-mo]');
+      if (mb) { var mm = window.SM_MOTIFS[mb.dataset.mo]; setGT('line'); PRE = { ln: true, k: 'm_' + mb.dataset.mo, l: mm.n, f: '#3f2a1a', w: 4, x: 'motif:' + mb.dataset.mo }; STAMP = null; setTab('tools'); renderThemes(); renderPane(); return; }
       var b = e.target.closest('button[data-ln]'); if (!b) return;
       var th = themeById(D().theme), l = (th ? th.ln : []).filter(function (x) { return x.k === b.dataset.ln; })[0]; if (!l) return;
       setGT('line'); PRE = Object.assign({ ln: true }, l); STAMP = null; setTab('tools'); renderThemes(); renderPane();
