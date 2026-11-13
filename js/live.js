@@ -191,7 +191,7 @@
     }).then(function () { if (s.share) startSharing(); saveSession(); toast('Jeu en direct retrouvé.'); }).catch(function () { st.room = null; st.key = null; st.owner = false; st.admin = false; clearSession(); });
   }
   function active() {
-    btn.hidden = false; $('#lv-title').textContent = liveName(); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter'; $('#lv-invite').textContent = ''; $('#lv-invite').innerHTML = '<svg class="ic"><use href="#i-people"/></svg>Inviter';
+    btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName(); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter'; $('#lv-invite').textContent = ''; $('#lv-invite').innerHTML = '<svg class="ic"><use href="#i-people"/></svg>Inviter';
     $('#lv-invite').hidden = false;
     $('#lv-role').textContent = st.owner ? 'Vous dirigez le jeu : continuez à modifier la carte, les autres chefs reçoivent vos changements en quelques secondes.' : st.admin ? 'Vous êtes co-administrateur : vous pouvez modifier la carte comme le chef qui a lancé le jeu.' : 'Vous suivez le jeu en lecture seule. Seul le chef qui l’a lancé (ou un co-administrateur) peut le modifier.';
     listen(); togglePanel(true); paintMyAv();
@@ -352,7 +352,7 @@
     stopSharing(); st.refs.forEach(function (x) { try { x[0].off(x[1], x[2]); } catch (e) { /* ignoré */ } }); st.refs = [];
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.people = {}; seen = {};
-    if (btn) btn.hidden = true; if (panel) panel.hidden = true; document.body.classList.remove('lv-open');
+    if (btn) btn.hidden = true; if (panel) panel.hidden = true; document.body.classList.remove('lv-open', 'lv-active');
     st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.lastGame = ''; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
     clearSession();
     toast(msg);
@@ -366,6 +366,6 @@
   if (room && km) { build(); setTimeout(function () { join(room, km[1], am && am[1]); }, 400); }
   else if (!room) setTimeout(resume, 800);
   else if (room) { build(); setTimeout(function () { toast('Lien incomplet : scannez de nouveau le QR code (il manque la clé).'); }, 600); }
-  var gb = $('#game-live'); if (gb) gb.addEventListener('click', start);
+  var gb = $('#share-btn'); if (gb) gb.addEventListener('click', start);
   var ab = $('#az-live'); if (ab) ab.addEventListener('click', start);
 })();
