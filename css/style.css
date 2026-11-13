@@ -1145,6 +1145,31 @@ body.lv-open .glegend{display:none!important}
 .gsbar .gf-line[data-for=opacity] input[type=range]{width:120px;margin:4px 0 6px}
 .gsbar .gf-line[data-for=opacity] output{display:none}
 .gpalette .gtools button span{font-size:9.5px;max-width:46px;overflow:hidden;text-overflow:ellipsis}
+/* ---- v6 : barre de style sur une seule ligne, palette d'outils en icônes ---- */
+.gsbar{padding:6px 12px!important;gap:0!important;flex-wrap:nowrap!important;max-height:none!important;overflow:visible!important}
+.gsbar .gfmt{flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;align-items:center!important;gap:0!important;scrollbar-width:thin;min-width:0}
+.gsbar .gfmt>*{flex:none!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;min-height:0!important;padding:0 12px!important;gap:6px!important;border-left:1px solid var(--line)}
+.gsbar .gfmt>.gbar-t{border-left:0!important;padding-left:0!important;max-width:none!important;font-size:12.5px;white-space:nowrap}
+.gsbar .gf-l,.gsbar .gf-line .gf-l,.gsbar .gf-text2 .gf-l,.gsbar .gf-text .gf-l{display:inline!important;font-size:11px!important;text-transform:none!important;letter-spacing:0!important;font-weight:600;color:var(--muted);white-space:nowrap}
+.gsbar .gf-line[data-for=rot],.gsbar .gf-line[data-for=stampsize]{display:flex!important}
+.gsbar .gcol{height:34px!important;padding:0 9px!important}.gsbar .gcol-t small{display:none}.gsbar .gcol-t b{font-size:12px}
+.gsbar .gstep button{height:30px!important;width:30px!important}.gsbar .gstep output{min-width:46px!important}
+.gsbar input[type=text],.gsbar select,.gsbar textarea{height:32px!important}
+.gsbar .gf-text2 input{width:120px!important}
+.gsbar .gf-text textarea{width:120px!important;height:32px!important;min-height:32px!important}
+.gsbar .gf-text{flex-wrap:nowrap!important}.gsbar .gf-text .gf-line{padding:0!important;border:0!important}.gsbar .gf-text .gf-line select{width:112px!important}
+.gsbar .gtb{padding:1px!important}.gsbar .gtb button{width:28px!important;height:28px!important}
+.gsbar .gfmt #gs-actions{margin-left:auto!important;position:sticky;right:0;background:#fff;padding-left:10px!important;border-left:1px solid var(--line)!important}
+.gsbar .btnrow .btn-ghost{width:32px;height:32px;padding:0!important;display:grid;place-items:center}
+.gsbar .btnrow .btn-ghost .ic{width:17px;height:17px}
+.gsbar .gf-line[data-for=opacity] input[type=range]{width:90px!important;margin:0!important}
+.gsbar .gf-line[data-for=dash] .gdash button{height:30px}
+.gpalette{padding:4px!important}
+.gpalette .gtools{gap:3px!important}
+.gpalette .gtools button,.gpalette #gkeep-btn{width:38px!important;height:38px;padding:0!important;display:grid!important;place-items:center}
+.gpalette .gtools button span,.gpalette #gkeep-btn span{display:none!important}
+.gpalette .gtools button .ic,.gpalette #gkeep-btn .ic{width:19px!important;height:19px!important}
+.gpalette.two .gtools{grid-template-columns:1fr 1fr!important}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
