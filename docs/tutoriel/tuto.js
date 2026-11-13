@@ -160,7 +160,7 @@ const STEPS = [
     await p.selectOption('#gbl-part', 'ecartele'); await wait(900); await p.selectOption('#gbl-ch', 'etoile'); await wait(1500); await clickSel('#gbl-ok'); await wait(1500);
   }, 5],
   [T, 'Pour que les autres chefs suivent le jeu, le bouton Partager en direct affiche un code Q R : ils voient la carte, leurs positions respectives, et peuvent discuter. Vous pouvez aussi leur envoyer un lien administrateur pour qu’ils modifient la carte avec vous.', async () => {
-    await moveTo('#game-live'); await wait(3500);
+    await moveTo('#share-btn'); await wait(3500);
   }, 5],
   [T, 'Pour imprimer le jeu, cliquez sur Imprimer : la carte générale est proposée, pour voir toute la zone sur une seule feuille, avec la légende. Échap, ou un clic droit, relâche l’outil et revient à la sélection.', async () => {
     await clickSel('#game-pdf'); await wait(4000); await clickSel('#pdf-cancel'); await wait(500);

@@ -230,8 +230,8 @@
     $('#gcal-zone').innerHTML = 'Zone visible : <b>' + z.txt + '</b> <small>(les calques se génèrent sur ce que vous voyez)</small>';
     box.innerHTML = TYPES.map(function (t) {
       var c = cs.filter(function (x) { return x.type === t.k; })[0], tooBig = z.A.a > t.cap, busy = BUSY[t.k];
-      var head = '<div class="gcal-h"><b>' + esc(t.label) + '</b><small>' + esc(t.desc) + '</small></div>';
-      if (!c) return '<div class="gcal" data-k="' + t.k + '">' + head + '<button type="button" class="btn-ghost block" data-act="gen"' + (busy || tooBig ? ' disabled' : '') + '>' + (busy ? 'Génération en cours…' : tooBig ? 'Zone trop grande : zoomez un peu' : 'Générer sur la zone visible') + '</button></div>';
+      var head = '<div class="gcal-h"><label class="gcal-tg"><input type="checkbox" data-act="tog"' + (c ? ' checked' : '') + (busy ? ' disabled' : '') + '><span class="gcal-box"></span><b>' + esc(t.label) + '</b></label><small>' + esc(t.desc) + (busy ? ' — génération en cours…' : '') + '</small></div>';
+      if (!c) return '<div class="gcal" data-k="' + t.k + '">' + head + (tooBig ? '<p class="gcal-warn">Zone trop grande pour ce calque : zoomez un peu avant de le cocher.</p>' : '') + '</div>';
       var n = (c.data.g ? c.data.g.length : 0) + (c.data.l ? c.data.l.length : 0) + (c.data.a ? c.data.a.length : 0);
       return '<div class="gcal on" data-k="' + t.k + '">' + head +
         '<div class="gcal-row"><button type="button" class="ibtn' + (c.visible === false ? ' off' : '') + '" data-act="vis" title="' + (c.visible === false ? 'Afficher' : 'Masquer') + '">' + SM.ic('eye') + '</button>' +
@@ -262,8 +262,10 @@
     else if (act === 'del' && c) { D().calques = list().filter(function (x) { return x !== c; }); SM.persist(); sync(); renderPane(); }
   }
   function onInput(e) {
-    var card = e.target.closest('.gcal'); if (!card) return; var c = list().filter(function (x) { return x.type === card.dataset.k; })[0]; if (!c) return;
+    var card = e.target.closest('.gcal'); if (!card) return; var c = list().filter(function (x) { return x.type === card.dataset.k; })[0];
     var a = e.target.dataset.act;
+    if (a === 'tog') { if (e.type !== 'change') return; if (e.target.checked) generate(card.dataset.k); else if (c) { D().calques = list().filter(function (x) { return x !== c; }); SM.persist(); sync(); renderPane(); } return; }
+    if (!c) return;
     if (a === 'op') { c.opacity = e.target.value / 100; if (layers[c.id]) layers[c.id].redraw(); SM.persist(); }
     else if (a === 'print') { c.print = e.target.checked; SM.persist(); }
     else if (a === 'sep') { c.sep = e.target.checked; SM.persist(); }

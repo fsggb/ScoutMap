@@ -602,6 +602,16 @@
       return '<button type="button" class="gst' + (e.art ? ' art' : '') + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" data-col="' + esc(e.col || '') + '" data-art="' + (e.art ? 1 : '') + '" data-hero="' + (e.hero ? 1 : '') + '" data-flag="' + (e.flag ? 1 : '') + '" title="' + esc(e.l) + '">' + im + '<span>' + esc(e.l) + '</span></button>';
     }).join('');
   }
+  var ZPV = 0;
+  function zonePreview(z) {
+    var id = 'zpv' + (++ZPV), f = z.f, a = Math.max(0.3, z.a || 0.35), tex = z.x && TEXG[z.x];
+    var fill = tex ? 'url(#' + id + ')' : f;
+    return '<svg class="gz-pv" viewBox="0 0 84 44" preserveAspectRatio="none" aria-hidden="true"><defs>' + (tex ? '<pattern id="' + id + '" patternUnits="userSpaceOnUse" width="28" height="28"><rect width="28" height="28" fill="' + f + '" fill-opacity="' + Math.min(1, a) + '"/>' + TEXG[z.x](shade(f, 0.5)) + '</pattern>' : '') + '</defs>' +
+      '<rect x="1" y="1" width="82" height="42" rx="6" fill="' + fill + '" fill-opacity="' + (tex ? 1 : Math.max(a, 0.5)) + '" stroke="' + shade(f, 0.7) + '" stroke-width="1.6"' + (z.d ? ' stroke-dasharray="5 3"' : '') + '/></svg>';
+  }
+  function zoneTiles(list) {
+    return list.map(function (z) { return '<button type="button" class="gz gzt' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '">' + zonePreview(z) + '<span>' + esc(z.l) + '</span></button>'; }).join('');
+  }
   function zoneBtns(list) { return list.map(function (z) { return '<button type="button" class="gz' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '"><i style="background:' + z.f + ';opacity:' + (0.4 + z.a) + '"></i><span>' + esc(z.l) + '</span></button>'; }).join(''); }
   function motifBtns(ids) {
     return ids.filter(function (id) { return window.SM_MOTIFS && window.SM_MOTIFS[id]; }).map(function (id) {
@@ -769,18 +779,31 @@
     var artL = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []) : [];
     if (!window.SM_ART && th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
     if (!window.SM_ART && !th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
-    var cats = th ? ['all'].concat(th.cats).concat(artL.some(function (e) { return e.hero; }) ? ['Bases'] : []).concat(artL.some(function (e) { return !e.hero; }) ? ['Illustrations'] : []) : [];
-    $('#gcats').innerHTML = cats.map(function (c) { return '<button type="button" data-c="' + esc(c) + '" class="' + (GCAT === c ? 'on' : '') + '">' + (c === 'all' ? 'Tout' : esc(c)) + '</button>'; }).join('');
-    $('#gcats').hidden = !th;
-    var els = th ? th.el.concat(artL).filter(function (e) { return GCAT === 'all' || e.c === GCAT; }) : [];
-    if (th && GCAT === 'all') els = artL.filter(function (e) { return !e.hero; }).concat(th.el);       // les illustrations en couleur d'abord
-    $('#gstamps').innerHTML = th ? stampBtns(els, th.color) : '<p class="gtab-help">' + (window.SM_THEMES ? 'Jeu sans thème : utilisez les repères, les zones et les formes libres ci-dessous.' : 'Chargement…') + '</p>';
-    $('#gth-name').textContent = th ? th.name : '';
     var FLAGS = [['#c0262d', 'rouge'], ['#2563eb', 'bleu'], ['#1a7f37', 'vert'], ['#e0a800', 'jaune']].map(function (f) { return { i: 'flag', l: 'Équipe ' + f[1], c: 'Repères', col: f[0], flag: 1 }; });
-    $('#gcommon').innerHTML = stampBtns(FLAGS.concat(window.SM_ART_COMMON || [], window.SM_COMMON || []), '#12142b');
-    $('#gzones').innerHTML = zoneBtns((th ? th.z : []).concat(window.SM_ZONES || []));
+    var commons = FLAGS.concat(window.SM_ART_COMMON || [], window.SM_COMMON || []);
+    function sortL(a) { return a.slice().sort(function (x, y) { return String(x.l || '').localeCompare(String(y.l || ''), 'fr'); }); }
+    var fold = {}; try { fold = JSON.parse(localStorage.getItem('scoutmap.gsec') || '{}'); } catch (e) { fold = {}; }
+    function sec(name, list, color, hint) {
+      if (!list.length) return '';
+      return '<details class="gsec"' + (fold[name] === false ? '' : ' open') + ' data-sec="' + esc(name) + '"><summary><span>' + esc(name) + '</span><small>' + list.length + '</small></summary>' + (hint ? '<p class="gsec-h">' + esc(hint) + '</p>' : '') + '<div class="gstamps">' + stampBtns(list, color) + '</div></details>';
+    }
+    function fam(t) { return '<h3 class="gfam">' + esc(t) + '</h3>'; }
+    var html = '';
+    if (th) {
+      var heroes = artL.filter(function (e) { return e.hero; }), illus = sortL(artL.filter(function (e) { return !e.hero; }));
+      if (heroes.length || illus.length) html += fam('Illustrations en couleur') + sec('Bases', heroes, th.color, 'Grandes images détaillées : cliquez puis étirez sur la carte pour choisir la taille.') + sec('Illustrations', illus, th.color);
+      html += fam('Repères') + sec('Repères du jeu', commons, '#12142b');
+      html += fam('Pictogrammes') + th.cats.map(function (c) { return sec(c, sortL(th.el.filter(function (e) { return e.c === c; })), th.color); }).join('');
+    } else if (window.SM_THEMES) html = fam('Repères') + sec('Repères du jeu', commons, '#12142b');
+    else html = '<p class="gtab-help">Chargement…</p>';
+    $('#gcats').hidden = true; $('#gcats').innerHTML = '';
+    $('#gstamps').innerHTML = html;
+    $('#gth-name').textContent = th ? th.name : '';
+    var zl = [], zseen = {}; (th ? th.z : []).concat(window.SM_ZONES || []).forEach(function (z) { var k = z.l + z.f; if (!zseen[k]) { zseen[k] = 1; zl.push(z); } });
+    var zt = zl.filter(function (z) { return z.x; }), zp = zl.filter(function (z) { return !z.x; });
+    $('#gzones').innerHTML = '<h4 class="gsec-t">Terrains à motif</h4>' + zoneTiles(zt) + (zp.length ? '<h4 class="gsec-t">Zones unies</h4>' + zoneTiles(zp) : '');
     var mids = th && window.SM_MOTIF_THEMES ? (window.SM_MOTIF_THEMES[th.id] || []) : (window.SM_MOTIF_COMMON || []);
-    $('#glines').innerHTML = lineBtns(th ? th.ln : []) + motifBtns(mids);
+    $('#glines').innerHTML = '<h4 class="gsec-t">Traits simples</h4>' + lineBtns(th ? th.ln : []) + (mids.length ? '<h4 class="gsec-t">Lignes illustrées (motif répété)</h4>' + motifBtns(mids) : '');
     $$('#gzshape button').forEach(function (b) { b.classList.toggle('on', b.dataset.zs === ZSHAPE); });
   }
   // Pose d'un élément : un clic = taille générale ; clic-glissé = on étire pour choisir la taille
@@ -887,9 +910,13 @@
     var pal = $('#gpalette'), src = $('#gtools-src'); if (!pal || !src) return;
     var g = document.createElement('div'); g.className = 'gtools'; g.id = 'gtools';
     $$('button', src).forEach(function (b) { b.title = TOOLTIPS[b.dataset.gt] || b.title; b.setAttribute('aria-label', TOOLTIPS[b.dataset.gt] || ''); g.appendChild(b); });
+    var rp = document.createElement('button'); rp.type = 'button'; rp.id = 'gkeep-btn'; rp.title = 'Répéter : poser plusieurs fois de suite le même élément'; rp.setAttribute('aria-label', rp.title);
+    rp.innerHTML = '<svg class="ic"><use href="#i-loop"/></svg><span>Répéter</span>';
+    rp.addEventListener('click', function () { var c = $('#gs-keep'); c.checked = !c.checked; rp.classList.toggle('on', c.checked); });
+    var sp = document.createElement('i'); sp.className = 'gpal-sep'; g.appendChild(sp); g.appendChild(rp);
     src.remove(); pal.appendChild(g);
     var gp = document.querySelector('.pane[data-pane=game]');
-    function sync() { pal.hidden = !(gp && !gp.hidden); }
+    function sync() { var on = !!(gp && !gp.hidden); pal.hidden = !on; var sb = $('#share-btn'); if (sb) sb.hidden = !on; }
     if (gp) new MutationObserver(sync).observe(gp, { attributes: true, attributeFilter: ['hidden'] }); sync();
     // sous-onglets : une seule section visible à la fois, sans défilement
     var tp = document.querySelector('[data-gtabp=tools]'); if (!tp) return;
@@ -901,23 +928,27 @@
     [$('#gcats'), $('#gstamps'), det('Repères')].forEach(function (e) { if (e) elems.push(e); });
     var h3 = tp.querySelector('h3.sub'); if (h3) elems.unshift(h3);
     secs.elements = elems;
-    var bar = document.createElement('div'); bar.className = 'gsub'; bar.id = 'gsub'; bar.setAttribute('role', 'tablist');
-    bar.innerHTML = [['elements', 'Éléments'], ['teams', 'Équipes'], ['zones', 'Terrains'], ['lines', 'Lignes'], ['images', 'Images']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('');
+    var bar = document.createElement('nav'); bar.className = 'gsub'; bar.id = 'gsub'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Contenu de l’onglet Poser');
+    bar.innerHTML = [['elements', 'Éléments', 'g-stamp'], ['teams', 'Équipes', 'people'], ['zones', 'Terrains', 'g-polygon'], ['lines', 'Lignes', 'g-line'], ['images', 'Images', 'upload']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '"><svg class="ic"><use href="#i-' + x[2] + '"/></svg><span>' + x[1] + '</span></button>'; }).join('');
     var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher un élément (château, drapeau…)" aria-label="Chercher un élément" autocomplete="off">';
     var guide = document.createElement('div'); guide.className = 'gguide'; guide.id = 'gguide'; guide.hidden = true;
-    guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton en bas)</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
-    tp.insertBefore(bar, tp.firstChild); bar.after(guide); guide.after(search);
+    guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton « Partager », à droite de la carte)</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
+    var wrap = document.createElement('div'); wrap.className = 'gposer'; var cont = document.createElement('div'); cont.className = 'gposer-c';
+    while (tp.firstChild) cont.appendChild(tp.firstChild);
+    cont.insertBefore(search, cont.firstChild); cont.insertBefore(guide, cont.firstChild);
+    wrap.appendChild(bar); wrap.appendChild(cont); tp.appendChild(wrap);
     Object.keys(secs).forEach(function (k) { secs[k].forEach(function (e) { if (e && e.tagName === 'DETAILS') { e.open = true; e.classList.add('gsubd'); } }); });
     function applyQuery() {
       var q = QUERY.trim().toLowerCase();
       $$('#gstamps .gst').forEach(function (b) { var t = ((b.dataset.l || '') + ' ' + (b.textContent || '')).toLowerCase(); b.hidden = !!q && t.indexOf(q) < 0; });
+      $$('#gstamps .gsec').forEach(function (d) { var any = $$('.gst', d).some(function (b) { return !b.hidden; }); d.hidden = !any; if (q && any) d.open = true; });
+      $$('#gstamps .gfam').forEach(function (f) { var n = f.nextElementSibling, any = false; while (n && !n.classList.contains('gfam')) { if (n.classList.contains('gsec') && !n.hidden) any = true; n = n.nextElementSibling; } f.hidden = !any; });
     }
     function showSub(k) {
       SUB = k; if (!secs[k]) SUB = k = 'elements';
       $$('#gsub button').forEach(function (b) { var on = b.dataset.sub === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
       Object.keys(secs).forEach(function (kk) { secs[kk].forEach(function (e) { if (e) e.hidden = kk !== k; }); });
       $('#gsearch').hidden = k !== 'elements';
-      var gp2 = $('#gcats'); if (gp2 && k !== 'elements') gp2.hidden = true; else if (gp2) gp2.hidden = !themeById(D().theme);
       applyQuery();
     }
     SM.gameSub = function (k) { showSub(k); renderGuide(); }; SM.gameGuide = function () { renderGuide(); };
@@ -956,7 +987,8 @@
       var b = e.target.closest('button[data-i]'); if (!b) return;
       STAMP = { i: b.dataset.i, l: b.dataset.l, col: b.dataset.col || '', art: !!b.dataset.art, flag: !!b.dataset.flag, hero: !!b.dataset.hero }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
     }
-    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick); teamsInit(); imagesInit();
+    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick);
+    $('#gstamps').addEventListener('toggle', function (e) { var d = e.target; if (!d.classList || !d.classList.contains('gsec') || $('#gsearch-in').value) return; var f = {}; try { f = JSON.parse(localStorage.getItem('scoutmap.gsec') || '{}'); } catch (er) { f = {}; } f[d.dataset.sec] = d.open; try { localStorage.setItem('scoutmap.gsec', JSON.stringify(f)); } catch (er) { /* ignoré */ } }, true); teamsInit(); imagesInit();
     $('#gzones').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-z]'); if (!b) return;
       var th = themeById(D().theme), all = (th ? th.z : []).concat(window.SM_ZONES || []), key = b.dataset.z.split('|');
@@ -998,7 +1030,7 @@
   function colorName(c) { return NAMES[String(c).toLowerCase()] || String(c).toUpperCase(); }
   function renderPane() {
     if (!$('#gtools')) return;
-    $$('#gtools button').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
+    $$('#gtools button[data-gt]').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
     var s = selShape(), src = s || STY, kind = s ? s.kind : (GT !== 'select' ? GT : null);
     if ($('#gtabs') && !$('#gtabs .on')) setTab(GTAB);
     $('#gs-target').textContent = s ? 'Sélection : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style par défaut');

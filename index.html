@@ -129,7 +129,7 @@
         <div class="gactive" id="gactive" hidden><span id="gactive-t"></span><button type="button" id="gactive-end" class="btn-ghost sm">Terminer</button></div>
         <h3 class="sub">Éléments <span class="count" id="gth-name"></span></h3>
         <div class="gbase" id="gcats" hidden></div>
-        <div class="gstamps" id="gstamps"></div>
+        <div id="gstamps"></div>
         <details class="gdet"><summary>Terrains et zones <small>(rivières, forêts… transparents)</small></summary>
           <div class="gzshape" id="gzshape"><span>Tracer en :</span><button type="button" data-zs="polygon">Polygone</button><button type="button" data-zs="rect">Rectangle</button><button type="button" data-zs="circle">Cercle</button></div>
           <div class="gzones" id="gzones"></div>
@@ -142,9 +142,7 @@
           <div class="gstamps" id="gimgs"></div>
           <div class="gimg-b"><label class="btn-ghost sm" for="gimg-file">+ Ajouter une image…</label><input type="file" id="gimg-file" accept="image/*" hidden><button type="button" class="btn-ghost sm" id="gimg-bl">Créer un blason…</button></div>
         </details>
-        <details class="gdet"><summary>Repères du jeu</summary>
-          <div class="gstamps" id="gcommon"></div>
-        </details>
+        <div id="gcommon" hidden></div>
         <div class="gtools" id="gtools-src" hidden>
           
             <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
@@ -156,7 +154,6 @@
             <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
             <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
                   </div>
-        <label class="check"><input type="checkbox" id="gs-keep"> Poser plusieurs fois de suite</label>
         <p class="gtab-help">Un clic pose l’élément ; <b>cliquez-glissez</b> pour choisir sa taille. Échap, clic droit ou double-clic : on revient à la sélection.</p>
       </div>
       <div data-gtabp="layers" hidden>
@@ -231,7 +228,6 @@
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
       <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne. Double-clic sur une forme : la modifier.</p>
       </div>
-      <button class="btn-ghost block" id="game-live" title="Partager le jeu avec les autres chefs : QR code, positions en direct, messages"><svg class="ic"><use href="#i-people"/></svg>Partager en direct…</button>
       <button class="btn-primary block" id="game-pdf"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
@@ -356,7 +352,7 @@
   <main class="stage">
     <div class="mapwrap" id="mapwrap">
       <div id="map" aria-label="Carte"></div>
-      <nav class="gpalette" id="gpalette" aria-label="Outils de dessin" hidden></nav>
+      <nav class="gpalette" id="gpalette" aria-label="Outils de dessin" hidden><input type="checkbox" id="gs-keep" hidden></nav>
 
       <div class="searchcard" id="searchcard" role="search">
         <div class="search-row">
@@ -378,6 +374,7 @@
         <button id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
         <button id="fit-all" title="Recadrer la carte sur le tracé" aria-label="Recadrer sur le tracé"><svg class="ic"><use href="#i-fit"/></svg></button>
         <button id="locate" title="Ma position" aria-label="Ma position"><svg class="ic"><use href="#i-locate"/></svg></button>
+        <button id="share-btn" class="share-btn" title="Partager le jeu en direct avec les autres chefs (code QR, positions, discussion)" aria-label="Partager en direct" hidden><svg class="ic"><use href="#i-people"/></svg><span>Partager</span></button>
       </div>
 
       <div class="bl">
