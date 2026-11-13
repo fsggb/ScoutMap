@@ -32,9 +32,9 @@
   }
   function newStamp(el, p) {
     var th = themeById(D().theme);
-    var big = el.art ? 28 : el.flag ? 18 : 0;
+    var big = el.hero ? 40 : el.art ? 28 : el.flag ? 18 : 0, tm = el.team && (D().teams || []).filter(function (t) { return t.id === el.team; })[0];
     return { id: SM.nid(), kind: 'stamp', pts: [p], icon: el.i, name: el.l, mm: big || undefined, stroke: el.col || STY.iconColor || (th && th.color) || '#4a2c0f', fill: '#ffffff', alpha: 0, linked: false, weight: 3, dash: false,
-      text: '', fontColor: STY.iconText || (th && th.color) || '#12142b', size: 14, font: (th && th.font) || STY.font || 'arial', bold: true, italic: false, underline: false, align: 'center' };
+      text: '', fontColor: STY.iconText || (th && th.color) || '#12142b', size: 14, font: (th && th.font) || STY.font || 'arial', bold: true, italic: false, underline: false, align: 'center', team: tm ? tm.id : undefined, tc: tm ? tm.color : undefined };
   }
   // ---------- Terrains (zones à motif) et lignes décorées (rivière, route, muraille…) ----------
   function shade(hex, f) {
@@ -111,9 +111,10 @@
     return artP;
   }
   function isArt(id) { return typeof id === 'string' && id.indexOf('om:') === 0; }
-  function artUri(id) {
+  function artUri(id, col) {
     var code = id.slice(3), svg = window.SM_ART && window.SM_ART[code]; if (!svg) return '';
-    return ARTURI[code] || (ARTURI[code] = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg));
+    col = col || '#c0262d'; var key = code + col;
+    return ARTURI[key] || (ARTURI[key] = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.indexOf('__C__') >= 0 ? svg.split('__C__').join(col) : svg));
   }
   function flagSvg(color, px) {
     return '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><rect x="4.6" y="2" width="1.9" height="20.5" rx=".9" fill="#5a4630" stroke="#2b2b2b" stroke-width=".7"/><path d="M6.5 3.2C10 1.6 13.5 4.8 20.5 3.2V12.6C13.5 14.2 10 11 6.5 12.6Z" fill="' + color + '" stroke="#2b2b2b" stroke-width="1" stroke-linejoin="round"/></svg>';
@@ -125,7 +126,7 @@
   }
   function stampIcon(s, px) {
     var d = window.SM_ICONS && window.SM_ICONS[s.icon], sw = px < 30 ? 36 : 26;
-    var svg = s.icon === 'flag' ? flagSvg(esc(s.stroke), px) : isArt(s.icon) ? (artUri(s.icon) ? '<img src="' + artUri(s.icon) + '" width="' + px + '" height="' + px + '" draggable="false" alt="">' : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="#ccc" opacity=".6"/></svg>') : d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
+    var svg = s.icon === 'flag' ? flagSvg(esc(s.stroke), px) : isArt(s.icon) ? (artUri(s.icon, s.tc) ? '<img src="' + artUri(s.icon, s.tc) + '" width="' + px + '" height="' + px + '" draggable="false" alt="">' : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="#ccc" opacity=".6"/></svg>') : d ? '<svg viewBox="0 0 512 512" width="' + px + '" height="' + px + '"><path d="' + d + '" fill="' + esc(s.stroke) + '" stroke="#fff" stroke-width="' + sw + '" stroke-linejoin="round" paint-order="stroke"/></svg>'
       : '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '"><circle cx="12" cy="12" r="8" fill="' + esc(s.stroke) + '" opacity=".5"/></svg>';
     var cap = px < 22 ? '' : (s.text || (D().captions ? s.name : ''));
     var lab = cap ? '<span class="gstamp-l" style="color:' + esc(s.fontColor) + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + '">' + esc(cap).replace(/\n/g, '<br>') + '</span>' : '';
@@ -148,7 +149,7 @@
   function swatch(s) {
     var c = s.stroke, f = s.fill, a = s.alpha > 0 ? s.alpha : 0, da = s.dash ? ' stroke-dasharray="4 3"' : '';
     if (s.kind === 'stamp' && s.icon === 'flag') return flagSvg(esc(c), 20);
-    if (s.kind === 'stamp' && isArt(s.icon)) return artUri(s.icon) ? '<img src="' + artUri(s.icon) + '" alt="">' : '';
+    if (s.kind === 'stamp' && isArt(s.icon)) return artUri(s.icon, s.tc) ? '<img src="' + artUri(s.icon, s.tc) + '" alt="">' : '';
     if (s.kind === 'stamp') { var d = window.SM_ICONS && window.SM_ICONS[s.icon]; return d ? '<svg viewBox="0 0 512 512"><path d="' + d + '" fill="' + esc(c) + '"/></svg>' : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="' + esc(c) + '"/></svg>'; }
     if (s.kind === 'line') return '<svg viewBox="0 0 24 14"><path d="M2 7h20" stroke="' + esc(c) + '" stroke-width="3" fill="none"' + da + '/></svg>';
     if (s.kind === 'arrow') return '<svg viewBox="0 0 24 14"><path d="M2 7h17M14 2l6 5-6 5" stroke="' + esc(c) + '" stroke-width="2.5" fill="none"/></svg>';
@@ -543,13 +544,68 @@
   function stampBtns(list, color) {
     return list.map(function (e) {
       var im = e.art ? (artUri(e.i) ? '<img src="' + artUri(e.i) + '" width="46" height="46" alt="">' : '<span class="gst-ph"></span>') : e.flag ? flagSvg(e.col, 44) : ico(e.i, color, 44);
-      return '<button type="button" class="gst' + (e.art ? ' art' : '') + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" data-col="' + esc(e.col || '') + '" data-art="' + (e.art ? 1 : '') + '" data-flag="' + (e.flag ? 1 : '') + '" title="' + esc(e.l) + '">' + im + '<span>' + esc(e.l) + '</span></button>';
+      return '<button type="button" class="gst' + (e.art ? ' art' : '') + (STAMP && STAMP.i === e.i && STAMP.l === e.l ? ' on' : '') + '" data-i="' + esc(e.i) + '" data-l="' + esc(e.l) + '" data-col="' + esc(e.col || '') + '" data-art="' + (e.art ? 1 : '') + '" data-hero="' + (e.hero ? 1 : '') + '" data-flag="' + (e.flag ? 1 : '') + '" title="' + esc(e.l) + '">' + im + '<span>' + esc(e.l) + '</span></button>';
     }).join('');
   }
   function zoneBtns(list) { return list.map(function (z) { return '<button type="button" class="gz' + (PRE && !PRE.ln && PRE.l === z.l && PRE.f === z.f ? ' on' : '') + '" data-z="' + esc(z.l) + '|' + z.f + '" title="' + esc(z.l) + '"><i style="background:' + z.f + ';opacity:' + (0.4 + z.a) + '"></i><span>' + esc(z.l) + '</span></button>'; }).join(''); }
   function lineBtns(list) { return list.map(function (l) { return '<button type="button" class="gz gl" data-ln="' + l.k + '" title="' + esc(l.l) + '"><i style="background:' + l.f + ';height:' + Math.max(4, Math.min(9, l.w)) + 'px"></i><span>' + esc(l.l) + '</span></button>'; }).join(''); }
+  // ---------- Équipes et bases ----------
+  var TCOL = ['#c0262d', '#2563eb', '#1a7f37', '#e0a800', '#7c3aed', '#ea580c'];
+  function teams() { return D().teams || (D().teams = []); }
+  function heroOf() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES && (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; })[0]; return a || { i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }; }
+  function renderTeams() {
+    var box = $('#gteams'); if (!box) return;
+    if (!window.SM_ART && themeById(D().theme)) loadArt().then(renderTeams).catch(function () { /* hors ligne */ });
+    var h = heroOf(), tl = teams();
+    box.innerHTML = tl.map(function (t) {
+      var nb = D().shapes.filter(function (x) { return x.team === t.id && x.kind === 'stamp'; }).length, on = STAMP && STAMP.team === t.id;
+      return '<div class="gteam" data-t="' + t.id + '"><div class="gteam-h"><label class="gteam-c" title="Couleur de l’équipe"><input type="color" value="' + esc(t.color) + '" data-tc><i style="background:' + esc(t.color) + '"></i></label>' +
+        '<input class="gteam-n" type="text" maxlength="24" value="' + esc(t.name) + '" aria-label="Nom de l’équipe" data-tn><button type="button" class="ibtn" data-tdel title="Supprimer l’équipe" aria-label="Supprimer l’équipe"><svg class="ic"><use href="#i-trash"/></svg></button></div>' +
+        '<div class="gteam-b"><button type="button" class="btn-ghost sm' + (on && STAMP.hero ? ' on' : '') + '" data-tbase title="Cliquez sur la carte pour poser la base de cette équipe (étirez pour choisir sa taille)">' + (artUri(h.i, t.color) ? '<img src="' + artUri(h.i, t.color) + '" alt="">' : '') + 'Poser la base</button>' +
+        '<button type="button" class="btn-ghost sm' + (on && !STAMP.hero ? ' on' : '') + '" data-tstart title="Poser un point de départ pour une patrouille de cette équipe">' + flagSvg(t.color, 20) + 'Poser un départ</button></div>' +
+        (nb ? '<p class="gteam-i">' + nb + ' élément' + (nb > 1 ? 's' : '') + ' sur la carte</p>' : '') + '</div>';
+    }).join('') || '<p class="gtab-help">Aucune équipe pour l’instant. Ajoutez-en une, donnez-lui un nom et une couleur, puis posez sa base et ses départs sur la carte.</p>';
+  }
+  function teamPlace(id, hero) {
+    var t = teams().filter(function (x) { return x.id === id; })[0]; if (!t) return;
+    if (hero && !window.SM_ART && themeById(D().theme)) { loadArt().then(function () { teamPlace(id, hero); }).catch(function () { /* hors ligne */ }); return; }
+    var h = heroOf();
+    STAMP = hero ? { i: h.i, l: 'Base ' + t.name, col: '', art: true, hero: true, team: id } : { i: 'flag', l: 'Départ ' + t.name, col: t.color, flag: true, team: id };
+    PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane(); SM.toast(hero ? 'Cliquez sur la carte (ou cliquez-étirez) pour poser la base de ' + t.name + '.' : 'Cliquez sur la carte pour poser un départ de ' + t.name + '.');
+  }
+  function teamsInit() {
+    var box = $('#gteams'); if (!box) return;
+    $('#gteam-add').addEventListener('click', function () {
+      var n = teams().length; teams().push({ id: 't' + SM.nid(), name: 'Équipe ' + (n + 1), color: TCOL[n % TCOL.length] }); SM.persist(); renderTeams();
+      var ins = box.querySelectorAll('[data-tn]'); if (ins.length) { var i = ins[ins.length - 1]; i.focus(); i.select(); }
+    });
+    box.addEventListener('click', function (e) {
+      var row = e.target.closest('.gteam'); if (!row) return; var id = row.dataset.t;
+      if (e.target.closest('[data-tbase]')) teamPlace(id, true);
+      else if (e.target.closest('[data-tstart]')) teamPlace(id, false);
+      else if (e.target.closest('[data-tdel]')) {
+        var t = teams().filter(function (x) { return x.id === id; })[0]; if (!t) return;
+        if (!confirm('Supprimer l’équipe « ' + t.name + ' » et ses bases / départs sur la carte ?')) return;
+        D().teams = teams().filter(function (x) { return x.id !== id; }); D().shapes = D().shapes.filter(function (x) { return x.team !== id; }); SELID = null; SM.persist(); render(); renderTeams(); SM.renderLayerList();
+      }
+    });
+    box.addEventListener('input', function (e) {
+      var row = e.target.closest('.gteam'); if (!row) return; var t = teams().filter(function (x) { return x.id === row.dataset.t; })[0]; if (!t) return;
+      if (e.target.matches('[data-tn]')) {
+        var old = t.name; t.name = e.target.value;
+        D().shapes.forEach(function (x) { if (x.team === t.id) x.name = (x.icon === 'flag' ? 'Départ ' : 'Base ') + t.name; });
+        SM.persist(); render(); SM.renderLayerList();
+      } else if (e.target.matches('[data-tc]')) {
+        t.color = e.target.value; row.querySelector('.gteam-c i').style.background = t.color;
+        D().shapes.forEach(function (x) { if (x.team === t.id) { x.tc = t.color; if (x.icon === 'flag') x.stroke = t.color; } });
+        SM.persist(); render();
+      }
+    });
+    box.addEventListener('change', function (e) { if (e.target.matches('[data-tc]')) renderTeams(); });
+  }
   function renderThemes() {
     if (!$('#gstamps')) return;
+    renderTeams();
     var th = themeById(D().theme), perso = D().theme === 'perso';
     // réglages du jeu (panneau Réglages)
     if ($('#gscale')) {
@@ -562,11 +618,11 @@
     // palette (onglet Poser)
     var artL = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []) : [];
     if (!window.SM_ART && th) loadArt().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ });
-    var cats = th ? ['all'].concat(th.cats).concat(artL.length ? ['Illustrations'] : []) : [];
+    var cats = th ? ['all'].concat(th.cats).concat(artL.some(function (e) { return e.hero; }) ? ['Bases'] : []).concat(artL.some(function (e) { return !e.hero; }) ? ['Illustrations'] : []) : [];
     $('#gcats').innerHTML = cats.map(function (c) { return '<button type="button" data-c="' + esc(c) + '" class="' + (GCAT === c ? 'on' : '') + '">' + (c === 'all' ? 'Tout' : esc(c)) + '</button>'; }).join('');
     $('#gcats').hidden = !th;
     var els = th ? th.el.concat(artL).filter(function (e) { return GCAT === 'all' || e.c === GCAT; }) : [];
-    if (th && GCAT === 'all') els = artL.concat(th.el);       // les illustrations en couleur d'abord
+    if (th && GCAT === 'all') els = artL.filter(function (e) { return !e.hero; }).concat(th.el);       // les illustrations en couleur d'abord
     $('#gstamps').innerHTML = th ? stampBtns(els, th.color) : '<p class="gtab-help">' + (window.SM_THEMES ? 'Jeu sans thème : utilisez les repères, les zones et les formes libres ci-dessous.' : 'Chargement…') + '</p>';
     $('#gth-name').textContent = th ? th.name : '';
     var FLAGS = [['#c0262d', 'rouge'], ['#2563eb', 'bleu'], ['#1a7f37', 'vert'], ['#e0a800', 'jaune']].map(function (f) { return { i: 'flag', l: 'Équipe ' + f[1], c: 'Repères', col: f[0], flag: 1 }; });
@@ -665,9 +721,9 @@
     $('#gcats').addEventListener('click', function (e) { var b = e.target.closest('button[data-c]'); if (b) { GCAT = b.dataset.c; renderThemes(); } });
     function pick(e) {
       var b = e.target.closest('button[data-i]'); if (!b) return;
-      STAMP = { i: b.dataset.i, l: b.dataset.l, col: b.dataset.col || '', art: !!b.dataset.art, flag: !!b.dataset.flag }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
+      STAMP = { i: b.dataset.i, l: b.dataset.l, col: b.dataset.col || '', art: !!b.dataset.art, flag: !!b.dataset.flag, hero: !!b.dataset.hero }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
     }
-    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick);
+    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick); teamsInit();
     $('#gzones').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-z]'); if (!b) return;
       var th = themeById(D().theme), all = (th ? th.z : []).concat(window.SM_ZONES || []), key = b.dataset.z.split('|');
