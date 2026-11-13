@@ -69,6 +69,8 @@
   function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function toast(m) { SM.toast(m); }
   function roomRef() { return st.db.ref('rooms/' + st.room); }
+  function canEdit() { return !!(st.owner || st.admin); }
+  function adminLink() { return linkOf() + '&a=' + st.atok; }
   function linkOf() { return location.href.split('#')[0].split('?')[0] + '?salle=' + st.room + '#k=' + st.key; }
   function configured() { return !!(CFG && CFG.apiKey && CFG.databaseURL); }
 
@@ -121,7 +123,7 @@
     if (k === 'chat') { st.unread = 0; badge(); var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; } else renderPeople();
   }
   function togglePanel(on) {
-    st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen;
+    st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen; document.body.classList.toggle('lv-open', st.panelOpen);
     if (st.panelOpen) { if ((st.lt || 'chat') === 'chat') { st.unread = 0; badge(); } var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; renderPeople(); }
   }
   function badge() { var b = $('.lv-badge', btn), n = st.unread > 9 ? '9+' : st.unread; b.hidden = !st.unread; b.textContent = n; var t = $('#lv-tb'); if (t) { t.hidden = !st.unread; t.textContent = n; } }
@@ -130,7 +132,7 @@
   // ---------- Création et accès ----------
   function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : S.game.shapes.length > 0; }
   function liveName() { return st.mode === 'az' ? (S.az.name || 'Azimuts') : (S.game.name || 'Grand jeu'); }
-  function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ mode: st.mode, room: st.room, key: st.key, owner: st.owner, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
+  function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ mode: st.mode, room: st.room, key: st.key, owner: st.owner, admin: st.admin, atok: st.atok, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
   function clearSession() { try { localStorage.removeItem('scoutmap.live.session'); } catch (e) { /* ignoré */ } }
   function askName(title, okLabel, cb) {
     if (st.name && cb.quiet) { cb(st.name); return; }
@@ -162,7 +164,7 @@
     });
   }
   // Un chef qui arrive par le QR code
-  function join(room, key) {
+  function join(room, key, atok) {
     build();
     if (!configured()) { toast('Le partage en direct n’est pas activé sur ce site.'); return; }
     st.room = room; st.key = key;
@@ -172,8 +174,9 @@
       fb().then(function () { return roomRef().child('owner').once('value'); }).then(function (v) {
         if (!v.exists()) throw new Error('Ce jeu en direct est terminé ou n’existe plus.');
         if (v.val() === st.uid && window.SM_LIVE_ROOM) { st.owner = true; saveSession(); location.replace(location.href.split('?')[0].split('#')[0]); throw new Error('Retour à votre jeu…'); }
-        active(); return loadGame();
-      }).then(function () { startSharing(); saveSession(); }).catch(function (e) { toast(e && e.message ? e.message : 'Connexion impossible.'); });
+        if (!atok) return null;
+        return roomRef().child('admins/' + st.uid).set(atok).then(function () { st.admin = true; st.atok = atok; }).catch(function () { toast('Lien administrateur refusé ou révoqué : vous suivez le jeu en lecture seule.'); });
+      }).then(function () { active(); return loadGame(); }).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); if (!window.SM_VIEWER) { SM.setMode(st.mode); } toast('Vous êtes co-administrateur : vous pouvez modifier la carte.'); } startSharing(); saveSession(); }).catch(function (e) { toast(e && e.message ? e.message : 'Connexion impossible.'); });
     };
     go.quiet = true; askName('Rejoindre le jeu en direct', 'Rejoindre', go);
   }
@@ -181,36 +184,37 @@
   function resume() {
     var s; try { s = JSON.parse(localStorage.getItem('scoutmap.live.session') || 'null'); } catch (e) { s = null; }
     if (!s || !s.room || !s.key || Date.now() - s.t > 3 * 86400000 || !configured() || !window.crypto || !crypto.subtle) return;
-    build(); st.room = s.room; st.key = s.key; st.owner = !!s.owner;
+    build(); st.room = s.room; st.key = s.key; st.owner = !!s.owner; st.admin = !!s.admin; st.atok = s.atok || null;
     importKey(s.key).then(function (k) { st.ck = k; return fb(); }).then(function () { return roomRef().child('owner').once('value'); }).then(function (v) {
       if (!v.exists() || (st.owner && v.val() !== st.uid)) throw new Error('fin');
-      st.mode = s.mode || 'game'; active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame();
-    }).then(function () { if (s.share) startSharing(); saveSession(); toast('Jeu en direct retrouvé.'); }).catch(function () { st.room = null; st.key = null; st.owner = false; clearSession(); });
+      st.mode = s.mode || 'game'; active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
+    }).then(function () { if (s.share) startSharing(); saveSession(); toast('Jeu en direct retrouvé.'); }).catch(function () { st.room = null; st.key = null; st.owner = false; st.admin = false; clearSession(); });
   }
   function active() {
-    btn.hidden = false; $('#lv-title').textContent = liveName(); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter';
+    btn.hidden = false; $('#lv-title').textContent = liveName(); $('#lv-end').textContent = st.owner ? 'Terminer le jeu en direct' : 'Quitter'; $('#lv-invite').textContent = ''; $('#lv-invite').innerHTML = '<svg class="ic"><use href="#i-people"/></svg>Inviter';
     $('#lv-invite').hidden = false;
-    $('#lv-role').textContent = st.owner ? 'Vous dirigez le jeu : continuez à modifier la carte, les autres chefs reçoivent vos changements en quelques secondes.' : 'Vous suivez le jeu en lecture seule. Seul le chef qui l’a lancé peut le modifier.';
+    $('#lv-role').textContent = st.owner ? 'Vous dirigez le jeu : continuez à modifier la carte, les autres chefs reçoivent vos changements en quelques secondes.' : st.admin ? 'Vous êtes co-administrateur : vous pouvez modifier la carte comme le chef qui a lancé le jeu.' : 'Vous suivez le jeu en lecture seule. Seul le chef qui l’a lancé (ou un co-administrateur) peut le modifier.';
     listen(); togglePanel(true); paintMyAv();
     st.timers.push(setInterval(function () { renderPeople(); }, 5000));
-    if (st.owner) st.timers.push(setInterval(function () { publishGame(); }, 4000));
+    if (canEdit()) st.timers.push(setInterval(function () { publishGame(); }, 4000));
   }
 
   // ---------- Le jeu (envoyé par le chef, reçu en lecture seule par les autres) ----------
   function snapshot() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
   function publishGame() {
-    if (!st.owner || !st.room || !hasContent()) return Promise.resolve();
+    if (!canEdit() || !st.room || !hasContent()) return Promise.resolve();
     var js = JSON.stringify(snapshot()); if (js === st.lastGame) return Promise.resolve(); st.lastGame = js;
     return enc(snapshot()).then(function (e) { return roomRef().update({ game: e, gameT: firebase.database.ServerValue.TIMESTAMP }); }).catch(function () { st.lastGame = ''; });
   }
-  function loadGame(first) {
+  function loadGame(first, mine) {
     return roomRef().child('game').once('value').then(function (v) {
       if (!v.exists()) throw new Error('Le chef n’a encore rien partagé.');
       return dec(v.val());
     }).then(function (data) {
+      if (mine) { var js = JSON.stringify(data); if (st.lastGame && js === st.lastGame) return; }
       if (data.name) $('#lv-title').textContent = data.name;
       if (data.rail === 'az' || data.rail === 'game') st.mode = data.rail;
-      SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true;
+      SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true; if (st.admin) { st.lastGame = JSON.stringify(snapshot()); }
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
 
@@ -229,7 +233,11 @@
       var m = snap.val(); dec(m.d).then(function (d) { addChat(d, m.t, snap.key); }).catch(function () { /* ignoré */ });
     });
     on(r.child('closed'), 'value', function (v) { if (v.val() && !st.owner) finish('Le chef a terminé le jeu en direct.'); });
-    if (!st.owner) on(r.child('gameT'), 'value', function () { if (st.loaded) loadGame().catch(function () { /* ignoré */ }); });
+    if (!st.owner) on(r.child('gameT'), 'value', function () {
+      if (!st.loaded) return;
+      if (st.admin) { if (st.lastGame && JSON.stringify(snapshot()) !== st.lastGame) return; loadGame(false, true).catch(function () { /* ignoré */ }); return; }
+      loadGame().catch(function () { /* ignoré */ });
+    });
   }
   var seen = {};
   function addChat(d, t, key) {
@@ -311,13 +319,26 @@
   function showInvite() {
     if (!st.room) return;
     var url = linkOf(), qr = qrcode(0, 'M'); qr.addData(url); qr.make();
-    var d = dlgOpen('<h2>Inviter les autres chefs</h2><p class="dlg-sub">Ils scannent ce QR code avec l’appareil photo de leur téléphone : ils arrivent sur le jeu, saisissent leur prénom et partagent leur position. Tout est chiffré, et seul vous pouvez modifier le jeu.</p>' +
+    var d = dlgOpen('<h2>Inviter les autres chefs</h2><p class="dlg-sub">Ils scannent ce QR code avec l’appareil photo de leur téléphone : ils arrivent sur le jeu, saisissent leur prénom et partagent leur position. Tout est chiffré ; ils suivent le jeu en lecture seule.</p>' +
       '<div class="lv-qr">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
       '<input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du jeu en direct">' +
+      (st.owner ? '<div class="lv-adm"><b>Lien administrateur</b><p>Pour un autre chef qui doit pouvoir modifier la carte avec vous. À n’envoyer qu’aux personnes de confiance.</p><div class="dlg-actions"><button class="btn-ghost" id="lv-acopy" type="button">Copier le lien administrateur</button><button class="btn-ghost" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
       '<div class="dlg-actions"><button class="btn-ghost" id="lv-copy" type="button">Copier le lien</button>' + (navigator.share ? '<button class="btn-ghost" id="lv-share" type="button">Envoyer…</button>' : '') + '<button class="btn-primary" id="lv-done" type="button">Terminé</button></div>');
     $('#lv-copy', d).addEventListener('click', function () { var i = $('#lv-link', d); i.select(); try { navigator.clipboard.writeText(url).then(function () { toast('Lien copié.'); }, function () { document.execCommand('copy'); toast('Lien copié.'); }); } catch (e) { document.execCommand('copy'); toast('Lien copié.'); } });
     var sh = $('#lv-share', d); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'Jeu en direct', text: 'Rejoins le jeu en direct sur ScoutMap', url: url }).catch(function () { /* annulé */ }); });
     $('#lv-done', d).addEventListener('click', function () { d.close(); });
+    var ac = $('#lv-acopy', d);
+    if (ac) {
+      var cp = function (t) { try { navigator.clipboard.writeText(t).then(function () { toast('Lien administrateur copié.'); }, function () { toast('Copie impossible : sélectionnez le lien à la main.'); }); } catch (e) { toast('Copie impossible.'); } };
+      ac.addEventListener('click', function () {
+        if (st.atok) { cp(adminLink()); return; }
+        var tk = rand(20);
+        roomRef().child('admtok').set(tk).then(function () { st.atok = tk; saveSession(); cp(adminLink()); }).catch(function () { toast('Impossible de créer le lien : mettez à jour les règles Firebase (docs/DIRECT.md).'); });
+      });
+      $('#lv-arev', d).addEventListener('click', function () {
+        var r = roomRef(); Promise.all([r.child('admtok').remove(), r.child('admins').remove()]).then(function () { st.atok = null; saveSession(); toast('Liens administrateur révoqués.'); }).catch(function () { toast('Révocation impossible.'); });
+      });
+    }
   }
 
   // ---------- Fin ----------
@@ -331,8 +352,8 @@
     stopSharing(); st.refs.forEach(function (x) { try { x[0].off(x[1], x[2]); } catch (e) { /* ignoré */ } }); st.refs = [];
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.people = {}; seen = {};
-    if (btn) btn.hidden = true; if (panel) panel.hidden = true;
-    st.room = null; st.key = null; st.owner = false; st.lastGame = ''; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
+    if (btn) btn.hidden = true; if (panel) panel.hidden = true; document.body.classList.remove('lv-open');
+    st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.lastGame = ''; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
     clearSession();
     toast(msg);
   }
@@ -341,7 +362,8 @@
   SM.live = { start: start, join: join, active: function () { return !!st.room; } };
   var P; try { P = new URLSearchParams(location.search); } catch (e) { P = null; }
   var room = P && P.get('salle'), km = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);
-  if (room && km) { build(); setTimeout(function () { join(room, km[1]); }, 400); }
+  var am = /[#&]a=([A-Za-z0-9_-]+)/.exec(location.hash);
+  if (room && km) { build(); setTimeout(function () { join(room, km[1], am && am[1]); }, 400); }
   else if (!room) setTimeout(resume, 800);
   else if (room) { build(); setTimeout(function () { toast('Lien incomplet : scannez de nouveau le QR code (il manque la clé).'); }, 600); }
   var gb = $('#game-live'); if (gb) gb.addEventListener('click', start);
