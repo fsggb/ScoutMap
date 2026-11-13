@@ -224,7 +224,7 @@
         break;
       case 'cross': ob.marker = add(L.marker(s.pts[0], { icon: crossIcon(s), interactive: inter, draggable: inter && !o.stored, keyboard: false })); break;
       case 'text': ob.marker = add(L.marker(s.pts[0], { icon: textIcon(s), interactive: inter, draggable: inter && !o.stored, keyboard: false })); break;
-      case 'stamp': ob.marker = add(new StampMarker(s.pts[0], s, { icon: stampIcon(s, 40), interactive: inter, draggable: inter && !o.stored, keyboard: false })); if (!window.SM_ICONS) loadThemes().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }); if (isArt(s.icon) && !window.SM_ART) loadArt().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }); break;
+      case 'stamp': ob.marker = add(new StampMarker(s.pts[0], s, { icon: stampIcon(s, 40), interactive: inter, draggable: inter && !o.stored, keyboard: false })); if (!window.SM_ICONS) loadThemes().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }).catch(function () { /* hors ligne */ }); if (isArt(s.icon) && !window.SM_ART) loadArt().then(function () { if (D().shapes.indexOf(s) >= 0) render(); }).catch(function () { /* hors ligne */ }); break;
     }
     if (ob.marker && inter && !o.stored) {
       ob.marker.on('dragstart', function () { select(s.id); });

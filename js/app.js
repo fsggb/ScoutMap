@@ -1817,13 +1817,15 @@
       html = html.replace(/<script src="(js\/[^"?]+)(\?[^"]*)?"><\/script>/g, function (m, u) { var k = jobs.length; jobs.push(get(dir + u)); return '@@JS' + k + '@@'; });
       html = html.replace(/<script src="\/ScoutHub[^>]*><\/script>/g, '');
       var logo = get(dir + 'assets/fsggb.png', true).then(dataUri);
-      return Promise.all(jobs.concat([logo])).then(function (res) {
-        var lg = res[res.length - 1], first = true;
+      // un grand jeu emporte sa bibliothèque d'icônes (sinon les éléments ne s'afficheraient pas dans la page seule)
+      var needLib = !!(data.game && data.game.shapes && data.game.shapes.length), lib = needLib ? [get(dir + 'js/themes.js'), get(dir + 'js/themes-art.js').catch(function () { return ''; })] : [];
+      return Promise.all(jobs.concat([logo]).concat(lib)).then(function (res) {
+        var lg = res[jobs.length], first = true, libTxt = needLib ? '<script>' + res[jobs.length + 1].replace(/<\/script/g, '<\\/script') + '</script>\n' + (res[jobs.length + 2] ? '<script>' + res[jobs.length + 2].replace(/<\/script/g, '<\\/script') + '</script>\n' : '') : '';
         html = html.replace(/@@(CSS|JS)(\d+)@@/g, function (m, kind, k) {
           var txt = res[+k].replace(/<\/script/g, '<\\/script');
           if (kind === 'CSS') return '<style>' + res[+k] + '</style>';
           var pre = '';
-          if (first) { first = false; pre = '<script id="scoutmap-data" type="application/json">' + JSON.stringify(data).replace(/</g, '\\u003c') + '</script>\n<script>window.SM_VIEWER=true;</script>\n'; }
+          if (first) { first = false; pre = libTxt + '<script id="scoutmap-data" type="application/json">' + JSON.stringify(data).replace(/</g, '\\u003c') + '</script>\n<script>window.SM_VIEWER=true;</script>\n'; }
           return pre + '<script>' + txt + '</script>';
         });
         html = html.split('assets/fsggb.png').join(lg);
@@ -2552,6 +2554,8 @@
       document.body.classList.add('viewer'); showHome(false);
       if (!window.SM_LIVE_ROOM) { try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); } }
       S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
+      // la page seule s'ouvre cadrée sur le jeu (la mise en page est terminée après un court délai)
+      if (!window.SM_LIVE_ROOM) setTimeout(function () { map.invalidateSize(); var b0 = layerBounds(S.rail === 'route' ? 'route' : S.rail); if (b0 && b0.isValid && b0.isValid()) fit(b0, { padding: [50, 50], maxZoom: 18 }); }, 500);
       $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho'].indexOf(b.dataset.base) < 0) b.hidden = true; });
       $$('#pop-tabs [data-tab=sharp]').forEach(function (b) { b.hidden = true; });
       $('#btn-edit').hidden = !!window.SM_LIVE_ROOM;
