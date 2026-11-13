@@ -74,6 +74,10 @@
   <symbol id="i-g-text" viewBox="0 0 24 24"><path d="M5 7V4h14v3M12 4v16M9 20h6"/></symbol>
   <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c3 .1 5 2.3 5 5.3"/></symbol>
   <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></symbol>
+  <symbol id="i-front" viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2" style="opacity:.5"/><rect x="9" y="9" width="12" height="12" rx="2" fill="currentColor"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2" fill="currentColor"/><rect x="9" y="9" width="12" height="12" rx="2" fill="#fff"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M12 8V2M9 5l3-3 3 3"/></symbol>
+  <symbol id="i-bwd" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="10" rx="2"/><path d="M12 16v6M9 19l3 3 3-3"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
@@ -118,6 +122,7 @@
       <div class="gtabs" id="gtabs" role="tablist">
         <button type="button" role="tab" data-gtab="tools">Éléments</button>
         <button type="button" role="tab" data-gtab="layers">Calques</button>
+        <button type="button" role="tab" data-gtab="fx">Effets</button>
         <button type="button" role="tab" data-gtab="list">Liste <span class="count" id="gs-count"></span></button>
       </div>
       <div data-gtabp="tools">
@@ -158,10 +163,16 @@
       </div>
       <div data-gtabp="layers" hidden>
         <p class="gtab-help">Des calques dessinés <b>à partir des données réelles</b> (IGN) : reliefs, forêts, rivières. Ils se posent sur n’importe quel fond de carte, se règlent en transparence et peuvent s’imprimer sur leur propre feuille.</p>
-        <div class="gcal gcal-bg"><div class="gcal-h"><label class="gcal-tg"><input type="checkbox" id="gparch"><span class="gcal-box"></span><b>Effet parchemin</b></label><small>Teinte ancienne et bords vieillis sur le fond de carte, aussi à l’impression. Décoché : couleurs d’origine du fond (IGN…).</small></div>
-          <label class="gcal-op"><span>Intensité</span><input type="range" id="gparch-lv" min="10" max="100" step="5" value="62" aria-label="Intensité de l’effet parchemin"></label></div>
         <p class="gcal-zone" id="gcal-zone"></p>
         <div class="gcal-list" id="gcal-list"></div>
+      </div>
+      <div data-gtabp="fx" hidden>
+        <h3 class="sub">Fond de carte</h3>
+        <div class="gfxbs" id="gfx-base"></div>
+        <p class="gtab-help">Astuce : la <b>photo aérienne</b> est souvent plus pratique que le plan pour repérer haies, chemins et bâtiments.</p>
+        <h3 class="sub">Effets sur la carte</h3>
+        <p class="gtab-help">Cliquez pour activer ou désactiver un effet (ils se combinent et s’impriment). Sans effet : couleurs d’origine du fond.</p>
+        <div class="gfx-grid" id="gfx-list"></div>
       </div>
       <div data-gtabp="style" hidden>
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
@@ -175,7 +186,7 @@
           <div class="gstep"><button type="button" id="gs-weight-m" aria-label="Plus fin">−</button><output id="gs-weight-v">3 px</output><button type="button" id="gs-weight-p" aria-label="Plus épais">+</button></div>
         </div>
         <div class="gf-line" data-for="stampsize">
-          <span class="gf-l">Taille de cet élément</span>
+          <span class="gf-l" title="Taille sur le papier, à l’échelle de départ du jeu">Taille (mm)</span>
           <div class="gstep"><button type="button" id="gs-stamp-m" aria-label="Plus petit">−</button><output id="gs-stamp-v">16 mm</output><button type="button" id="gs-stamp-p" aria-label="Plus grand">+</button></div>
           <button type="button" class="btn-ghost sm" id="gs-stamp-auto" hidden>Taille générale</button>
         </div>
@@ -221,14 +232,15 @@
       <input type="color" id="gpal-custom" tabindex="-1" aria-hidden="true" style="position:fixed;left:-99px;opacity:0">
       <div class="btnrow" id="gs-actions">
         <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
-        <button class="btn-ghost" id="gs-front" title="Mettre au premier plan"><svg class="ic"><use href="#i-up"/></svg></button>
-        <button class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan"><svg class="ic"><use href="#i-down"/></svg></button>
+        <button class="btn-ghost" id="gs-front" title="Mettre au premier plan" aria-label="Premier plan"><svg class="ic"><use href="#i-front"/></svg></button>
+        <button class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan" aria-label="Arrière-plan"><svg class="ic"><use href="#i-back"/></svg></button>
         <button class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
       </div>
 
       </div>
       <div data-gtabp="list" hidden>
       <ul class="glist" id="gs-list"></ul>
+      <button type="button" class="btn-ghost sm" id="gs-auto" title="Terrains en dessous, puis lignes, bases, pictogrammes et textes">Ordre automatique</button>
       <p class="empty" id="gs-empty">Choisissez un outil ci-dessus puis dessinez sur la carte.</p>
       <p class="note">Sélection : cliquez une forme pour la modifier (poignées blanches = sommets, poignée centrale = déplacer). <kbd>Suppr</kbd> la retire, <kbd>Échap</kbd> désélectionne. Double-clic sur une forme : la modifier.</p>
       </div>
@@ -302,6 +314,7 @@
         <h3 class="sub">Échelle du jeu</h3>
         <p class="note first">Elle règle le zoom et la taille des éléments (en millimètres sur le papier à cette échelle).</p>
         <div class="gscale" id="gscale"></div>
+        <p class="note">La taille des éléments dépend de l’échelle choisie : ils gardent la même taille sur le papier (en mm), donc ils grossissent ou rétrécissent sur la carte quand on change d’échelle.</p>
         <h3 class="sub">Éléments</h3>
         <div class="gf-line" style="margin-bottom:8px"><span class="gf-l">Taille de tous les éléments</span><div class="gstep"><button type="button" id="gs-st-m" aria-label="Plus petit">−</button><output id="gs-st-size">16 mm</output><button type="button" id="gs-st-p" aria-label="Plus grand">+</button></div></div>
         <label class="check"><input type="checkbox" id="gcaptions"> Écrire le nom sous chaque élément (sinon : légende seulement)</label>

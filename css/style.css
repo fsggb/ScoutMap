@@ -458,15 +458,15 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line-2);border-b
 .glist .gt small{color:var(--muted);margin-left:4px}
 .glist .ibtn{width:26px;height:26px}
 .gtext{transform:translate(-50%,-50%);display:inline-block;white-space:pre-wrap;max-width:340px;padding:4px 10px;border-radius:9px;font-weight:700;line-height:1.2;text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.3);cursor:pointer}
-.g-icon.sel .gtext{box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold)}
+
 .g-icon{background:none;border:0}
 .g-icon svg{display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
-.g-icon.sel svg{filter:drop-shadow(0 0 3px var(--gold)) drop-shadow(0 0 5px var(--gold))}
+
 .g-handle{background:#fff;border:2px solid var(--navy);border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .g-handle.move{border-radius:50%;background:var(--gold);display:grid;place-items:center;color:var(--navy);font-size:13px;font-weight:700}
 .g-handle.round{border-radius:50%}
 .g-handle.mid{opacity:.7;transform:scale(.8)}
-path.g-sel{filter:drop-shadow(0 0 4px #c6a24e) drop-shadow(0 0 2px #c6a24e)}
+
 .leaflet-container.tool-game{cursor:crosshair}
 .leaflet-container.tool-game.gt-select{cursor:grab}
 .leaflet-container.tool-game .leaflet-interactive{cursor:pointer}
@@ -911,7 +911,7 @@ body.doc-open .home{display:none!important}
 .gstamp{position:relative;display:block}
 .gstamp svg{display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
 .gstamp-l{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:1px;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;line-height:1.1}
-.g-icon.sel .gstamp svg{filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 4px var(--gold)) drop-shadow(0 0 3px var(--gold))}
+
 /* effet parchemin : teinte ancienne + bords vieillis (aussi sur les cartes imprimées) */
 .parch .leaflet-tile-pane{filter:sepia(var(--pa,.62)) saturate(.85) contrast(1.06) brightness(1.03)}
 .parch::after{content:'';position:absolute;inset:0;z-index:450;pointer-events:none;opacity:min(1,calc(var(--pa,.62) / .62));background:radial-gradient(ellipse at center,rgba(255,236,190,0) 55%,rgba(120,72,18,.28) 100%);box-shadow:inset 0 0 70px 6px rgba(104,62,14,.5)}
@@ -1107,6 +1107,44 @@ body.lv-open .glegend{display:none!important}
 .glist .ibtn{width:24px;height:24px}.glist .ibtn .ic{width:15px;height:15px}.glist .ibtn.on{background:var(--navy);color:#fff}
 .gcal-bg{padding:10px 12px;border:1px solid var(--line-2);border-radius:12px;background:#fff;margin-bottom:10px}
 .gf-line[data-for=opacity] input[type=range]{width:110px}
+/* ---- v5 : effets, barre de style harmonisée, palette sur deux colonnes ---- */
+.gfx{position:absolute;inset:0;pointer-events:none;z-index:455;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.gfx>div{position:absolute;inset:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.gfx-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
+.gfxt{border:1.5px solid var(--line-2);border-radius:12px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.gfxt.on{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy)}
+.gfxt-b{display:grid;gap:3px;padding:7px;border:0;background:none;text-align:left;cursor:pointer;font:inherit}
+.gfxt-b b{font-size:13px;color:var(--navy)}.gfxt-b small{font-size:11px;color:var(--muted);line-height:1.25}
+.gfxp{position:relative;display:block;height:58px;border-radius:8px;overflow:hidden;border:1px solid var(--line-2)}
+.gfxp-m{position:absolute;inset:0;display:block}.gfxp-m svg{width:100%;height:100%;display:block}
+.gfxp .gfx{z-index:2}
+.gfxt-s{display:grid;gap:2px;padding:0 8px 8px;font-size:11px;color:var(--muted);font-weight:600}.gfxt-s input{width:100%}
+.gfxbs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 6px}
+.gfxb{padding:9px 8px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font:inherit;font-size:12.5px;font-weight:650;color:var(--navy);cursor:pointer}
+.gfxb.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.gwz-note{margin:12px 0 0;padding:9px 12px;border-radius:10px;background:#fff8e1;color:#6b5311;font-size:12.5px;line-height:1.4}
+.gpalette.two .gtools{grid-template-columns:1fr 1fr}.gpalette.two .gpal-sep{grid-column:1/-1}.gpalette.two .gtools button:first-child{margin-bottom:0}
+#gs-auto{margin:4px 0 10px}
+/* barre de style : groupes alignés, légendes au-dessus, hauteurs régulières */
+.gsbar{padding:8px 14px 10px;background:#fff;border-top:1px solid var(--line-2);box-shadow:0 -6px 18px rgba(0,7,97,.07)}
+.gsbar .gfmt{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 0}
+.gsbar .gfmt>*{padding:0 16px;border-left:1px solid var(--line);min-height:50px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;box-sizing:border-box}
+.gsbar .gfmt>.gbar-t{border-left:0;padding-left:0;max-width:150px;justify-content:center;font-size:13px;font-weight:700;color:var(--navy)}
+.gsbar .gf-l,.gsbar .gf-line .gf-l,.gsbar .gf-text2 .gf-l,.gsbar .gf-text .gf-l{display:block!important;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.gsbar .gf-cols{flex-direction:row;align-items:flex-end;gap:8px}
+.gsbar .gcol{height:46px;padding:0 10px}
+.gsbar .gf-line{flex-direction:column;align-items:flex-start;justify-content:flex-end}
+.gsbar .gf-line[data-for=rot],.gsbar .gf-line[data-for=stampsize]{display:grid!important;grid-template-columns:auto auto;grid-template-areas:"l l" "s b";column-gap:8px;align-items:end}
+.gsbar .gf-line[data-for=rot] .gf-l,.gsbar .gf-line[data-for=stampsize] .gf-l{grid-area:l}
+.gsbar .gf-text2{flex-direction:column;align-items:flex-start;gap:4px}
+.gsbar .gf-text2 label.gf-l small,.gsbar .gf-text label.gf-l small{display:none}
+.gsbar .gf-text{flex-direction:row;flex-wrap:wrap;align-items:flex-end;gap:6px 10px}
+.gsbar .gstep button{height:32px;width:32px}.gsbar .gstep output{min-width:50px}
+.gsbar input[type=text],.gsbar select,.gsbar textarea{height:34px;box-sizing:border-box}
+.gsbar .gfmt #gs-actions{margin-left:auto;border-left:0;flex-direction:row;align-items:flex-end;gap:4px}
+.gsbar .gf-line[data-for=opacity] input[type=range]{width:120px;margin:4px 0 6px}
+.gsbar .gf-line[data-for=opacity] output{display:none}
+.gpalette .gtools button span{font-size:9.5px;max-width:46px;overflow:hidden;text-overflow:ellipsis}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
