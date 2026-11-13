@@ -1033,6 +1033,25 @@ body.doc-open .home{display:none!important}
 .gbl-c{display:flex;gap:10px}.gbl-c input[type=color]{width:56px;height:34px;padding:0;border:1.5px solid var(--line-2);border-radius:9px;background:#fff}
 @media (max-width:520px){.gbl{grid-template-columns:1fr}}
 .gwz-h2b{margin-top:22px!important}.gwz-bs{display:grid;gap:4px;font-size:12.5px;font-weight:600;color:var(--muted)}.gwz-bs select{height:40px;border:1.5px solid var(--line-2);border-radius:10px;font:inherit;font-size:14px;color:var(--navy);background:#fff;padding:0 10px}
+/* ---- Interface de type logiciel de dessin : palette flottante, sous-onglets, recherche ---- */
+.gpalette{position:absolute;left:10px;top:84px;z-index:900;padding:6px;border-radius:14px;background:rgba(255,255,255,.96);border:1px solid var(--line-2);box-shadow:0 4px 18px rgba(0,7,97,.18)}
+.gpalette[hidden]{display:none}
+.gpalette .gtools{display:grid;grid-template-columns:1fr;gap:4px;margin:0}
+.gpalette .gtools button{width:46px;padding:6px 0 4px;font-size:10px;gap:1px;border-radius:10px}
+.gpalette .gtools button .ic{width:20px;height:20px}
+.gpalette .gtools button:first-child{margin-bottom:3px}
+.gsub{display:flex;gap:4px;padding:3px;border-radius:12px;background:#eceef7;margin:0 0 10px;overflow:auto}
+.gsub button{flex:1;white-space:nowrap;padding:7px 9px;border:0;border-radius:9px;background:transparent;font-weight:650;font-size:13px;color:#4d5069;cursor:pointer}
+.gsub button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,7,97,.18)}
+.gsearch{margin:0 0 8px}.gsearch[hidden]{display:none}
+.gsearch input{width:100%;box-sizing:border-box;height:36px;padding:0 12px;border:1.5px solid var(--line-2);border-radius:10px;font:inherit;font-size:13.5px}
+.gsubd>summary{display:none}.gsubd{border:0!important;background:none!important;padding:0!important;box-shadow:none!important}
+.gsubd[hidden],#gstamps .gst[hidden],h3.sub[hidden]{display:none}
+.gguide{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#fff8e1;color:#6b5311;font-size:13px}.gguide[hidden]{display:none}
+.gguide ol{margin:6px 0 4px;padding-left:20px;display:grid;gap:3px}.gguide li button{border:0;background:none;padding:0;font:inherit;font-weight:650;color:var(--navy);text-decoration:underline;cursor:pointer;text-align:left}
+.gguide-x{border:0;background:none;color:#8a7a3c;font-size:12px;cursor:pointer;padding:2px 0}
+@media (max-width:860px){.gpalette{top:76px;left:6px;padding:4px}.gpalette .gtools button{width:40px}}
+.gsub button{padding:7px 5px;font-size:12.5px}.gsbar .btnrow .btn-ghost{font-size:0;gap:0;padding:6px 8px}.gsbar .btnrow .btn-ghost .ic{width:18px;height:18px}.gsbar .gbar-t{max-width:140px}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
