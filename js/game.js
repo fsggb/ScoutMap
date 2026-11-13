@@ -291,6 +291,15 @@
     d.shapes.forEach(function (s, i) { if (s.hidden) return; var ob = out[s.id] = buildShape(s, group, o); if (ob && ob.marker && ob.marker.setZIndexOffset) ob.marker.setZIndexOffset(i * 10); });
     return out;
   }
+  // Charge les ressources (icônes, illustrations, motifs de lignes) avant l'impression ou l'export
+  function ready(d) {
+    return Promise.all([loadThemes().catch(function () { /* hors ligne */ }), loadArt().catch(function () { /* hors ligne */ })]).then(function () {
+      var ids = {}; (d.shapes || []).forEach(function (s) { if (s.deco && String(s.deco).indexOf('motif:') === 0) ids[s.deco.slice(6)] = 1; });
+      return Promise.all(Object.keys(ids).map(function (id) {
+        return new Promise(function (res) { var im = motifImg(id); if (!im || im._ok) return res(); var t = setTimeout(res, 5000); im.addEventListener('load', function () { clearTimeout(t); res(); }); });
+      }));
+    }).then(function () { return new Promise(function (r) { setTimeout(r, 250); }); });
+  }
   // Tous les points d'un calque (pour cadrer la carte).
   function points(d) {
     var out = [];
@@ -337,7 +346,7 @@
   function render() {
     if (lastTh !== D().theme) { lastTh = D().theme; if ($('#gstamps')) { loadThemes().then(function () { renderThemes(); }).catch(function () { /* hors ligne */ }); } }
     if (SM.gameGuide) SM.gameGuide();
-    applyParch(); if ($('#gparch')) { $('#gparch').checked = !!D().parch; $('#gparch-lv').value = Math.round((D().parchLevel == null ? 0.62 : D().parchLevel) * 100); } screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
+    applyParch(); screenLegend.update(); if (SM.calques) SM.calques.sync(); SM.gGame.clearLayers(); live = build(D(), SM.gGame, { active: true, select: selectTool() });
     if (SELID && !shapeById(SELID)) SELID = null;
     applySelStyle(); updateHandles(); renderPane();
     drawDraft();
@@ -392,7 +401,20 @@
   function updateHandles() {
     gHandles.clearLayers();
     var s = selShape(); if (!s || !selectTool() || S.mode !== 'game') return;
-    function geom() { updateGeom(s); }
+    var outl = null;
+    (function () {
+      var o1 = { color: '#ffffff', weight: 4.5, opacity: 0.85, fill: false, interactive: false }, o2 = { color: '#000761', weight: 1.6, dashArray: '6 4', fill: false, interactive: false }, mk;
+      if (s.kind === 'polygon') mk = function (o) { return L.polygon(s.pts, o); };
+      else if (s.kind === 'rect') mk = function (o) { return L.rectangle(s.pts, o); };
+      else if (s.kind === 'circle') mk = function (o) { return L.circle(s.pts[0], Object.assign({ radius: Math.max(1, s.r || 1) }, o)); };
+      else if (s.kind === 'line' || s.kind === 'arrow') mk = function (o) { return L.polyline(s.pts, o); };
+      if (!mk) return;
+      outl = [mk(o1).addTo(gHandles), mk(o2).addTo(gHandles)];
+    })();
+    function geom() {
+      updateGeom(s);
+      if (outl) outl.forEach(function (l) { if (s.kind === 'rect') l.setBounds(s.pts); else if (s.kind === 'circle') { l.setLatLng(s.pts[0]); l.setRadius(Math.max(1, s.r || 1)); } else l.setLatLngs(s.pts); });
+    }
     function done() { SM.persist(); renderList(); updateHandles(); }
     if (s.kind === 'polygon' || s.kind === 'line' || s.kind === 'arrow') {
       var closed = s.kind === 'polygon';
@@ -474,7 +496,7 @@
   }
   function addShape(s, opt) {
     S.vis.game = true; SM.ensureVisible('game');
-    D().shapes.push(s); SELID = s.id;
+    addShape(s); SELID = s.id;
     var keep = $('#gs-keep').checked;
     if (!keep) { GT = 'select'; setTab('style'); }
     SM.persist(); render(); SM.renderLayerList();
@@ -567,6 +589,15 @@
     var c = JSON.parse(JSON.stringify(s)); c.id = SM.nid(); offsetPts(c, 24, 24);
     D().shapes.push(c); SELID = c.id; SM.persist(); render(); SM.renderLayerList();
   }
+  // Ordre par défaut : terrains tout en dessous, puis lignes, bases et images, pictogrammes, croix, textes au-dessus
+  function rank(s) {
+    if (s.kind === 'polygon' || s.kind === 'rect' || s.kind === 'circle') return 0;
+    if (s.kind === 'line') return 1; if (s.kind === 'arrow') return 1.5;
+    if (s.kind === 'stamp') return (String(s.icon).indexOf('om:hero-') === 0 || String(s.icon).indexOf('img:') === 0) ? 2 : 3;
+    if (s.kind === 'cross') return 3.5; return 4;
+  }
+  function addShape(s) { var a = D().shapes, i = a.length, r = rank(s); while (i > 0 && rank(a[i - 1]) > r) i--; a.splice(i, 0, s); }
+  function autoOrder() { var a = D().shapes.map(function (x, i) { return [x, i]; }); a.sort(function (u, v) { return rank(u[0]) - rank(v[0]) || u[1] - v[1]; }); D().shapes = a.map(function (x) { return x[0]; }); SM.persist(); render(); renderList(); }
   function reorder(s, toFront) {
     var a = D().shapes, i = a.indexOf(s); if (i < 0) return;
     a.splice(i, 1); if (toFront) a.push(s); else a.unshift(s); SM.persist(); render();
@@ -607,7 +638,7 @@
         '<span class="gt">' + ic(KINDS[s.kind].icon) + ' ' + esc(s.name && s.kind !== 'text' ? s.name : labelOf(s)) + (s.op != null && s.op < 1 ? '<small>' + Math.round(s.op * 100) + ' %</small>' : '') + '</span>' +
         '<button class="ibtn' + (s.hidden ? ' off' : '') + '" data-act="vis" data-id="' + s.id + '" title="' + (s.hidden ? 'Afficher' : 'Masquer') + '" aria-label="Afficher ou masquer">' + ic(s.hidden ? 'eye-off' : 'eye') + '</button>' +
         '<button class="ibtn' + (s.locked ? ' on' : '') + '" data-act="lock" data-id="' + s.id + '" title="' + (s.locked ? 'Déverrouiller' : 'Verrouiller (non sélectionnable sur la carte)') + '" aria-label="Verrouiller">' + ic('lock') + '</button>' +
-        '<button class="ibtn" data-act="up" data-id="' + s.id + '" title="Monter (au-dessus)" aria-label="Monter">' + ic('up') + '</button><button class="ibtn" data-act="down" data-id="' + s.id + '" title="Descendre (en dessous)" aria-label="Descendre">' + ic('down') + '</button>' +
+        '<button class="ibtn" data-act="up" data-id="' + s.id + '" title="Monter d’un cran (passer au-dessus)" aria-label="Monter d’un cran">' + ic('fwd') + '</button><button class="ibtn" data-act="down" data-id="' + s.id + '" title="Descendre d’un cran (passer en dessous)" aria-label="Descendre d’un cran">' + ic('bwd') + '</button>' +
         '<button class="ibtn danger" data-del="' + s.id + '" title="Supprimer" aria-label="Supprimer">' + ic('x') + '</button></li>';
     }).join('');
   }
@@ -615,7 +646,86 @@
   var STAMP = null, GCAT = 'all';
   var SCALES = [[2000, '1 : 2 000', 'Terrain de camp'], [5000, '1 : 5 000', 'Quartier, petit village'], [10000, '1 : 10 000', 'Commune'], [25000, '1 : 25 000', 'Secteur, vallée'], [50000, '1 : 50 000', 'Grande zone']];
   function themeById(id) { return (window.SM_THEMES || []).filter(function (t) { return t.id === id; })[0]; }
-  function applyParch() { var on = !!D().parch && S.mode === 'game'; var el = map.getContainer(); el.classList.toggle('parch', on); el.style.setProperty('--pa', D().parchLevel == null ? 0.62 : D().parchLevel); }
+  // ---------- Effets sur la carte (parchemin, froissé, plié, bords vieillis, noir et blanc, délavé) ----------
+  var FXM = {
+    parch: { n: 'Parchemin', d: 'Teinte ancienne, fibres et taches discrètes', v: 0.6 },
+    crumple: { n: 'Papier froissé', d: 'Froissures en relief', v: 0.5 },
+    fold: { n: 'Carte pliée', d: 'Plis marqués, presque déchirés', v: 0.75 },
+    edge: { n: 'Bords vieillis', d: 'Bords sombres et abîmés', v: 0.6 },
+    bw: { n: 'Noir et blanc', d: 'Photocopie en niveaux de gris', v: 1 },
+    fade: { n: 'Délavé', d: 'Couleurs adoucies', v: 0.5 }
+  };
+  var SVGH = 'xmlns="http://www.w3.org/2000/svg"';
+  var FXS = {
+    fiber: '<svg ' + SVGH + ' width="300" height="300"><filter id="f" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .42 0 0 0 0 .27 0 0 0 0 .1 1.5 0 0 0 -.66"/></filter><rect width="300" height="300" filter="url(#f)"/></svg>',
+    stains: '<svg ' + SVGH + ' width="1200" height="800" preserveAspectRatio="none"><filter id="f" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".004 .006" numOctaves="4" seed="11"/><feColorMatrix values="0 0 0 0 .47 0 0 0 0 .3 0 0 0 0 .09 1.9 0 0 0 -.88"/></filter><rect width="1200" height="800" filter="url(#f)"/></svg>',
+    crumpleD: '<svg ' + SVGH + ' width="900" height="700" preserveAspectRatio="none"><filter id="f" x="0" y="0" width="100%" height="100%"><feTurbulence type="turbulence" baseFrequency=".007 .012" numOctaves="3" seed="4"/><feDiffuseLighting surfaceScale="7" diffuseConstant="1.1" lighting-color="#fff" result="l"><feDistantLight azimuth="45" elevation="52"/></feDiffuseLighting><feColorMatrix in="l" values="0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .05 -2.4 0 0 0 1.62"/></filter><rect width="900" height="700" filter="url(#f)"/></svg>',
+    crumpleL: '<svg ' + SVGH + ' width="900" height="700" preserveAspectRatio="none"><filter id="f" x="0" y="0" width="100%" height="100%"><feTurbulence type="turbulence" baseFrequency=".007 .012" numOctaves="3" seed="4"/><feDiffuseLighting surfaceScale="7" diffuseConstant="1.1" lighting-color="#fff" result="l"><feDistantLight azimuth="45" elevation="52"/></feDiffuseLighting><feColorMatrix in="l" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 2.6 0 0 0 -1.95"/></filter><rect width="900" height="700" filter="url(#f)"/></svg>',
+    fold: '<svg ' + SVGH + ' viewBox="0 0 1000 700" preserveAspectRatio="none"><defs><filter id="w" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="7"/></filter><filter id="m" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".02 .06" numOctaves="2" seed="9"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 4 0 0 0 -1.4"/></filter><mask id="k"><rect width="1000" height="700" fill="#fff"/><rect width="1000" height="700" filter="url(#m)" opacity=".9"/></mask></defs><g filter="url(#w)" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke"><g mask="url(#k)"><path d="M333 0V700M666 0V700M0 350H1000" stroke="#3a2a10" stroke-opacity=".45" stroke-width="1.6" vector-effect="non-scaling-stroke"/><path d="M336 0V700M669 0V700M0 353H1000" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" vector-effect="non-scaling-stroke"/></g><path d="M333 0V34M333 666V700M666 0V34M666 666V700M0 350H30M970 350H1000" stroke="#2b1c08" stroke-opacity=".7" stroke-width="2.4" vector-effect="non-scaling-stroke"/><path d="M330 12L336 20L331 30M663 14L669 22L664 32M330 688L336 680L331 670M663 686L669 678L664 668M14 347L22 353L32 348M986 347L978 353L968 348" stroke="#2b1c08" stroke-opacity=".8" stroke-width="1.4" vector-effect="non-scaling-stroke"/></g></svg>',
+    edge: '<svg ' + SVGH + ' viewBox="0 0 1000 700" preserveAspectRatio="none"><defs><filter id="r" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="3" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="40"/><feGaussianBlur stdDeviation="3"/></filter></defs><rect x="-20" y="-20" width="1040" height="740" fill="none" stroke="#4a2c0c" stroke-width="64" filter="url(#r)" stroke-opacity=".85"/></svg>'
+  };
+  function svgUrl(x) { return 'url("data:image/svg+xml;utf8,' + encodeURIComponent(x) + '")'; }
+  function fxLayers(k) {
+    if (k === 'parch') return [['radial-gradient(ellipse at center, rgba(255,236,190,0) 55%, rgba(120,72,18,.34) 100%)', '100% 100%', 'no-repeat'], [svgUrl(FXS.stains), '100% 100%', 'no-repeat'], [svgUrl(FXS.fiber), '300px 300px', 'repeat']];
+    if (k === 'crumple') return [[svgUrl(FXS.crumpleD), '100% 100%', 'no-repeat'], [svgUrl(FXS.crumpleL), '100% 100%', 'no-repeat']];
+    if (k === 'fold') return [[svgUrl(FXS.fold), '100% 100%', 'no-repeat']];
+    if (k === 'edge') return [[svgUrl(FXS.edge), '100% 100%', 'no-repeat'], ['radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(80,45,10,.35) 100%)', '100% 100%', 'no-repeat']];
+    return null;
+  }
+  function fxOf(d) { var f = d && d.fx; if (!f && d && d.parch) f = { parch: d.parchLevel == null ? 0.62 : d.parchLevel }; return f || {}; }
+  function fxFilter(fx) {
+    var f = [];
+    if (fx.parch != null) f.push('sepia(' + (fx.parch * 0.95).toFixed(2) + ') saturate(.88) contrast(1.04) brightness(1.03)');
+    if (fx.bw != null) f.push('grayscale(' + fx.bw + ') contrast(1.1)');
+    if (fx.fade != null) f.push('saturate(' + (1 - fx.fade * 0.75).toFixed(2) + ') brightness(1.06) contrast(' + (1 - fx.fade * 0.2).toFixed(2) + ')');
+    return f.join(' ');
+  }
+  function paintFx(host, fx) {
+    host.innerHTML = '';
+    Object.keys(FXM).forEach(function (k) {
+      if (fx[k] == null) return; var L2 = fxLayers(k); if (!L2) return;
+      var dv = document.createElement('div');
+      dv.style.backgroundImage = L2.map(function (x) { return x[0]; }).join(','); dv.style.backgroundSize = L2.map(function (x) { return x[1]; }).join(','); dv.style.backgroundRepeat = L2.map(function (x) { return x[2]; }).join(',');
+      dv.style.opacity = Math.max(0.05, Math.min(1, fx[k])); host.appendChild(dv);
+    });
+  }
+  function applyFx(el, d) {
+    var fx = fxOf(d), tp = el.querySelector('.leaflet-tile-pane'); if (tp) tp.style.filter = fxFilter(fx);
+    var host = null; for (var i = 0; i < el.children.length; i++) if (el.children[i].classList && el.children[i].classList.contains('gfx')) host = el.children[i];
+    var any = Object.keys(fx).some(function (k) { return fxLayers(k); });
+    if (!any) { if (host) host.remove(); return; }
+    if (!host) { host = document.createElement('div'); host.className = 'gfx'; el.appendChild(host); }
+    paintFx(host, fx);
+  }
+  function applyParch() { if (S.mode === 'game') applyFx(map.getContainer(), D()); else clearFx(); }
+  function clearFx() { var el = map.getContainer(), tp = el.querySelector('.leaflet-tile-pane'); if (tp) tp.style.filter = ''; var h = el.querySelector(':scope > .gfx'); if (h) h.remove(); }
+  var SAMPLE = '<svg viewBox="0 0 96 58" preserveAspectRatio="none"><rect width="96" height="58" fill="#f1efe4"/><path d="M0 40C20 34 40 46 96 36V58H0Z" fill="#cfe3b7"/><path d="M60 0C56 20 70 30 66 58" stroke="#f2d27a" stroke-width="3" fill="none"/><path d="M0 18C30 12 50 26 96 14" stroke="#7fb5e6" stroke-width="2" fill="none"/><rect x="14" y="22" width="8" height="6" fill="#b9a98f"/><rect x="26" y="26" width="6" height="5" fill="#b9a98f"/><circle cx="80" cy="44" r="6" fill="#9fcf86"/></svg>';
+  var BASEQ = ['plan', 'ortho', 'otm', 'osm', 'etat', 'cassini'], BASEN = { plan: 'Plan IGN', ortho: 'Photo aérienne', otm: 'Topo', osm: 'OpenStreetMap', etat: 'État-major (1820)', cassini: 'Cassini (XVIIIe)' };
+  function renderFx() {
+    var bx = $('#gfx-base'), lx = $('#gfx-list'); if (!bx || !lx) return;
+    bx.innerHTML = BASEQ.filter(function (k) { return SM.LAYERS[k]; }).map(function (k) { return '<button type="button" class="gfxb' + (S.base === k ? ' on' : '') + '" data-base="' + k + '">' + esc(BASEN[k] || SM.LAYERS[k].label) + '</button>'; }).join('');
+    var fx = D().fx; if (!fx) { fx = D().fx = Object.assign({}, fxOf(D())); }
+    lx.innerHTML = Object.keys(FXM).map(function (k) {
+      var on = fx[k] != null, m = FXM[k];
+      return '<div class="gfxt' + (on ? ' on' : '') + '" data-k="' + k + '"><button type="button" class="gfxt-b" data-fx="' + k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="gfxp"><span class="gfxp-m">' + SAMPLE + '</span><span class="gfx"></span></span><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></button>' +
+        (on && k !== 'bw' ? '<label class="gfxt-s"><span>Intensité</span><input type="range" min="10" max="100" step="5" value="' + Math.round(fx[k] * 100) + '" data-fxv="' + k + '" aria-label="Intensité : ' + esc(m.n) + '"></label>' : '') + '</div>';
+    }).join('');
+    $$('.gfxt', lx).forEach(function (t) {
+      var k = t.dataset.k, one = {}; one[k] = 0.9; if (k === 'bw') one[k] = 1;
+      var m = $('.gfxp-m', t), h = $('.gfxp .gfx', t); m.style.filter = fxFilter(one); paintFx(h, one);
+    });
+  }
+  function fxInit() {
+    var lx = $('#gfx-list'), bx = $('#gfx-base'); if (!lx) return;
+    lx.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-fx]'); if (!b) return; var k = b.dataset.fx, fx = D().fx || (D().fx = Object.assign({}, fxOf(D())));
+      if (fx[k] != null) delete fx[k]; else fx[k] = FXM[k].v; delete D().parch;
+      SM.persist(); applyParch(); renderFx();
+    });
+    lx.addEventListener('input', function (e) { var r = e.target.closest('[data-fxv]'); if (!r) return; var fx = D().fx; fx[r.dataset.fxv] = +r.value / 100; SM.persist(); applyParch(); });
+    bx.addEventListener('click', function (e) { var b = e.target.closest('[data-base]'); if (!b) return; S.base = b.dataset.base; if (SM.applyLayers) SM.applyLayers(); SM.persist(); renderFx(); });
+    var t = $('#gtabs [data-gtab=fx]'); if (t) t.addEventListener('click', renderFx);
+  }
   function setScale(v) {
     D().scale = v; SM.persist();
     var c = map.getCenter(); map.setView(c, SM.zoomFor(v, c.lat), { animate: true });
@@ -626,7 +736,7 @@
     D().themeLocked = true;
     if (id === 'perso') { D().theme = 'perso'; D().parch = false; SM.persist(); render(); renderThemes(); return; }
     var th = themeById(id); if (!th) return;
-    D().theme = id; D().parch = false; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });
+    D().theme = id; D().parch = false; D().fx = {}; S.base = th.base; Object.keys(S.ov).forEach(function (k) { S.ov[k] = false; });
     if (SM.applyLayers) SM.applyLayers();
     STY.font = th.font; STY.iconColor = th.color; STY.iconText = th.color; STY.fill = th.fill; STY.stroke = th.fill; STY.fontColor = th.color; STY.linked = true;
     applyParch(); SM.persist(); render(); renderThemes(); renderPane();
@@ -858,7 +968,7 @@
     loadThemes().then(function () {
       var el = STAMP, keep = $('#gs-keep').checked, s = newStamp(el, p);
       if (mm) s.mm = mm;
-      S.vis.game = true; SM.ensureVisible('game'); D().shapes.push(s);
+      S.vis.game = true; SM.ensureVisible('game'); addShape(s);
       if (!keep) setGT('select');                       // l'outil se relâche après chaque pose (sauf « poser plusieurs fois de suite »)
       SM.persist(); render(); SM.renderLayerList();
     });
@@ -925,7 +1035,7 @@
         killMap();
         var body, foot;
         if (step === 1) body = '<h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
-        else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
+        else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
           (step < 2 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
         ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
@@ -959,7 +1069,9 @@
     var sp = document.createElement('i'); sp.className = 'gpal-sep'; g.appendChild(sp); g.appendChild(rp);
     src.remove(); pal.appendChild(g);
     var gp = document.querySelector('.pane[data-pane=game]');
-    function sync() { var on = !!(gp && !gp.hidden); pal.hidden = !on; var sb = $('#share-btn'); if (sb) sb.hidden = !on; }
+    function fit() { pal.classList.remove('two'); var mw = $('#mapwrap'); if (!mw || pal.hidden) return; if (pal.offsetHeight > mw.clientHeight - 84 - 150) pal.classList.add('two'); }
+    window.addEventListener('resize', fit); if (window.ResizeObserver && $('#mapwrap')) new ResizeObserver(fit).observe($('#mapwrap'));
+    function sync() { var on = !!(gp && !gp.hidden); pal.hidden = !on; var sb = $('#share-btn'); if (sb) sb.hidden = !on; setTimeout(fit, 80); }
     if (gp) new MutationObserver(sync).observe(gp, { attributes: true, attributeFilter: ['hidden'] }); sync();
     // sous-onglets : une seule section visible à la fois, sans défilement
     var tp = document.querySelector('[data-gtabp=tools]'); if (!tp) return;
@@ -1023,8 +1135,7 @@
     var tl = $('#gtabs [data-gtab=tools]'); if (tl) tl.addEventListener('click', function () { loadThemes().then(renderThemes); });
     $('#gscale').addEventListener('click', function (e) { var b = e.target.closest('button[data-sc]'); if (b) setScale(+b.dataset.sc); });
     $('#gtheme-choose').addEventListener('click', function () { wizard(); });
-    $('#gparch').addEventListener('change', function () { D().parch = this.checked; applyParch(); SM.persist(); });
-    $('#gparch-lv').addEventListener('input', function () { D().parchLevel = +this.value / 100; applyParch(); SM.persist(); });
+    fxInit();
     $('#gcaptions').addEventListener('change', function () { D().captions = this.checked; SM.persist(); render(); });
     $('#gcats').addEventListener('click', function (e) { var b = e.target.closest('button[data-c]'); if (b) { GCAT = b.dataset.c; renderThemes(); } });
     function pick(e) {
@@ -1204,6 +1315,7 @@
     $('#gtools').addEventListener('click', function (e) { var b = e.target.closest('button[data-gt]'); if (b) { PRE = null; setGT(b.dataset.gt); } });
     $('#gactive-end').addEventListener('click', function () { setGT('select'); });
     $('#gs-dup').addEventListener('click', function () { var s = selShape(); if (s) dupShape(s); });
+    $('#gs-auto').addEventListener('click', function () { autoOrder(); SM.toast('Ordre automatique appliqué : terrains, lignes, bases, pictogrammes, textes.'); });
     $('#gs-front').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, true); });
     $('#gs-back').addEventListener('click', function () { var s = selShape(); if (s) reorder(s, false); });
     $('#gs-del').addEventListener('click', deleteSel);
@@ -1267,9 +1379,9 @@
     return false;
   }
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
-  function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); map.getContainer().classList.remove('parch'); }
+  function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); clearFx(); }
 
-  SM.game = { loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { ready: ready, applyFx: applyFx, loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();

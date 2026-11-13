@@ -157,7 +157,8 @@
   $('#pdf-ok').addEventListener('click', function () {
     $('#dlg-pdf').close();
     var t = PRM.title.trim(), md = S.mode; if (t && S[md] && 'name' in S[md]) { S[md].name = t; var rn = $('#' + md + '-name'); if (rn) rn.value = t; SM.persist(); }
-    buildDoc(config());
+    var go = function () { buildDoc(config()); };
+    if (S.mode === 'game' && SM.game && SM.game.ready) { setBusy(true, 'Préparation des illustrations…'); SM.game.ready(S.game).then(go, go); } else go();
   });
 
   // ---------- Carte du parcours sur plusieurs feuilles ----------
@@ -222,7 +223,7 @@
     o = o || {}; var pts = [];
     items.forEach(function (it) {
       var d = it.data, col = it.color;
-      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); if (SM.calques) SM.calques.addTo(m, d); SM.game.addLegend(d, m); if (d.parch) { m.getContainer().classList.add('parch'); m.getContainer().style.setProperty('--pa', d.parchLevel == null ? 0.62 : d.parchLevel); } SM.game.points(d).forEach(function (p) { pts.push(p); }); }
+      if (it.type === 'game' && SM.game) { SM.game.build(d, m, {}); if (SM.calques) SM.calques.addTo(m, d); SM.game.addLegend(d, m); if (SM.game.applyFx) SM.game.applyFx(m.getContainer(), d); SM.game.points(d).forEach(function (p) { pts.push(p); }); }
       else if (it.type === 'meas' && d.pts.length > 1) {
         (d.mode === 'area' && d.pts.length > 2 ? L.polygon(d.pts, { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: '2 6' }) : L.polyline(d.pts, { color: col, weight: 3, dashArray: '2 6' })).addTo(m);
         d.pts.forEach(function (p) { pts.push(p); });
