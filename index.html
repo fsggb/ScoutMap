@@ -116,7 +116,7 @@
       <h2 class="pane-title">Grand jeu</h2>
       <div class="layer-head"><input id="game-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de la carte de jeu"></div>
       <div class="gtabs" id="gtabs" role="tablist">
-        <button type="button" role="tab" data-gtab="tools">Poser</button>
+        <button type="button" role="tab" data-gtab="tools">Éléments</button>
         <button type="button" role="tab" data-gtab="layers">Calques</button>
         <button type="button" role="tab" data-gtab="list">Liste <span class="count" id="gs-count"></span></button>
       </div>
@@ -158,6 +158,8 @@
       </div>
       <div data-gtabp="layers" hidden>
         <p class="gtab-help">Des calques dessinés <b>à partir des données réelles</b> (IGN) : reliefs, forêts, rivières. Ils se posent sur n’importe quel fond de carte, se règlent en transparence et peuvent s’imprimer sur leur propre feuille.</p>
+        <div class="gcal gcal-bg"><div class="gcal-h"><label class="gcal-tg"><input type="checkbox" id="gparch"><span class="gcal-box"></span><b>Effet parchemin</b></label><small>Teinte ancienne et bords vieillis sur le fond de carte, aussi à l’impression. Décoché : couleurs d’origine du fond (IGN…).</small></div>
+          <label class="gcal-op"><span>Intensité</span><input type="range" id="gparch-lv" min="10" max="100" step="5" value="62" aria-label="Intensité de l’effet parchemin"></label></div>
         <p class="gcal-zone" id="gcal-zone"></p>
         <div class="gcal-list" id="gcal-list"></div>
       </div>
@@ -181,6 +183,8 @@
           <label class="gf-l" for="gs-name">Nom dans la légende <small>(laisser vide : pas dans la légende)</small></label>
           <input id="gs-name" type="text" maxlength="40" placeholder="Ex. Forêt, Château fort…" autocomplete="off">
         </div>
+        <div class="gf-line" data-for="opacity"><span class="gf-l">Opacité</span><input type="range" id="gs-op" min="10" max="100" step="5" value="100" aria-label="Opacité de l’élément"><output id="gs-op-v">100 %</output></div>
+        <div class="gf-line" data-for="rot"><span class="gf-l">Rotation</span><div class="gstep"><button type="button" id="gs-rot-m" aria-label="Pivoter à gauche de 15 degrés">↺</button><output id="gs-rot-v">0°</output><button type="button" id="gs-rot-p" aria-label="Pivoter à droite de 15 degrés">↻</button></div><button type="button" class="btn-ghost sm" id="gs-rot-0">0°</button></div>
         <div class="gf-line" data-for="tex">
           <label class="gf-l" for="gs-tex">Remplissage</label>
           <select id="gs-tex"><option value="">Couleur unie</option><option value="forest">Motif forêt</option><option value="water">Motif eau</option><option value="marsh">Motif marais</option><option value="sand">Motif sable</option><option value="grass">Motif prairie</option><option value="rock">Motif montagnes</option><option value="field">Motif champs</option></select>
@@ -301,7 +305,6 @@
         <h3 class="sub">Éléments</h3>
         <div class="gf-line" style="margin-bottom:8px"><span class="gf-l">Taille de tous les éléments</span><div class="gstep"><button type="button" id="gs-st-m" aria-label="Plus petit">−</button><output id="gs-st-size">16 mm</output><button type="button" id="gs-st-p" aria-label="Plus grand">+</button></div></div>
         <label class="check"><input type="checkbox" id="gcaptions"> Écrire le nom sous chaque élément (sinon : légende seulement)</label>
-        <label class="check"><input type="checkbox" id="gparch"> Effet parchemin (teinte ancienne, bords vieillis ; aussi à l’impression)</label>
         <p class="gcredit" id="gcredit"></p>
       </div>
       <div data-set="route" hidden>
