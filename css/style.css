@@ -1054,6 +1054,8 @@ body.doc-open .home{display:none!important}
 .gsub button{padding:7px 5px;font-size:12.5px}.gsbar .btnrow .btn-ghost{font-size:0;gap:0;padding:6px 8px}.gsbar .btnrow .btn-ghost .ic{width:18px;height:18px}.gsbar .gbar-t{max-width:140px}
 .gsbar .gfmt .gbar-t{flex:none;max-width:130px}.gsbar .gfmt #gs-actions{margin-left:auto}.gsbar .gf-line .gf-l{display:none}.gsbar .gf-line[data-for=weight] .gf-l,.gsbar .gf-line[data-for=stampsize] .gf-l{display:inline}
 .gsbar .gf-text2 input{width:105px}.gsbar #gs-tex{width:105px}.gsbar .btnrow .btn-ghost{padding:5px 7px}.gsbar .gcol{padding:3px 7px}
+/* Panneau du Grand jeu : plus de partie vide à droite, la carte gagne la place */
+.app.wide{grid-template-columns:72px 400px 1fr}.app.wide.nopanel{grid-template-columns:72px 0 1fr}.app.wide .pane{width:auto}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
