@@ -936,7 +936,8 @@
     var bar = $('#gbar'), st = $('#gstyle'); if (!bar || !st) return;
     var pane = st.parentNode, tg = $('#gs-target'), act = $('#gs-actions');
     var t = document.createElement('div'); t.className = 'gbar-t'; if (tg) t.appendChild(tg);
-    bar.appendChild(t); bar.appendChild(st); if (act) bar.appendChild(act);
+    ['#gpal', '#gpal-custom'].forEach(function (q) { var e = $(q); if (e) document.body.appendChild(e); });   // la palette de couleurs ne doit pas rester dans le volet masqué
+    st.insertBefore(t, st.firstChild); if (act) st.appendChild(act); bar.appendChild(st);
     if (pane && pane.dataset.gtabp === 'style') pane.hidden = true;
     var gp = document.querySelector('.pane[data-pane=game]');
     function sync() { var on = !!gp && !gp.hidden; bar.hidden = !on; setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 60); }
