@@ -145,8 +145,8 @@
         <details class="gdet"><summary>Repères du jeu</summary>
           <div class="gstamps" id="gcommon"></div>
         </details>
-        <details class="gdet"><summary>Formes libres et texte</summary>
-          <div class="gtools" id="gtools">
+        <div class="gtools" id="gtools-src" hidden>
+          
             <button data-gt="select" title="Sélectionner et modifier (V)"><svg class="ic"><use href="#i-select"/></svg><span>Sélection</span></button>
             <button data-gt="polygon" title="Zone : cliquez les sommets, double-clic pour finir"><svg class="ic"><use href="#i-g-polygon"/></svg><span>Zone</span></button>
             <button data-gt="rect" title="Rectangle : deux clics"><svg class="ic"><use href="#i-g-rect"/></svg><span>Rectangle</span></button>
@@ -155,8 +155,7 @@
             <button data-gt="arrow" title="Flèche : deux clics"><svg class="ic"><use href="#i-g-arrow"/></svg><span>Flèche</span></button>
             <button data-gt="cross" title="Croix : un clic"><svg class="ic"><use href="#i-g-cross"/></svg><span>Croix</span></button>
             <button data-gt="text" title="Zone de texte : un clic"><svg class="ic"><use href="#i-g-text"/></svg><span>Texte</span></button>
-          </div>
-        </details>
+                  </div>
         <label class="check"><input type="checkbox" id="gs-keep"> Poser plusieurs fois de suite</label>
         <p class="gtab-help">Un clic pose l’élément ; <b>cliquez-glissez</b> pour choisir sa taille. Échap, clic droit ou double-clic : on revient à la sélection.</p>
       </div>
@@ -357,6 +356,7 @@
   <main class="stage">
     <div class="mapwrap" id="mapwrap">
       <div id="map" aria-label="Carte"></div>
+      <nav class="gpalette" id="gpalette" aria-label="Outils de dessin" hidden></nav>
 
       <div class="searchcard" id="searchcard" role="search">
         <div class="search-row">
