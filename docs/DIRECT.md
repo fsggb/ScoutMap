@@ -21,3 +21,6 @@ Un chef crée un jeu en direct depuis **Grand jeu ▸ Partager en direct…** : 
 
 ## Liens administrateur (règles à mettre à jour)
 Les règles Firebase ont changé : recoller `docs/firebase-rules.json` dans Realtime Database ▸ Règles, puis Publier. Le lien administrateur contient un jeton secret (`&a=…`) ; il est enregistré dans `admtok` (non lisible par les autres) et le co-administrateur s’inscrit dans `admins/<son identifiant>`.
+
+## Règles évolutives
+Les règles acceptent tout nouveau champ ajouté à une salle (`rooms/<salle>/<nouveau champ>`) : le créateur et les co-administrateurs peuvent l'écrire, tous les participants connectés peuvent le lire (texte jusqu'à 200 ko, nombre, booléen ou objet). Une nouvelle fonction du jeu en direct qui ajoute des données au niveau de la salle n'oblige donc pas à republier les règles. Il ne faut les modifier que pour une donnée que chaque participant écrit lui-même (comme `pos` et `chat`) ou qui doit rester secrète (comme `admtok`).
