@@ -156,8 +156,9 @@
     artP = new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'js/themes-art.js' + (VQ ? '?' + VQ : ''); sc.onload = res; sc.onerror = function () { artP = null; rej(); }; document.head.appendChild(sc); });
     return artP;
   }
-  function isArt(id) { return typeof id === 'string' && id.indexOf('om:') === 0; }
+  function isArt(id) { return typeof id === 'string' && (id.indexOf('om:') === 0 || id.indexOf('img:') === 0); }
   function artUri(id, col) {
+    if (id.indexOf('img:') === 0) { var im = (D().images || []).filter(function (x) { return x.id === id.slice(4); })[0]; return im ? im.uri : ''; }
     var code = id.slice(3), svg = window.SM_ART && window.SM_ART[code]; if (!svg) return '';
     col = col || '#c0262d'; var key = code + col;
     return ARTURI[key] || (ARTURI[key] = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.indexOf('__C__') >= 0 ? svg.split('__C__').join(col) : svg));
@@ -606,10 +607,95 @@
     }).join('');
   }
   function lineBtns(list) { return list.map(function (l) { return '<button type="button" class="gz gl" data-ln="' + l.k + '" title="' + esc(l.l) + '"><i style="background:' + l.f + ';height:' + Math.max(4, Math.min(9, l.w)) + 'px"></i><span>' + esc(l.l) + '</span></button>'; }).join(''); }
+  // ---------- Mes images et blasons ----------
+  function images() { return D().images || (D().images = []); }
+  function renderImages() {
+    var box = $('#gimgs'); if (!box) return;
+    var l = images();
+    box.innerHTML = l.map(function (e) {
+      return '<button type="button" class="gst art" data-i="img:' + esc(e.id) + '" data-l="' + esc(e.name) + '" data-art="1"><img src="' + e.uri + '" width="46" height="46" alt="" style="object-fit:contain"><span>' + esc(e.name) + '</span><span class="gimg-x" data-del="' + esc(e.id) + '" title="Retirer cette image" role="button" aria-label="Retirer cette image">×</span></button>';
+    }).join('') || '<p class="gtab-help">Aucune image pour l’instant.</p>';
+  }
+  function addImage(name, uri) { images().push({ id: 'i' + SM.nid(), name: name, uri: uri }); SM.persist(); renderImages(); renderTeams(); }
+  function fileToImage(file) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onerror = function () { rej(); };
+      fr.onload = function () {
+        var im = new Image();
+        im.onerror = function () { rej(); };
+        im.onload = function () {
+          var k = Math.min(1, 320 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png'));
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  var BLA = {
+    parts: [['plain', 'Uni'], ['parti', 'Parti (moitié droite)'], ['coupe', 'Coupé (moitié basse)'], ['ecartele', 'Écartelé (4 cases)'], ['bande', 'Bande'], ['chevron', 'Chevron'], ['croix', 'Croix']],
+    charges: [['none', 'Aucun'], ['etoile', 'Étoile'], ['lys', 'Fleur de lys'], ['soleil', 'Soleil'], ['tour', 'Tour'], ['croix', 'Croix'], ['couronne', 'Couronne']]
+  };
+  function blasonSvg(o) {
+    var sh = 'M8 8H92V62C92 92 70 108 50 114C30 108 8 92 8 62Z', c1 = o.c1, c2 = o.c2, c3 = o.c3, f = '';
+    if (o.part === 'parti') f = '<rect x="50" y="0" width="60" height="130" fill="' + c2 + '"/>';
+    else if (o.part === 'coupe') f = '<rect x="0" y="60" width="110" height="70" fill="' + c2 + '"/>';
+    else if (o.part === 'ecartele') f = '<rect x="50" y="0" width="60" height="60" fill="' + c2 + '"/><rect x="0" y="60" width="50" height="70" fill="' + c2 + '"/>';
+    else if (o.part === 'bande') f = '<path d="M0 22L22 0L110 88L88 110Z" fill="' + c2 + '"/>';
+    else if (o.part === 'chevron') f = '<path d="M-5 100L50 40L105 100V120H-5Z" fill="' + c2 + '"/><path d="M-5 100L50 40L105 100" fill="none" stroke="' + c2 + '" stroke-width="0"/>';
+    else if (o.part === 'croix') f = '<rect x="40" y="0" width="20" height="130" fill="' + c2 + '"/><rect x="0" y="48" width="110" height="20" fill="' + c2 + '"/>';
+    var ch = '', t = 'transform="translate(50 56)"';
+    if (o.ch === 'etoile') ch = '<g ' + t + '><path d="M0 -20L5.9 -6.5L20.5 -6.2L9.2 3.2L13 17.5L0 9.5L-13 17.5L-9.2 3.2L-20.5 -6.2L-5.9 -6.5Z" fill="' + c3 + '" stroke="#2f2216" stroke-width="2"/></g>';
+    else if (o.ch === 'soleil') ch = '<g ' + t + '><g stroke="' + c3 + '" stroke-width="4" stroke-linecap="round">' + [0, 45, 90, 135, 180, 225, 270, 315].map(function (a) { return '<path d="M0 -15V-23" transform="rotate(' + a + ')"/>'; }).join('') + '</g><circle r="12" fill="' + c3 + '" stroke="#2f2216" stroke-width="2"/></g>';
+    else if (o.ch === 'croix') ch = '<g ' + t + '><path d="M-5 -22H5V-5H22V5H5V22H-5V5H-22V-5H-5Z" fill="' + c3 + '" stroke="#2f2216" stroke-width="2"/></g>';
+    else if (o.ch === 'tour') ch = '<g ' + t + '><path d="M-14 22V-8H-18V-20H-10V-14H-4V-20H4V-14H10V-20H18V-8H14V22Z" fill="' + c3 + '" stroke="#2f2216" stroke-width="2" stroke-linejoin="round"/><path d="M-5 22V8a5 5 0 0 1 10 0V22Z" fill="#2f2216"/></g>';
+    else if (o.ch === 'couronne') ch = '<g ' + t + '><path d="M-22 14L-26 -12L-12 -2L0 -18L12 -2L26 -12L22 14Z" fill="' + c3 + '" stroke="#2f2216" stroke-width="2" stroke-linejoin="round"/><rect x="-22" y="14" width="44" height="6" fill="' + c3 + '" stroke="#2f2216" stroke-width="2"/></g>';
+    else if (o.ch === 'lys') ch = '<g ' + t + ' fill="' + c3 + '" stroke="#2f2216" stroke-width="2" stroke-linejoin="round"><path d="M0 -24C-8 -14 -8 -2 0 8C8 -2 8 -14 0 -24Z"/><path d="M-6 4C-20 -6 -26 4 -20 12C-16 16 -8 12 -4 8Z"/><path d="M6 4C20 -6 26 4 20 12C16 16 8 12 4 8Z"/><rect x="-12" y="8" width="24" height="5" rx="1.5"/><path d="M-5 13L-8 22H8L5 13Z"/></g>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120"><defs><clipPath id="bc"><path d="' + sh + '"/></clipPath></defs><path d="' + sh + '" fill="' + c1 + '"/><g clip-path="url(#bc)">' + f + '</g>' + ch + '<path d="' + sh + '" fill="none" stroke="#2f2216" stroke-width="3.5" stroke-linejoin="round"/></svg>';
+  }
+  function blasonDialog() {
+    var dlg = $('#dlg-blason');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlg-blason'; dlg.className = 'dlg-live'; document.body.appendChild(dlg); }
+    var o = { part: 'parti', ch: 'lys', c1: '#2563eb', c2: '#f1ede0', c3: '#e0a800', name: 'Blason' };
+    function opts(list, cur) { return list.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === cur ? ' selected' : '') + '>' + x[1] + '</option>'; }).join(''); }
+    dlg.innerHTML = '<h2>Créer un blason</h2><div class="gbl"><div class="gbl-p" id="gbl-p"></div><div class="gbl-f">' +
+      '<label>Nom <input id="gbl-name" type="text" maxlength="30" value="Blason"></label>' +
+      '<label>Division <select id="gbl-part">' + opts(BLA.parts, o.part) + '</select></label>' +
+      '<label>Figure <select id="gbl-ch">' + opts(BLA.charges, o.ch) + '</select></label>' +
+      '<div class="gbl-c"><label>Couleur 1 <input id="gbl-c1" type="color" value="' + o.c1 + '"></label><label>Couleur 2 <input id="gbl-c2" type="color" value="' + o.c2 + '"></label><label>Figure <input id="gbl-c3" type="color" value="' + o.c3 + '"></label></div></div></div>' +
+      '<div class="dlg-actions"><button class="btn-ghost" id="gbl-no" type="button">Annuler</button><button class="btn-primary" id="gbl-ok" type="button">Ajouter à mes images</button></div>';
+    function upd() { o.name = $('#gbl-name', dlg).value || 'Blason'; o.part = $('#gbl-part', dlg).value; o.ch = $('#gbl-ch', dlg).value; o.c1 = $('#gbl-c1', dlg).value; o.c2 = $('#gbl-c2', dlg).value; o.c3 = $('#gbl-c3', dlg).value; $('#gbl-p', dlg).innerHTML = blasonSvg(o); }
+    $$('select,input', dlg).forEach(function (e) { e.addEventListener('input', upd); e.addEventListener('change', upd); });
+    $('#gbl-no', dlg).addEventListener('click', function () { dlg.close(); });
+    $('#gbl-ok', dlg).addEventListener('click', function () { upd(); addImage(o.name, 'data:image/svg+xml;utf8,' + encodeURIComponent(blasonSvg(o))); dlg.close(); SM.toast('Blason ajouté : cliquez-le dans « Mes images » puis sur la carte.'); });
+    upd(); dlg.showModal();
+  }
+  function imagesInit() {
+    var box = $('#gimgs'); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var x = e.target.closest('[data-del]');
+      if (x) {
+        e.stopPropagation(); var id = x.dataset.del, used = D().shapes.some(function (sh) { return sh.icon === 'img:' + id; });
+        if (used && !confirm('Cette image est utilisée sur la carte : la retirer la fera disparaître. Continuer ?')) return;
+        D().images = images().filter(function (im) { return im.id !== id; }); D().shapes = D().shapes.filter(function (sh) { return sh.icon !== 'img:' + id; });
+        SM.persist(); render(); renderImages(); renderTeams(); SM.renderLayerList(); return;
+      }
+      var b = e.target.closest('button[data-i]'); if (!b) return;
+      STAMP = { i: b.dataset.i, l: b.dataset.l, col: '', art: true, flag: false, hero: false }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
+    });
+    var f = $('#gimg-file');
+    f.addEventListener('change', function () {
+      var file = f.files && f.files[0]; if (!file) return;
+      fileToImage(file).then(function (uri) { addImage((file.name || 'Image').replace(/\.[a-z0-9]+$/i, '').slice(0, 30), uri); SM.toast('Image ajoutée : cliquez-la dans « Mes images » puis sur la carte.'); }).catch(function () { SM.toast('Image illisible : essayez un fichier PNG ou JPEG.'); });
+      f.value = '';
+    });
+    $('#gimg-bl').addEventListener('click', blasonDialog);
+  }
   // ---------- Équipes et bases ----------
   var TCOL = ['#c0262d', '#2563eb', '#1a7f37', '#e0a800', '#7c3aed', '#ea580c'];
   function teams() { return D().teams || (D().teams = []); }
-  function heroList() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; }) : []; return a.length ? a : [{ i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }]; }
+  function heroList() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES ? (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; }) : []; a = a.length ? a : [{ i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }]; return a.concat(images().map(function (im) { return { i: 'img:' + im.id, l: 'Mon image : ' + im.name, art: 1, hero: 1 }; })); }
   function heroFor(t) { var l = heroList(); return l.filter(function (e) { return e.i === t.base; })[0] || l[0]; }
   function heroOf() { var th = themeById(D().theme), a = th && window.SM_ART_THEMES && (window.SM_ART_THEMES[th.id] || []).filter(function (e) { return e.hero; })[0]; return a || { i: 'om:1F3F0', l: 'Base', art: 1, hero: 1 }; }
   function renderTeams() {
@@ -666,7 +752,7 @@
   }
   function renderThemes() {
     if (!$('#gstamps')) return;
-    renderTeams();
+    renderTeams(); renderImages();
     var th = themeById(D().theme), perso = D().theme === 'perso';
     // réglages du jeu (panneau Réglages)
     if ($('#gscale')) {
@@ -727,52 +813,69 @@
   });
   document.addEventListener('mouseup', function () { if (DRG) stopDrag(); });
 
-  // ---------- Assistant de création : échelle + thème, avec aperçu du rendu ----------
+  // ---------- Assistant de création : thème, échelle, fond de carte — étape par étape, à la place de la carte ----------
   function wizard() {
     loadThemes().then(function () {
-      var dlg = $('#dlg-gnew');
-      if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlg-gnew'; dlg.className = 'dlg-live gwiz'; document.body.appendChild(dlg); }
-      var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage' }, pm = null, pl = null, pmk = [], done = false;
-      var center = map.getCenter();
+      var host = $('#mapwrap'), old = $('#gwz'); if (old) old.remove();
+      var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov);
+      var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage', base: null }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
+      var STEPS = ['Thème', 'Échelle', 'Fond de carte'];
+      function thNow() { return themeById(pick.th); }
+      function baseNow() { var th = thNow(), b = pick.base || (th ? th.base : S.base); return SM.LAYERS[b] ? b : 'otm'; }
       function sample(th) {
         var out = [], seen = {};
         (th && th.el || []).forEach(function (e) { if (!seen[e.c] && out.length < 4) { seen[e.c] = 1; out.push(e); } });
         if (out.length < 4) (window.SM_COMMON || []).slice(0, 4 - out.length).forEach(function (e) { out.push(e); });
         return out;
       }
+      function killMap() { if (pm) { pm.remove(); pm = null; } pl = null; pmk = []; }
       function preview() {
-        var th = themeById(pick.th), el = $('#gw-map', dlg); if (!el) return;
-        if (!pm) {
-          pm = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0, zoomAnimation: false });
-        }
-        var base = th ? th.base : S.base; if (!SM.LAYERS[base]) base = 'otm';
+        var th = thNow(), el = $('#gw-map', ov); if (!el) return;
+        if (!pm) pm = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0, zoomAnimation: false });
+        var base = baseNow();
         if (pl && pl._k !== base) { pm.removeLayer(pl); pl = null; }
         if (!pl) { pl = SM.tile(base, 1).addTo(pm); pl._k = base; }
         el.classList.toggle('parch', !!(th && th.parch));
-        var lat = center.lat; pm.setView(center, SM.zoomFor(pick.sc, lat), { animate: false });
+        pm.invalidateSize(); pm.setView(center, SM.zoomFor(pick.sc, center.lat), { animate: false });
         pmk.forEach(function (m) { pm.removeLayer(m); }); pmk = [];
         var w = el.clientWidth || 300, h = el.clientHeight || 300, spots = [[.27, .3], [.68, .27], [.34, .68], [.72, .7]];
         sample(th).forEach(function (e, i) {
           var ll = pm.containerPointToLatLng([w * spots[i][0], h * spots[i][1]]), color = th ? th.color : '#12142b';
-          var s = { icon: e.i, stroke: color, text: '', size: 12, fontColor: color, font: 'arial', _sc: pick.sc, mm: D().stampMm || 16 };
-          pmk.push(new StampMarker(ll, s, { icon: stampIcon(s, 30), interactive: false }).addTo(pm));
+          var st = { icon: e.i, stroke: color, text: '', size: 12, fontColor: color, font: 'arial', _sc: pick.sc, mm: D().stampMm || 16 };
+          pmk.push(new StampMarker(ll, st, { icon: stampIcon(st, 30), interactive: false }).addTo(pm));
         });
-        $('#gw-cap', dlg).textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
+        var cap = $('#gw-cap', ov); if (cap) cap.textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
+      }
+      function baseBtns() {
+        var th = thNow(), rec = th ? th.base : null, cur = baseNow();
+        var keys = Object.keys(SM.LAYERS).filter(function (k) { return SM.LAYERS[k].base; });
+        keys.sort(function (a, b) { return (b === rec) - (a === rec); });
+        return keys.map(function (k) { return '<button type="button" data-bs="' + k + '" class="gwz-b' + (k === cur ? ' on' : '') + '"><b>' + esc(SM.LAYERS[k].label) + '</b>' + (k === rec ? '<small>Conseillé pour ce thème</small>' : '') + '</button>'; }).join('');
       }
       function draw() {
-        dlg.innerHTML = '<h2>Nouveau grand jeu</h2><p class="dlg-sub">Choisissez l’échelle et le thème : l’aperçu du rendu s’affiche à côté (ou en dessous sur téléphone). Le thème ne pourra plus être changé ensuite (pour un autre thème, créez un autre grand jeu).</p>' +
-          '<div class="gw-cols"><div class="gw-l"><h3>1 · Échelle du jeu</h3><div class="gscale">' + scaleBtns(pick.sc) + '</div>' +
-          '<h3>2 · Thème</h3><div class="gthemes">' + themeCards(pick.th) + '</div></div>' +
-          '<div class="gw-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>' +
-          '<div class="dlg-actions"><button class="btn-primary" id="gw-go" type="button">Créer le grand jeu</button></div>';
-        pm = null; pl = null; pmk = [];
-        $('#gw-go', dlg).addEventListener('click', function () { done = true; dlg.close(); setScale(pick.sc); applyTheme(pick.th); setTab('tools'); });
-        $$('[data-sc]', dlg).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', dlg).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
-        $$('[data-th]', dlg).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; $$('[data-th]', dlg).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
-        setTimeout(function () { if (pm) pm.invalidateSize(); preview(); }, 60);
+        killMap();
+        var body, foot;
+        if (step === 1) body = '<h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
+        else if (step === 2) body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
+        else body = '<div class="gwz-cols"><div><h2>Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est proposé : changez-le si vous préférez.</p><div class="gwz-bases">' + baseBtns() + '</div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
+        foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
+          (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
+        ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
+        $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
+        $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        $$('[data-bs]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.base = b.dataset.bs; $$('[data-bs]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); setTab('tools'); renderThemes(); });
+        var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
+        var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { step++; draw(); });
+        var go = $('#gwz-go', ov);
+        if (go) go.addEventListener('click', function () {
+          killMap(); ov.remove(); setScale(pick.sc); applyTheme(pick.th);
+          var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
+          setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
+        });
+        if (step > 1) setTimeout(preview, 60);
       }
-      dlg.onclose = function () { if (pm) { pm.remove(); pm = null; } if (!done) { setTab('tools'); renderThemes(); } };
-      draw(); if (!dlg.open) dlg.showModal(); setTimeout(function () { if (pm) { pm.invalidateSize(); preview(); } }, 150);
+      draw();
     }).catch(function () { setTab('tools'); });
   }
   // ---------- Barre de style en bas de la carte (comme dans un logiciel de dessin) ----------
@@ -799,7 +902,7 @@
       var b = e.target.closest('button[data-i]'); if (!b) return;
       STAMP = { i: b.dataset.i, l: b.dataset.l, col: b.dataset.col || '', art: !!b.dataset.art, flag: !!b.dataset.flag, hero: !!b.dataset.hero }; PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
     }
-    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick); teamsInit();
+    $('#gstamps').addEventListener('click', pick); $('#gcommon').addEventListener('click', pick); teamsInit(); imagesInit();
     $('#gzones').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-z]'); if (!b) return;
       var th = themeById(D().theme), all = (th ? th.z : []).concat(window.SM_ZONES || []), key = b.dataset.z.split('|');
