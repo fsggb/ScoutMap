@@ -988,6 +988,22 @@ body.doc-open .home{display:none!important}
 .gteam-s{display:grid;gap:3px;font-size:11.5px;color:var(--muted)}.gteam-s select{height:34px;border:1.5px solid var(--line-2);border-radius:10px;font:inherit;font-size:13px;color:var(--navy);background:#fff;padding:0 8px}
 .gz.gm i{width:42px;height:18px;border-radius:0;background-color:transparent!important;opacity:1!important}.gl-mo{display:block;width:24px;height:16px;background-size:auto 100%;background-repeat:repeat-x;background-position:left bottom}
 .gmotif-cv{pointer-events:none}
+/* ---- Barre de style en bas de la carte ---- */
+.gsbar{flex:none;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;padding:7px 12px;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(0,7,97,.08);z-index:2;max-height:34vh;overflow:auto}
+.gsbar[hidden]{display:none}
+.gsbar-t{flex:none;max-width:170px;font-size:12px;font-weight:700;color:var(--navy);line-height:1.25}.gsbar-t .sub,.gsbar-t span{font-size:12px}
+.gsbar .gfmt{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0;padding:0;border:0;box-shadow:none;background:none;flex:1;min-width:0}
+.gsbar .gf-cols{display:flex;gap:6px}
+.gsbar .gcol{padding:4px 8px;gap:7px}.gsbar .gcol-sw{width:22px;height:22px}.gsbar .gcol-t b{font-size:12px}.gsbar .gcol-c{display:none}
+.gsbar .gf-line{gap:6px;justify-content:flex-start}.gsbar .gf-l{font-size:11.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.gsbar .gstep button{height:28px;width:28px}.gsbar .gstep output{min-width:46px;font-size:12.5px}
+.gsbar .gf-text2{display:flex;align-items:center;gap:6px}.gsbar .gf-text2 label small{display:none}.gsbar .gf-text2 input{width:150px;height:30px;padding:0 8px;border:1.5px solid var(--line-2);border-radius:9px;font:inherit;font-size:13px}
+.gsbar .gf-text{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:0;border:0}.gsbar .gf-text textarea{width:170px;height:30px;min-height:30px;resize:none;padding:4px 8px}.gsbar .gf-text label small{display:none}
+.gsbar .gf-text .gf-line select{height:30px;width:130px;flex:none}.gsbar .gtb{padding:2px}.gsbar .gtb button{width:28px;height:26px}
+.gsbar .gf-line select,.gsbar #gs-tex{height:30px;border:1.5px solid var(--line-2);border-radius:9px;font:inherit;font-size:12.5px;background:#fff;padding:0 6px}
+.gsbar .btnrow{display:flex;gap:4px;margin:0;flex:none}.gsbar .btnrow .btn-ghost{padding:4px 8px;font-size:12px}
+@media (max-width:860px){.gsbar{max-height:30vh;padding:6px 8px;gap:4px 8px}.gsbar-t{max-width:100%;flex:1 0 100%}.gsbar .gf-text textarea{width:130px}}
+@media (max-width:860px){.app.wide,.app.wide.nopanel{grid-template-columns:1fr}.app.wide .gstamps{grid-template-columns:repeat(4,1fr)}}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

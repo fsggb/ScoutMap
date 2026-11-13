@@ -775,6 +775,19 @@
       draw(); if (!dlg.open) dlg.showModal(); setTimeout(function () { if (pm) { pm.invalidateSize(); preview(); } }, 150);
     }).catch(function () { setTab('tools'); });
   }
+  // ---------- Barre de style en bas de la carte (comme dans un logiciel de dessin) ----------
+  (function styleBar() {
+    var bar = $('#gbar'), st = $('#gstyle'); if (!bar || !st) return;
+    var pane = st.parentNode, tg = $('#gs-target'), act = $('#gs-actions');
+    var t = document.createElement('div'); t.className = 'gbar-t'; if (tg) t.appendChild(tg);
+    bar.appendChild(t); bar.appendChild(st); if (act) bar.appendChild(act);
+    if (pane && pane.dataset.gtabp === 'style') pane.hidden = true;
+    var gp = document.querySelector('.pane[data-pane=game]');
+    function sync() { var on = !!gp && !gp.hidden; bar.hidden = !on; setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 60); }
+    if (gp) { new MutationObserver(sync).observe(gp, { attributes: true, attributeFilter: ['hidden'] }); }
+    sync();
+    if (window.ResizeObserver && $('#mapwrap')) new ResizeObserver(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }).observe($('#mapwrap'));
+  })();
   (function wireThemes() {
     var tl = $('#gtabs [data-gtab=tools]'); if (tl) tl.addEventListener('click', function () { loadThemes().then(renderThemes); });
     $('#gscale').addEventListener('click', function (e) { var b = e.target.closest('button[data-sc]'); if (b) setScale(+b.dataset.sc); });
@@ -816,6 +829,7 @@
   // ---------- Onglets du panneau : Thèmes · Outils · Style · Éléments ----------
   var GTAB = 'tools';
   function setTab(t) {
+    if (t === 'style') { closePal(); return; }          // le style est dans la barre du bas, visible en permanence
     if (t === 'themes') t = 'tools';
     GTAB = t;
     $$('#gtabs [data-gtab]').forEach(function (b) { var on = b.dataset.gtab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
