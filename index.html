@@ -167,9 +167,6 @@
         <div class="gcal-list" id="gcal-list"></div>
       </div>
       <div data-gtabp="fx" hidden>
-        <h3 class="sub">Fond de carte</h3>
-        <div class="gfxbs" id="gfx-base"></div>
-        <p class="gtab-help">Astuce : la <b>photo aérienne</b> est souvent plus pratique que le plan pour repérer haies, chemins et bâtiments.</p>
         <h3 class="sub">Effets sur la carte</h3>
         <p class="gtab-help">Cliquez pour activer ou désactiver un effet (ils se combinent et s’impriment). Sans effet : couleurs d’origine du fond.</p>
         <div class="gfx-grid" id="gfx-list"></div>
@@ -178,8 +175,8 @@
       <h3 class="sub"><span id="gs-target">Style des prochaines formes</span></h3>
       <div class="gfmt" id="gstyle">
         <div class="gf-cols">
-          <button type="button" class="gcol" id="gb-fill" data-pal="fill" data-for="fill" aria-haspopup="true"><span class="gcol-sw" id="gc-fill"></span><span class="gcol-t"><small id="gb-fill-l">Remplissage</small><b id="gb-fill-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
-          <button type="button" class="gcol" id="gb-stroke" data-pal="stroke" data-for="stroke" aria-haspopup="true"><span class="gcol-sw ring" id="gc-stroke"></span><span class="gcol-t"><small id="gb-stroke-l">Contour</small><b id="gb-stroke-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
+          <button type="button" class="gcol" id="gb-fill" title="Couleur de remplissage" data-pal="fill" data-for="fill" aria-haspopup="true"><span class="gcol-sw" id="gc-fill"></span><span class="gcol-t"><small id="gb-fill-l">Remplissage</small><b id="gb-fill-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
+          <button type="button" class="gcol" id="gb-stroke" title="Couleur du contour" data-pal="stroke" data-for="stroke" aria-haspopup="true"><span class="gcol-sw ring" id="gc-stroke"></span><span class="gcol-t"><small id="gb-stroke-l">Contour</small><b id="gb-stroke-v"></b></span><svg class="ic gcol-c"><use href="#i-chev-down"/></svg></button>
         </div>
         <div class="gf-line" data-for="weight">
           <span class="gf-l" id="gf-weight-l">Épaisseur du trait</span>
@@ -188,7 +185,7 @@
         <div class="gf-line" data-for="stampsize">
           <span class="gf-l" title="Taille sur le papier, à l’échelle de départ du jeu">Taille (mm)</span>
           <div class="gstep"><button type="button" id="gs-stamp-m" aria-label="Plus petit">−</button><output id="gs-stamp-v">16 mm</output><button type="button" id="gs-stamp-p" aria-label="Plus grand">+</button></div>
-          <button type="button" class="btn-ghost sm" id="gs-stamp-auto" hidden>Taille générale</button>
+          <button type="button" class="btn-ghost sm" id="gs-stamp-auto" hidden>Auto</button>
         </div>
         <div class="gf-text2" data-for="legendname">
           <label class="gf-l" for="gs-name">Nom dans la légende <small>(laisser vide : pas dans la légende)</small></label>
@@ -232,6 +229,8 @@
       <input type="color" id="gpal-custom" tabindex="-1" aria-hidden="true" style="position:fixed;left:-99px;opacity:0">
       <div class="btnrow" id="gs-actions">
         <button class="btn-ghost" id="gs-dup" title="Dupliquer"><svg class="ic"><use href="#i-copy"/></svg>Dupliquer</button>
+        <button class="btn-ghost" id="gs-fwd" title="Monter d’un cran" aria-label="Monter d’un cran"><svg class="ic"><use href="#i-fwd"/></svg></button>
+        <button class="btn-ghost" id="gs-bwd" title="Descendre d’un cran" aria-label="Descendre d’un cran"><svg class="ic"><use href="#i-bwd"/></svg></button>
         <button class="btn-ghost" id="gs-front" title="Mettre au premier plan" aria-label="Premier plan"><svg class="ic"><use href="#i-front"/></svg></button>
         <button class="btn-ghost" id="gs-back" title="Mettre à l’arrière-plan" aria-label="Arrière-plan"><svg class="ic"><use href="#i-back"/></svg></button>
         <button class="btn-ghost danger" id="gs-del" title="Supprimer (Suppr)"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
