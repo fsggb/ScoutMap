@@ -52,7 +52,9 @@
           }
         },
         "$other": {
-          ".validate": false
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('rooms/' + $room + '/admins/' + auth.uid).exists()",
+          ".validate": "(newData.isString() && newData.val().length < 200000) || newData.isNumber() || newData.isBoolean() || newData.hasChildren()"
         }
       }
     }
