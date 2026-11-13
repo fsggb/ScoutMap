@@ -116,29 +116,53 @@ const STEPS = [
   [T, 'Pour imprimer, cliquez sur Imprimer : vous obtenez une feuille d’azimuts, avec le tableau des azimuts, des contre-azimuts et des distances, la vue d’ensemble et le profil, puis les cartes.', async () => {
     await clickSel('#btn-pdf'); await wait(3800); await clickSel('#pdf-cancel'); await wait(500);
   }, 4],
-  [T, 'Revenons à l’accueil, et choisissons Créer un grand jeu.', async () => { await clickSel('.rail-btn[data-rail=home]'); await wait(900); await clickSel('.home-card[data-start=game]'); await wait(800); }, 5],
-  [T, 'Dans Grand jeu, le panneau a trois onglets : Outils, Style et Éléments. Dans Outils, choisissez un outil, puis dessinez. Pour une zone, cliquez les sommets l’un après l’autre, puis faites un double-clic, ou un clic droit, pour terminer.', async () => {
-    await clickSel('#gtools [data-gt=polygon]'); await wait(300);
-    for (const [dx, dy] of [[-150, -90], [130, -100], [150, 60]]) { await clickOff(dx, dy); await wait(700); }
-    const [cx, cy] = await centerPx(); await move(cx - 140, cy + 70); await wait(400); await p.mouse.dblclick(cx - 140, cy + 70); await wait(1200);
+  [T, 'Revenons à l’accueil, et choisissons Créer un grand jeu.', async () => { await clickSel('.rail-btn[data-rail=home]'); await wait(900); await clickSel('.home-card[data-start=game]'); await wait(1500); }, 5],
+  [T, 'Un assistant s’affiche à la place de la carte. Première étape : choisissez le thème du jeu, par exemple les guerres de Vendée. Chaque thème apporte ses illustrations, ses bases et ses lignes.', async () => {
+    await wait(1500); await p.$eval('#gwz [data-th=vendee]', e => e.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1300); await clickSel('#gwz [data-th=vendee]'); await wait(1800); await clickSel('#gwz-next'); await wait(800);
   }, 5],
-  [T, 'La zone est sélectionnée et l’onglet Style s’ouvre. Cliquez sur Remplissage pour choisir la couleur et la transparence, ou sur Contour pour la couleur, l’épaisseur et le type de trait.', async () => {
-    await clickSel('#gb-fill'); await wait(1500); await clickSel('#gpal .gpal-g button:nth-child(' + 5 + ')'); await wait(900);
-    await clickSel('#gb-stroke'); await wait(1300); await clickSel('#gpal .gpal-g button:nth-child(' + 8 + ')'); await wait(700);
-    await clickSel('#gs-weight-p'); await wait(500); await clickSel('#gs-dash [data-d=dash]'); await wait(1200);
+  [T, 'Deuxième étape : l’échelle de départ. Un fond de carte adapté au thème est déjà choisi, vous pouvez le changer ici si vous préférez. Vous pourrez zoomer et dézoomer librement ensuite.', async () => {
+    await clickSel('#gwz [data-sc="5000"]'); await wait(1600); await moveTo('#gw-base'); await wait(1800); await clickSel('#gwz-go'); await wait(2200);
+    await p.evaluate(() => window.SM.map.setView([43.24346, 1.9244], 17, { animate: false })); await wait(1200);
   }, 5],
-  [T, 'L’outil Texte écrit sur la carte : cliquez à l’endroit voulu, puis tapez directement votre texte. Vous choisissez ensuite la police, la taille, la couleur, le gras, l’italique et le souligné.', async () => {
-    await clickSel('#gtabs [data-gtab=tools]'); await wait(500); await clickSel('#gtools [data-gt=text]'); await wait(300); await clickOff(-60, 130); await wait(700);
-    await p.keyboard.type('Camp de base', { delay: 90 }); await p.keyboard.press('Enter'); await wait(900);
-    await moveTo('#gs-font'); await wait(400); await p.selectOption('#gs-font', 'comic'); await wait(900);
-    await clickSel('#gs-size-p'); await wait(400); await clickSel('#gs-bold'); await wait(500); await clickSel('#gs-italic'); await wait(500); await clickSel('#gs-underline'); await wait(1200);
+  [T, 'À gauche, la bibliothèque a cinq onglets : Éléments, Équipes, Terrains, Lignes et Images. La recherche retrouve un élément en quelques lettres.', async () => {
+    for (const k of ['teams', 'zones', 'lines', 'images', 'elements']) { await clickSel('#gsub [data-sub=' + k + ']'); await wait(700); }
+    await clickSel('#gsearch-in'); await p.keyboard.type('moulin', { delay: 110 }); await wait(1600); await p.fill('#gsearch-in', ''); await p.dispatchEvent('#gsearch-in', 'input'); await wait(400);
   }, 5],
-  [T, 'Pour modifier un élément, faites un double-clic dessus : un texte se corrige directement sur la carte. L’onglet Éléments liste tout ce que vous avez dessiné.', async () => {
-    const t = await p.$('.gtext'); const b = await t.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 18); await wait(300); await p.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2); await wait(600);
-    await p.keyboard.press('Control+a'); await p.keyboard.type('Base du camp', { delay: 90 }); await p.keyboard.press('Enter'); await wait(1000);
-    await clickSel('#gtabs [data-gtab=list]'); await wait(1800);
+  [T, 'Commencez par vos équipes. Ajoutez une équipe, donnez-lui un nom et une couleur, puis choisissez l’image de sa base.', async () => {
+    await clickSel('#gsub [data-sub=teams]'); await wait(500); await p.waitForSelector('#gteams', { timeout: 8000 }).catch(() => {}); await clickSel('#gteam-add'); await wait(500);
+    await p.fill('.gteam:nth-child(1) [data-tn]', 'Blancs'); await wait(900);
+    await clickSel('#gteam-add'); await wait(500); await p.fill('.gteam:nth-child(2) [data-tn]', 'Bleus'); await wait(900);
+    await p.waitForSelector('.gteam [data-tb]', { timeout: 8000 }).catch(() => {}); const tb = await p.$('.gteam:nth-child(1) [data-tb]'); if (tb) { await moveTo('.gteam:nth-child(1) [data-tb]'); await wait(1500); } else { await wait(1200); }
   }, 5],
-  [T, 'La touche Échap, ou un clic droit, relâche l’outil et revient à la sélection. Pour imprimer le jeu, cliquez sur Imprimer : la carte générale est proposée, pour voir toute la zone sur une seule feuille.', async () => {
+  [T, 'Cliquez sur Poser la base, puis sur la carte. Cliquez et glissez pour choisir sa taille. La bannière prend la couleur de l’équipe.', async () => {
+    await clickSel('.gteam:nth-child(1) [data-tbase]'); const [cx, cy] = await centerPx(); await move(cx + 120, cy - 40); await wait(300);
+    await p.mouse.down(); await move(cx + 200, cy + 20, 20); await p.mouse.up(); await wait(1500);
+  }, 5],
+  [T, 'Posez ensuite un point de départ pour chaque patrouille, puis la base de la deuxième équipe : une image différente peut représenter chaque camp.', async () => {
+    await clickSel('.gteam:nth-child(1) [data-tstart]'); await clickOff(60, -60); await wait(500);
+    await clickSel('.gteam:nth-child(2) [data-tbase]'); await clickOff(-200, 60); await wait(1500);
+  }, 5],
+  [T, 'Les limites se tracent avec les lignes à motifs : palissades, barbelés, zones minées, haies. Cliquez les points, puis faites un double-clic pour finir.', async () => {
+    await clickSel('#gsub [data-sub=lines]'); await wait(700); await clickSel('#glines [data-mo=haie]'); await wait(500);
+    for (const [dx, dy] of [[-250, -120], [-80, -150], [90, -110]]) { await clickOff(dx, dy); await wait(600); }
+    const [cx, cy] = await centerPx(); await move(cx + 220, cy - 60); await wait(300); await p.mouse.dblclick(cx + 220, cy - 60); await wait(1600);
+  }, 5],
+  [T, 'À gauche de la carte, la palette d’outils donne un accès direct aux formes : sélection, zone, rectangle, cercle, ligne, flèche, croix et texte. Chaque outil a son raccourci clavier : V, P, R, C, L, A, X et T.', async () => {
+    for (const k of ['polygon', 'rect', 'circle', 'line', 'arrow', 'text', 'select']) { await moveTo('#gpalette [data-gt=' + k + ']'); await wait(450); }
+    await clickSel('#gpalette [data-gt=rect]'); await clickOff(-200, 120); await clickOff(-60, 210); await wait(1500);
+  }, 5],
+  [T, 'Les couleurs, l’épaisseur et le texte se règlent dans la barre du bas, toujours visible. Elle s’applique à l’élément sélectionné, ou aux prochains éléments si rien n’est sélectionné.', async () => {
+    await clickSel('#gb-fill'); await wait(1200); await clickSel('#gpal .gpal-g button:nth-child(5)'); await wait(900);
+    await clickSel('#gs-weight-p'); await wait(800); await moveTo('#gstyle'); await wait(1200);
+  }, 5],
+  [T, 'Dans l’onglet Images, ajoutez le logo d’une équipe, une photo, ou créez un blason en choisissant sa division, sa figure et ses couleurs.', async () => {
+    await clickSel('#gsub [data-sub=images]'); await wait(700); await clickSel('#gimg-bl'); await wait(2200);
+    await p.selectOption('#gbl-part', 'ecartele'); await wait(900); await p.selectOption('#gbl-ch', 'etoile'); await wait(1500); await clickSel('#gbl-ok'); await wait(1500);
+  }, 5],
+  [T, 'Pour que les autres chefs suivent le jeu, le bouton Partager en direct affiche un code Q R : ils voient la carte, leurs positions respectives, et peuvent discuter. Vous pouvez aussi leur envoyer un lien administrateur pour qu’ils modifient la carte avec vous.', async () => {
+    await moveTo('#game-live'); await wait(3500);
+  }, 5],
+  [T, 'Pour imprimer le jeu, cliquez sur Imprimer : la carte générale est proposée, pour voir toute la zone sur une seule feuille, avec la légende. Échap, ou un clic droit, relâche l’outil et revient à la sélection.', async () => {
     await clickSel('#game-pdf'); await wait(4000); await clickSel('#pdf-cancel'); await wait(500);
   }, 5],
   [T, 'Pour revoir un tutoriel à tout moment, cliquez sur le point d’interrogation en haut, ou ouvrez le menu Aide, où vous trouverez aussi l’adresse du service informatique.', async () => {
