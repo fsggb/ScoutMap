@@ -130,8 +130,8 @@
   function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
 
   // ---------- Création et accès ----------
-  function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : S.game.shapes.length > 0; }
-  function liveName() { return st.mode === 'az' ? (S.az.name || 'Azimuts') : (S.game.name || 'Grand jeu'); }
+  function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : st.mode === 'route' ? S.route.wps.length > 1 : S.game.shapes.length > 0; }
+  function liveName() { return st.mode === 'az' ? (S.az.name || 'Azimuts') : st.mode === 'route' ? (S.route.name || 'Itinéraire') : (S.game.name || 'Grand jeu'); }
   function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ mode: st.mode, room: st.room, key: st.key, owner: st.owner, admin: st.admin, atok: st.atok, share: st.sharing, t: Date.now() })); } catch (e) { /* ignoré */ } }
   function clearSession() { try { localStorage.removeItem('scoutmap.live.session'); } catch (e) { /* ignoré */ } }
   function askName(title, okLabel, cb) {
@@ -150,9 +150,9 @@
     if (!configured()) { dlgOpen('<h2>Jeu en direct</h2><p class="dlg-sub">Le partage en direct n’est pas encore activé sur ce site : il manque la configuration du service (Firebase).</p><div class="dlg-actions"><button class="btn-primary" type="button" data-x2>Compris</button></div>'); $('[data-x2]', dlg).addEventListener('click', function () { dlg.close(); }); return; }
     if (!window.crypto || !crypto.subtle) { toast('Le partage en direct demande une connexion sécurisée (https).'); return; }
     if (st.room) { showInvite(); return; }
-    if (S.mode !== 'game' && S.mode !== 'az') { toast('Le partage en direct est disponible pour le Grand jeu et pour les Azimuts.'); return; }
+    if (S.mode !== 'game' && S.mode !== 'az' && S.mode !== 'route') { toast('Ouvrez un itinéraire, des azimuts ou un grand jeu pour le partager.'); return; }
     st.mode = S.mode;
-    if (!hasContent()) { toast(st.mode === 'az' ? 'Posez d’abord des points sur la carte des azimuts, puis partagez-les.' : 'Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
+    if (!hasContent()) { toast(st.mode === 'az' ? 'Posez d’abord des points sur la carte des azimuts, puis partagez-les.' : st.mode === 'route' ? 'Posez d’abord le départ et au moins une étape de l’itinéraire, puis partagez-le.' : 'Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
     askName('Partager ce jeu en direct', 'Lancer le jeu en direct', function () {
       toast('Lancement du jeu en direct…');
       fb().then(function () { st.room = rand(16); st.key = b64u(crypto.getRandomValues(new Uint8Array(16))); return importKey(st.key); }).then(function (k) {
@@ -200,7 +200,7 @@
   }
 
   // ---------- Le jeu (envoyé par le chef, reçu en lecture seule par les autres) ----------
-  function snapshot() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
+  function snapshot() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: st.mode === 'route' ? S.route : { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
   function publishGame() {
     if (!canEdit() || !st.room || !hasContent()) return Promise.resolve();
     var js = JSON.stringify(snapshot()); if (js === st.lastGame) return Promise.resolve(); st.lastGame = js;
@@ -213,7 +213,7 @@
     }).then(function (data) {
       if (mine) { var js = JSON.stringify(data); if (st.lastGame && js === st.lastGame) return; }
       if (data.name) $('#lv-title').textContent = data.name;
-      if (data.rail === 'az' || data.rail === 'game') st.mode = data.rail;
+      if (data.rail === 'az' || data.rail === 'game' || data.rail === 'route') st.mode = data.rail;
       SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true; if (st.admin) { st.lastGame = JSON.stringify(snapshot()); }
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
