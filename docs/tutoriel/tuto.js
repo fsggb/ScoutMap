@@ -117,14 +117,14 @@ const STEPS = [
     await clickSel('#btn-pdf'); await wait(3800); await clickSel('#pdf-cancel'); await wait(500);
   }, 4],
   [T, 'Revenons à l’accueil, et choisissons Créer un grand jeu.', async () => { await clickSel('.rail-btn[data-rail=home]'); await wait(900); await clickSel('.home-card[data-start=game]'); await wait(1500); }, 5],
-  [T, 'Un assistant s’affiche à la place de la carte. Première étape : choisissez le thème du jeu, par exemple les guerres de Vendée. Chaque thème apporte ses illustrations, ses bases et ses lignes.', async () => {
-    await wait(1500); await p.$eval('#gwz [data-th=vendee]', e => e.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1300); await clickSel('#gwz [data-th=vendee]'); await wait(1800); await clickSel('#gwz-next'); await wait(800);
+  [T, 'Un assistant s’affiche à la place de la carte. Première étape : donnez un nom au jeu, puis choisissez son thème, par exemple les guerres de Vendée. Chaque thème apporte ses illustrations, ses bases et ses lignes.', async () => {
+    await wait(1000); await clickSel('#gw-name'); await p.keyboard.type('Domaine de Henriques', { delay: 70 }); await wait(800); await p.$eval('#gwz [data-th=vendee]', e => e.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1300); await clickSel('#gwz [data-th=vendee]'); await wait(1800); await clickSel('#gwz-next'); await wait(800);
   }, 5],
-  [T, 'Deuxième étape : l’échelle de départ. Un fond de carte adapté au thème est déjà choisi, vous pouvez le changer ici si vous préférez. Vous pourrez zoomer et dézoomer librement ensuite.', async () => {
+  [T, 'Deuxième étape : l’échelle de départ, adaptée aux jeux de terrain. Un fond de carte adapté au thème est déjà choisi, et l’application vous prévient si un fond est trop flou à cette échelle. Vous pourrez zoomer et dézoomer librement ensuite.', async () => {
     await clickSel('#gwz [data-sc="5000"]'); await wait(1600); await moveTo('#gw-base'); await wait(1800); await clickSel('#gwz-go'); await wait(2200);
     await p.evaluate(() => window.SM.map.setView([43.24346, 1.9244], 17, { animate: false })); await wait(1200);
   }, 5],
-  [T, 'À gauche, la bibliothèque a cinq onglets : Éléments, Équipes, Terrains, Lignes et Images. La recherche retrouve un élément en quelques lettres.', async () => {
+  [T, 'À gauche, la bibliothèque a cinq rubriques : Icônes, Équipes, Terrains, Lignes et Images. La recherche retrouve un élément en quelques lettres.', async () => {
     for (const k of ['teams', 'zones', 'lines', 'images', 'elements']) { await clickSel('#gsub [data-sub=' + k + ']'); await wait(700); }
     await clickSel('#gsearch-in'); await p.keyboard.type('moulin', { delay: 110 }); await wait(1600); await p.fill('#gsearch-in', ''); await p.dispatchEvent('#gsearch-in', 'input'); await wait(400);
   }, 5],
@@ -159,7 +159,7 @@ const STEPS = [
     await clickSel('#gsub [data-sub=images]'); await wait(700); await clickSel('#gimg-bl'); await wait(2200);
     await p.selectOption('#gbl-part', 'ecartele'); await wait(900); await p.selectOption('#gbl-ch', 'etoile'); await wait(1500); await clickSel('#gbl-ok'); await wait(1500);
   }, 5],
-  [T, 'Pour que les autres chefs suivent le jeu, le bouton Partager en direct affiche un code Q R : ils voient la carte, leurs positions respectives, et peuvent discuter. Vous pouvez aussi leur envoyer un lien administrateur pour qu’ils modifient la carte avec vous.', async () => {
+  [T, 'Pour que les autres chefs suivent le jeu, le bouton Partager, sous la géolocalisation, est disponible pour les itinéraires, les azimuts et les grands jeux : il affiche un code Q R : ils voient la carte, leurs positions respectives, et peuvent discuter. Vous pouvez aussi leur envoyer un lien administrateur pour qu’ils modifient la carte avec vous.', async () => {
     await moveTo('#share-btn'); await wait(3500);
   }, 5],
   [T, 'Pour imprimer le jeu, cliquez sur Imprimer : la carte générale est proposée, pour voir toute la zone sur une seule feuille, avec la légende. Échap, ou un clic droit, relâche l’outil et revient à la sélection.', async () => {
