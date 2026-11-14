@@ -11,6 +11,11 @@
     { k: 'forest', label: 'Forêts', desc: 'Arbres semés dans les vraies forêts du terrain', cap: 64 },
     { k: 'water', label: 'Rivières et lacs', desc: 'Cours d’eau et plans d’eau réels, tracés à l’encre', cap: 250 }
   ];
+  var THUMB = {
+    relief: '<svg viewBox="0 0 72 48" aria-hidden="true"><rect width="72" height="48" rx="7" fill="#f3e9cf"/><g fill="#f8f0da" stroke="#4a3418" stroke-width="1.3" stroke-linejoin="round"><path d="M6 36L20 14L34 36Z"/><path d="M30 38L47 10L64 38Z"/><path d="M0 40C12 33 20 41 30 37S52 41 72 36V48H0Z" fill="#efe4c6" stroke="none"/></g><g stroke="#4a3418" stroke-width=".9" opacity=".75"><path d="M20 14L24 35M20 14L16 33M47 10L52 36M47 10L42 35M47 10L57 36"/></g></svg>',
+    forest: '<svg viewBox="0 0 72 48" aria-hidden="true"><rect width="72" height="48" rx="7" fill="#e9efd6"/><g stroke="#2c4a1c" stroke-width="1" stroke-linejoin="round"><g fill="#6aa04c"><path d="M14 36L20 20L26 36Z"/><path d="M30 38L38 16L46 38Z"/><path d="M50 35L56 21L62 35Z"/></g><g fill="#4d8636"><path d="M8 40L13 29L18 40Z"/><path d="M44 41L50 29L56 41Z"/><path d="M58 42L63 32L68 42Z"/></g></g><g stroke="#5a3a1a" stroke-width="1.6"><path d="M20 36V40M38 38V42M56 35V39"/></g></svg>',
+    water: '<svg viewBox="0 0 72 48" aria-hidden="true"><rect width="72" height="48" rx="7" fill="#f1ecd9"/><path d="M-2 14C14 6 22 22 38 16S60 8 74 18" fill="none" stroke="#2c5d8f" stroke-width="3.2" stroke-linecap="round"/><path d="M-2 14C14 6 22 22 38 16S60 8 74 18" fill="none" stroke="#9cc4e8" stroke-width="1.2" stroke-linecap="round"/><path d="M14 33C14 28 24 26 32 29C40 32 38 41 28 42C18 43 14 38 14 33Z" fill="#a9cbe8" stroke="#2c5d8f" stroke-width="1.5"/><g stroke="#2c5d8f" stroke-width=".8" opacity=".7"><path d="M18 33H31M19 37H33"/></g></svg>'
+  };
   var BUSY = {}, layers = {};
   function D() { return S.game; }
   function themeInk() { var th = SM.game && SM.game.theme && SM.game.theme(); return { ink: (th && th.color) || '#3b2a14', paper: '#f5ead0' }; }
@@ -230,7 +235,7 @@
     $('#gcal-zone').innerHTML = 'Zone visible : <b>' + z.txt + '</b> <small>(les calques se génèrent sur ce que vous voyez)</small>';
     box.innerHTML = TYPES.map(function (t) {
       var c = cs.filter(function (x) { return x.type === t.k; })[0], tooBig = z.A.a > t.cap, busy = BUSY[t.k];
-      var head = '<div class="gcal-h"><label class="gcal-tg"><input type="checkbox" data-act="tog"' + (c ? ' checked' : '') + (busy ? ' disabled' : '') + '><span class="gcal-box"></span><b>' + esc(t.label) + '</b></label><small>' + esc(t.desc) + (busy ? ' — génération en cours…' : '') + '</small></div>';
+      var head = '<div class="gcal-top"><span class="gcal-th">' + THUMB[t.k] + '</span><div class="gcal-h"><label class="gcal-tg"><input type="checkbox" data-act="tog"' + (c ? ' checked' : '') + (busy ? ' disabled' : '') + '><span class="gcal-box"></span><b>' + esc(t.label) + '</b></label><small>' + esc(t.desc) + (busy ? ' — génération en cours…' : '') + '</small></div></div>';
       if (!c) return '<div class="gcal" data-k="' + t.k + '">' + head + (tooBig ? '<p class="gcal-warn">Zone trop grande pour ce calque : zoomez un peu avant de le cocher.</p>' : '') + '</div>';
       var n = (c.data.g ? c.data.g.length : 0) + (c.data.l ? c.data.l.length : 0) + (c.data.a ? c.data.a.length : 0);
       return '<div class="gcal on" data-k="' + t.k + '">' + head +
