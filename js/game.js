@@ -708,9 +708,8 @@
   function clearFx() { var el = map.getContainer(), tp = el.querySelector('.leaflet-tile-pane'); if (tp) tp.style.filter = ''; var h = el.querySelector(':scope > .gfx'); if (h) h.remove(); }
   var SAMPLE = '<svg viewBox="0 0 96 58" preserveAspectRatio="none"><rect width="96" height="58" fill="#f1efe4"/><path d="M0 40C20 34 40 46 96 36V58H0Z" fill="#cfe3b7"/><path d="M60 0C56 20 70 30 66 58" stroke="#f2d27a" stroke-width="3" fill="none"/><path d="M0 18C30 12 50 26 96 14" stroke="#7fb5e6" stroke-width="2" fill="none"/><rect x="14" y="22" width="8" height="6" fill="#b9a98f"/><rect x="26" y="26" width="6" height="5" fill="#b9a98f"/><circle cx="80" cy="44" r="6" fill="#9fcf86"/></svg>';
   var BASEQ = ['plan', 'ortho', 'otm', 'osm', 'etat', 'cassini'], BASEN = { plan: 'Plan IGN', ortho: 'Photo aérienne', otm: 'Topo', osm: 'OpenStreetMap', etat: 'État-major (1820)', cassini: 'Cassini (XVIIIe)' };
-  function renderFx() {
-    var lx = $('#gfx-list'); if (!lx) return;
-    var fx = D().fx; if (!fx) { fx = D().fx = Object.assign({}, fxOf(D())); }
+  function renderFx() { var lx = $('#gfx-list'); if (!lx) return; var fx = D().fx; if (!fx) { fx = D().fx = Object.assign({}, fxOf(D())); } renderFxInto(lx, fx); }
+  function renderFxInto(lx, fx) {
     lx.innerHTML = Object.keys(FXM).map(function (k) {
       var on = fx[k] != null, m = FXM[k];
       return '<div class="gfxt' + (on ? ' on' : '') + '" data-k="' + k + '"><button type="button" class="gfxt-b" data-fx="' + k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="gfxp"><span class="gfxp-m">' + SAMPLE + '</span><span class="gfx"></span></span><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></button>' +
@@ -1004,7 +1003,8 @@
       var host = $('#mapwrap'), old = $('#gwz'); if (old) old.remove();
       var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov); document.body.classList.add('gw-open');
       var pick = { sc: D().scale || 5000, th: D().theme || 'moyenage', base: null, name: (D().name && D().name !== 'Grand jeu 1' ? D().name : '') }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
-      var STEPS = ['Thème', 'Échelle et fond de carte'];
+      var STEPS = ['Thème', 'Échelle et fond de carte', 'Effets (facultatif)'];
+      pick.fx = {};
       function thNow() { return themeById(pick.th); }
       function baseNow() { var th = thNow(), b = pick.base || (th ? th.base : S.base); return SM.LAYERS[b] ? b : 'otm'; }
       function sample(th) {
@@ -1058,9 +1058,10 @@
         killMap();
         var body, foot;
         if (step === 1) body = '<label class="gwz-name">Nom du jeu <input id="gw-name" type="text" maxlength="60" placeholder="Ex. Domaine de Henriques, Camp de Pâques…" autocomplete="off" value="' + esc(pick.name) + '"></label><h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
+        else if (step === 3) body = '<h2>Effets sur la carte</h2><p class="gwz-sub">Facultatif : donnez un style à la carte (papier froissé, parchemin, carte pliée…). Rien n’est appliqué par défaut, et vous pourrez tout régler plus tard dans l’onglet Effets.</p><div class="gfx-grid gwz-fx" id="gw-fx"></div>';
         else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
-          (step < 2 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
+          (step === 3 ? '<button type="button" class="btn-ghost" id="gwz-skip">Passer cette étape</button>' : '') + (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
         ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); refreshBase(); preview(); }); });
@@ -1070,9 +1071,16 @@
         $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
         var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { if (step === 1 && !pick.name.trim()) { var n3 = $('#gw-name', ov); if (n3) { n3.focus(); n3.classList.add('bad'); SM.toast('Donnez d’abord un nom au jeu.'); } return; } step++; draw(); });
+        var fxh = $('#gw-fx', ov);
+        if (fxh) {
+          renderFxInto(fxh, pick.fx);
+          fxh.addEventListener('click', function (e) { var b = e.target.closest('[data-fx]'); if (!b) return; var k = b.dataset.fx; if (pick.fx[k] != null) delete pick.fx[k]; else pick.fx[k] = FXM[k].v; renderFxInto(fxh, pick.fx); });
+          fxh.addEventListener('input', function (e) { var r = e.target.closest('[data-fxv]'); if (r) pick.fx[r.dataset.fxv] = +r.value / 100; });
+        }
+        var skip = $('#gwz-skip', ov); if (skip) skip.addEventListener('click', function () { pick.fx = {}; var g2 = $('#gwz-go', ov); if (g2) g2.click(); });
         var go = $('#gwz-go', ov);
         if (go) go.addEventListener('click', function () {
-          killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; } setScale(pick.sc); applyTheme(pick.th);
+          killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; } setScale(pick.sc); applyTheme(pick.th); D().fx = Object.assign({}, pick.fx); delete D().parch; applyParch();
           var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
           setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
         });

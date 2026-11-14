@@ -391,7 +391,9 @@
 
   // ---------- Échelle ----------
   var MPP0 = 156543.03392, PXM = 0.00026458333;
-  var SCALES = [25000, 50000];                       // seules échelles prédéfinies
+  var SCALES = [25000, 50000];                       // échelles prédéfinies de l'itinéraire et des azimuts
+  var GAME_SCALES = [1000, 2000, 5000, 10000, 25000, 50000];   // le grand jeu travaille à des échelles bien plus grandes
+  function scalesNow() { return S.mode === 'game' ? GAME_SCALES : SCALES; }
   function scaleAt(z, lat) { return MPP0 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z) / PXM; }
   function zoomFor(sc, lat) { return Math.log(MPP0 * Math.cos(lat * Math.PI / 180) / (sc * PXM)) / Math.LN2; }
   function curScale() { var c = map.getCenter(); return scaleAt(map.getZoom(), c.lat); }
@@ -417,7 +419,8 @@
   });
   $('#zoom-in').addEventListener('click', function () { map.zoomIn(); });
   $('#zoom-out').addEventListener('click', function () { map.zoomOut(); });
-  $('#scale-list').innerHTML = SCALES.map(function (s) { return '<button data-s="' + s + '">1 : ' + sp(s) + '</button>'; }).join('');
+  function renderScaleList() { $('#scale-list').innerHTML = scalesNow().map(function (s) { return '<button data-s="' + s + '">1 : ' + sp(s) + '</button>'; }).join(''); updateScaleUI(); }
+  renderScaleList(); window.SM_renderScaleList = renderScaleList;
   $('#scale-list').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setScale(+b.dataset.s); });
   $('#scale-custom').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { var v = +this.value; if (v >= 200) { setScale(v); this.value = ''; } }
@@ -517,7 +520,7 @@
     if (SIM.open) simClose(true);
     select(null);
     if (window.SM && SM.game && SM.game.leave) SM.game.leave();
-    S.mode = m; showHome(false);
+    S.mode = m; showHome(false); renderScaleList();
     applyVis(); renderStored(); renderLayerList(); refreshProfile(); updateRailMode(); applyDock();
     if (window.SM && SM.game) SM.game.render();
     persist();
@@ -2507,6 +2510,10 @@
       { t: 'Profil d’altitude', chk: function () { return S.dockOpen; }, a: toggleDock },
       '-',
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
+      { t: 'Échelle 1 : 10 000', g: 1, a: function () { setScale(10000); } },
+      { t: 'Échelle 1 : 5 000', g: 1, a: function () { setScale(5000); } },
+      { t: 'Échelle 1 : 2 000', g: 1, a: function () { setScale(2000); } },
+      { t: 'Échelle 1 : 1 000', g: 1, a: function () { setScale(1000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
@@ -2523,7 +2530,7 @@
   };
   var openMenu = null;
   function showMenu(btn) {
-    var items = MENUS[btn.dataset.menu], dd = $('#dropdown');
+    var items = (MENUS[btn.dataset.menu] || []).filter(function (it) { return it === '-' || !it.g || S.mode === 'game'; }), dd = $('#dropdown');
     $$('.menu-btn').forEach(function (b) { b.classList.toggle('on', b === btn); });
     dd.innerHTML = items.map(function (it, i) {
       if (it === '-') return '<div class="mi-sep"></div>';
