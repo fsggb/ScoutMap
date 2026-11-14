@@ -1186,6 +1186,8 @@ body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!i
 .base-grid .bg-h:first-child{margin-top:0}
 .base-grid button{position:relative}.base-grid button.poor img{filter:grayscale(.7) opacity(.7)}
 .base-grid .bg-w{position:absolute;left:3px;right:3px;bottom:22px;padding:1px 3px;border-radius:5px;background:rgba(192,38,45,.92);color:#fff;font-style:normal;font-size:9.5px;font-weight:700;line-height:1.2;text-align:center}
+.gwz-fx{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))!important;max-width:760px}
+.gwz-foot #gwz-skip{margin-right:6px}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
