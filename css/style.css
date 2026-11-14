@@ -1188,6 +1188,21 @@ body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!i
 .base-grid .bg-w{position:absolute;left:3px;right:3px;bottom:22px;padding:1px 3px;border-radius:5px;background:rgba(192,38,45,.92);color:#fff;font-style:normal;font-size:9.5px;font-weight:700;line-height:1.2;text-align:center}
 .gwz-fx{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))!important;max-width:760px}
 .gwz-foot #gwz-skip{margin-right:6px}
+/* ---- v9 : cases à cocher des effets, aperçus, ordres de grandeur ---- */
+.gfxt{position:relative}
+.gfxck{position:absolute;top:10px;right:10px;z-index:3;width:24px;height:24px;border-radius:7px;border:2px solid #fff;background:rgba(18,20,43,.28);box-shadow:0 0 0 1.5px rgba(18,20,43,.55),0 2px 6px rgba(0,0,0,.25);display:grid;place-items:center;transition:background .12s}
+.gfxt.on .gfxck{background:#1a7f37;box-shadow:0 0 0 1.5px #0f5a26,0 2px 6px rgba(0,0,0,.3)}
+.gfxt.on .gfxck::after{content:"";width:6px;height:12px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.gfxt-b:focus-visible .gfxck{outline:3px solid var(--gold);outline-offset:2px}
+.gfxt.on{box-shadow:0 0 0 2px #1a7f37;border-color:#1a7f37}
+.scale-list{grid-template-columns:1fr!important}
+.scale-list button{display:grid;gap:1px;padding:8px 11px}
+.scale-list button b{font-size:14px}.scale-list button em{font-style:normal;font-size:12px;opacity:.85}.scale-list button small{font-size:11px;opacity:.7}
+#scale-idea{margin:4px 0 0;font-size:12px;color:var(--navy);font-weight:600}
+.gscale .sc-idea{display:block;font-style:normal;font-size:10.5px;opacity:.7;margin-top:2px}
+.gcal-top{display:flex;gap:12px;align-items:flex-start}.gcal-th{flex:none;width:72px;height:48px;border-radius:7px;overflow:hidden;box-shadow:0 0 0 1px var(--line-2)}.gcal-th svg{display:block;width:100%;height:100%}
+.gcal-top .gcal-h{flex:1;min-width:0}.gcal-top .gcal-h small{margin-left:0}
+.gscale button{flex-wrap:wrap}.gscale .sc-idea{flex:1 0 100%}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
