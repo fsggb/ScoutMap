@@ -1174,6 +1174,18 @@ body.lv-open .glegend{display:none!important}
 body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!important}
 @media (max-width:440px){.menubar{gap:0;padding:0 4px}.brand{margin-right:2px}.menus .menu-btn{padding:6px 4.5px;font-size:12.5px}.menubar .ibtn,.menubar .top-btn,.menubar #btn-undo,.menubar #btn-redo,.menubar #btn-tuto{width:30px;min-width:30px;padding:0}.menubar #btn-pdf{padding:0 8px}}
 .gsbar .gfmt [data-for][hidden],.gsbar .gf-line[data-for][hidden],.gsbar .gfmt>[hidden]{display:none!important}
+/* ---- v7 : curseurs de poignées, assistant (nom, avertissement), fonds groupés ---- */
+.g-handle.move{cursor:move!important}.g-handle.mid{cursor:copy!important}.g-handle.round{cursor:ew-resize!important}
+.g-handle:not(.frm):not(.move):not(.mid):not(.round){cursor:pointer!important}
+.gwz-name{display:grid;gap:5px;max-width:520px;margin:0 0 16px;font-size:12.5px;font-weight:700;color:var(--navy)}
+.gwz-name input{height:44px;padding:0 14px;border:2px solid var(--line-2);border-radius:12px;font:inherit;font-size:16px;font-weight:600;color:var(--navy);background:#fff}
+.gwz-name input:focus{outline:0;border-color:var(--navy)}.gwz-name input.bad{border-color:#c0262d}
+.gwz-warn{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:#fdecea;color:#8a1c1c;font-size:12.5px;line-height:1.4}
+.gwz-lk{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--navy);text-decoration:underline;cursor:pointer}
+.base-grid .bg-h{grid-column:1/-1;margin:10px 0 2px;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--gold-d)}
+.base-grid .bg-h:first-child{margin-top:0}
+.base-grid button{position:relative}.base-grid button.poor img{filter:grayscale(.7) opacity(.7)}
+.base-grid .bg-w{position:absolute;left:3px;right:3px;bottom:22px;padding:1px 3px;border-radius:5px;background:rgba(192,38,45,.92);color:#fff;font-style:normal;font-size:9.5px;font-weight:700;line-height:1.2;text-align:center}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
