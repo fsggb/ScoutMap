@@ -363,6 +363,12 @@
   document.addEventListener('keydown', function (e) { SHIFT = e.shiftKey; }); document.addEventListener('keyup', function (e) { SHIFT = e.shiftKey; });
   map.on('zoomend', function () { var q = selShape(); if (q && (q.kind === 'stamp' || q.kind === 'text') && S.mode === 'game') updateHandles(); });
   // Cadre façon traitement de texte : 8 poignées pour agrandir ou réduire, une poignée ronde pour faire pivoter (Maj : par pas de 15°)
+  // Curseur de redimensionnement adapté à la direction réelle de la poignée (tient compte de la rotation de l'élément)
+  function curFor(k, rot) {
+    var a = (Math.atan2(k[1], k[0]) * 180 / Math.PI + rot + 360) % 180;           // direction de la poignée par rapport au centre, modulo 180°
+    var names = ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'];
+    return names[Math.round(a / 45) % 4];
+  }
   function frameHandles(s) {
     var ob = live[s.id]; if (!ob || !ob.marker) return;
     var kind = s.kind, hs = [];
@@ -378,6 +384,7 @@
       var d = dims(), hw = d[0], hh = d[1];
       poly.setLatLngs([at(-hw, -hh), at(hw, -hh), at(hw, hh), at(-hw, hh)]); link.setLatLngs([at(0, -hh), at(0, -hh - 26)]);
       hs.forEach(function (h) { if (h.m === skip) return; h.m.setLatLng(h.rot ? at(0, -hh - 26) : at(h.k[0] * hw, h.k[1] * hh)); });
+      hs.forEach(function (h) { var el = h.m.getElement(); if (!el) return; el.style.setProperty('cursor', h.rot ? 'grab' : curFor(h.k, s.rot || 0), 'important'); });
     }
     function repaint() { if (kind === 'stamp') ob.marker.refresh(); else ob.marker.setIcon(textIcon(s)); }
     [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [1, 0], [0, 1], [-1, 0]].forEach(function (k) {
@@ -644,7 +651,7 @@
   }
   // ---------- Thèmes ----------
   var STAMP = null, GCAT = 'all';
-  var SCALES = [[2000, '1 : 2 000', 'Terrain de camp'], [5000, '1 : 5 000', 'Quartier, petit village'], [10000, '1 : 10 000', 'Commune'], [25000, '1 : 25 000', 'Secteur, vallée'], [50000, '1 : 50 000', 'Grande zone']];
+  var SCALES = [[1000, '1 : 1 000', 'Terrain de camp, bâtiment'], [2000, '1 : 2 000', 'Grand terrain, domaine'], [5000, '1 : 5 000', 'Village, grand domaine'], [10000, '1 : 10 000', 'Commune'], [25000, '1 : 25 000', 'Secteur, vallée']];
   function themeById(id) { return (window.SM_THEMES || []).filter(function (t) { return t.id === id; })[0]; }
   // ---------- Effets sur la carte (parchemin, froissé, plié, bords vieillis, noir et blanc, délavé) ----------
   var FXM = {
@@ -747,7 +754,7 @@
       return '<button type="button" data-th="' + t.id + '" class="gth' + (sel === t.id ? ' on' : '') + '"><span class="gth-ic">' + ico(t.icon, t.color, 40) + '</span><b>' + esc(t.name) + '</b><small>' + esc(t.desc) + '</small><span class="gth-mini">' + mini + '</span></button>';
     }).join('');
   }
-  function scaleBtns(sel) { return SCALES.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join(''); }
+  function scaleBtns(sel) { var L2 = SCALES.slice(); if (sel && !L2.some(function (x) { return x[0] === sel; })) { L2.push([sel, '1 : ' + Number(sel).toLocaleString('fr-FR'), 'Échelle actuelle']); L2.sort(function (a, b) { return a[0] - b[0]; }); } return L2.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join(''); }
   function stampBtns(list, color) {
     return list.map(function (e) {
       var im = e.art ? (artUri(e.i) ? '<img src="' + artUri(e.i) + '" width="46" height="46" alt="">' : '<span class="gst-ph"></span>') : e.flag ? flagSvg(e.col, 44) : ico(e.i, color, 44);
@@ -996,7 +1003,7 @@
     loadThemes().then(function () {
       var host = $('#mapwrap'), old = $('#gwz'); if (old) old.remove();
       var ov = document.createElement('div'); ov.id = 'gwz'; ov.className = 'gwz'; host.appendChild(ov); document.body.classList.add('gw-open');
-      var pick = { sc: D().scale || 10000, th: D().theme || 'moyenage', base: null }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
+      var pick = { sc: D().scale || 5000, th: D().theme || 'moyenage', base: null, name: (D().name && D().name !== 'Grand jeu 1' ? D().name : '') }, step = 1, pm = null, pl = null, pmk = [], center = map.getCenter();
       var STEPS = ['Thème', 'Échelle et fond de carte'];
       function thNow() { return themeById(pick.th); }
       function baseNow() { var th = thNow(), b = pick.base || (th ? th.base : S.base); return SM.LAYERS[b] ? b : 'otm'; }
@@ -1023,29 +1030,49 @@
         });
         var cap = $('#gw-cap', ov); if (cap) cap.textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
       }
+      function baseOpts() {
+        var th = thNow(), rec = th ? th.base : null, cur = baseNow(), M = window.SM_baseMeta, h = '';
+        M.groups.forEach(function (g) {
+          var o = g[1].filter(function (k) { return SM.LAYERS[k]; }).map(function (k) {
+            var f = M.fit(k, pick.sc, center.lat), t = SM.LAYERS[k].label + (M.year[k] ? ' (' + M.year[k] + ')' : '') + (k === rec ? ' — conseillé pour ce thème' : '') + (f.ok ? '' : ' — déconseillé à cette échelle');
+            return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + esc(t) + '</option>';
+          }).join('');
+          if (o) h += '<optgroup label="' + esc(g[0]) + '">' + o + '</optgroup>';
+        });
+        return h;
+      }
+      function baseWarn() {
+        var M = window.SM_baseMeta, f = M.fit(baseNow(), pick.sc, center.lat); if (f.ok) return '';
+        return '<p class="gwz-warn">⚠ ' + esc(SM.LAYERS[baseNow()].label) + ' : ' + esc(f.text) + '. <button type="button" id="gw-base-fix" class="gwz-lk">Passer au Plan IGN</button> ou <button type="button" id="gw-base-photo" class="gwz-lk">à la photo aérienne</button></p>';
+      }
+      function refreshBase() {
+        var sel = $('#gw-base', ov); if (sel) sel.innerHTML = baseOpts(); var w = $('#gw-warn', ov); if (w) { w.innerHTML = baseWarn(); var a = $('#gw-base-fix', ov), b2 = $('#gw-base-photo', ov); if (a) a.addEventListener('click', function () { pick.base = 'plan'; refreshBase(); preview(); }); if (b2) b2.addEventListener('click', function () { pick.base = 'ortho'; refreshBase(); preview(); }); }
+      }
       function baseSel() {
         var th = thNow(), rec = th ? th.base : null, cur = baseNow();
         var keys = Object.keys(SM.LAYERS).filter(function (k) { return SM.LAYERS[k].base; });
         keys.sort(function (a, b) { return (b === rec) - (a === rec); });
-        return '<label class="gwz-bs">Fond de carte <select id="gw-base">' + keys.map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + esc(SM.LAYERS[k].label) + (k === rec ? ' — conseillé pour ce thème' : '') + '</option>'; }).join('') + '</select></label>';
+        return '<label class="gwz-bs">Fond de carte <select id="gw-base">' + baseOpts() + '</select></label><div id="gw-warn">' + baseWarn() + '</div>';
       }
       function draw() {
         killMap();
         var body, foot;
-        if (step === 1) body = '<h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
+        if (step === 1) body = '<label class="gwz-name">Nom du jeu <input id="gw-name" type="text" maxlength="60" placeholder="Ex. Domaine de Henriques, Camp de Pâques…" autocomplete="off" value="' + esc(pick.name) + '"></label><h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
         else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
           (step < 2 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
         ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
-        $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); preview(); }); });
+        $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); refreshBase(); preview(); }); });
+        var nm = $('#gw-name', ov); if (nm) { nm.addEventListener('input', function () { pick.name = nm.value; }); nm.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var nx2 = $('#gwz-next', ov); if (nx2) nx2.click(); } }); setTimeout(function () { nm.focus(); }, 80); }
+        refreshBase();
         var gb = $('#gw-base', ov); if (gb) gb.addEventListener('change', function () { pick.base = gb.value; preview(); });
         $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
-        var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { step++; draw(); });
+        var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { if (step === 1 && !pick.name.trim()) { var n3 = $('#gw-name', ov); if (n3) { n3.focus(); n3.classList.add('bad'); SM.toast('Donnez d’abord un nom au jeu.'); } return; } step++; draw(); });
         var go = $('#gwz-go', ov);
         if (go) go.addEventListener('click', function () {
-          killMap(); ov.remove(); document.body.classList.remove('gw-open'); setScale(pick.sc); applyTheme(pick.th);
+          killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; } setScale(pick.sc); applyTheme(pick.th);
           var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
           setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
         });
@@ -1069,7 +1096,7 @@
     var gp = document.querySelector('.pane[data-pane=game]');
     function fit() { pal.classList.remove('two'); var mw = $('#mapwrap'); if (!mw || pal.hidden) return; if (pal.offsetHeight > mw.clientHeight - 84 - 150) pal.classList.add('two'); }
     window.addEventListener('resize', fit); if (window.ResizeObserver && $('#mapwrap')) new ResizeObserver(fit).observe($('#mapwrap'));
-    function sync() { var on = !!(gp && !gp.hidden); pal.hidden = !on; var sb = $('#share-btn'); if (sb) sb.hidden = !on; setTimeout(fit, 80); }
+    function sync() { var on = !!(gp && !gp.hidden); pal.hidden = !on; setTimeout(fit, 80); }
     if (gp) new MutationObserver(sync).observe(gp, { attributes: true, attributeFilter: ['hidden'] }); sync();
     // sous-onglets : une seule section visible à la fois, sans défilement
     var tp = document.querySelector('[data-gtabp=tools]'); if (!tp) return;

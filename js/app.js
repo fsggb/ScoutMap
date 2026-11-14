@@ -1895,7 +1895,34 @@
     var b = e.target.closest('button'); if (!b) return;
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
-  $('#base-grid').innerHTML = BASES.map(function (k) { return '<button data-base="' + k + '" title="' + esc(LAYERS[k].label) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(LAYERS[k].label) + '</span></button>'; }).join('');
+  // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
+  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
+  var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
+  // Un fond est déconseillé quand l'échelle demandée oblige à l'agrandir bien au-delà de sa finesse d'origine
+  function baseFit(k, scale, lat) {
+    var d = LAYERS[k]; if (!d || !scale) return { ok: true };
+    var z = zoomFor(scale, lat == null ? 45 : lat), over = z - d.n;
+    if (over > 1.6) return { ok: false, text: 'Trop flou à 1 : ' + Number(scale).toLocaleString('fr-FR') + ' (données prévues pour des échelles plus petites)' };
+    return { ok: true };
+  }
+  function baseOrdered() { var out = []; BASEGROUPS.forEach(function (g) { g[1].forEach(function (k) { if (LAYERS[k] && out.indexOf(k) < 0) out.push(k); }); }); BASES.forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); return out; }
+  function groupOf(k) { for (var i = 0; i < BASEGROUPS.length; i++) if (BASEGROUPS[i][1].indexOf(k) >= 0) return BASEGROUPS[i][0]; return 'Autres'; }
+  window.SM_baseMeta = { groups: BASEGROUPS, year: BASEYEAR, fit: baseFit, ordered: baseOrdered, groupOf: groupOf };
+  function renderBaseGrid() {
+    var sc = curScale(), lat = map.getCenter().lat, h = '';
+    BASEGROUPS.forEach(function (g) {
+      h += '<h4 class="bg-h">' + esc(g[0]) + '</h4>';
+      g[1].forEach(function (k) {
+        if (!LAYERS[k]) return; var f = baseFit(k, sc, lat);
+        h += '<button type="button" data-base="' + k + '" class="' + (f.ok ? '' : 'poor') + '" title="' + esc(LAYERS[k].label + (BASEYEAR[k] ? ' (' + BASEYEAR[k] + ')' : '') + (f.ok ? '' : ' : ' + f.text)) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(LAYERS[k].label) + '</span>' + (f.ok ? '' : '<i class="bg-w">Déconseillé à cette échelle</i>') + '</button>';
+      });
+    });
+    $('#base-grid').innerHTML = h;
+    $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
+    if (typeof loadThumbs === 'function' && !$('#layer-pop').hidden) loadThumbs();
+  }
+  renderBaseGrid(); map.on('zoomend', function () { if (!$('#layer-pop').hidden) renderBaseGrid(); });
+  var lb0 = $('#layer-btn'); if (lb0) lb0.addEventListener('click', function () { setTimeout(renderBaseGrid, 0); });
   $('#ov-grid').innerHTML = OVERS.map(function (k) { return '<button data-ov="' + k + '" title="' + esc(LAYERS[k].label) + '"><span class="ov-ic">' + ic(LAYERS[k].icon) + '</span><span>' + esc(LAYERS[k].label) + '</span></button>'; }).join('');
 
   // ---------- Export GPX ----------
