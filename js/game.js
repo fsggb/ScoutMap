@@ -712,7 +712,7 @@
   function renderFxInto(lx, fx) {
     lx.innerHTML = Object.keys(FXM).map(function (k) {
       var on = fx[k] != null, m = FXM[k];
-      return '<div class="gfxt' + (on ? ' on' : '') + '" data-k="' + k + '"><button type="button" class="gfxt-b" data-fx="' + k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="gfxp"><span class="gfxp-m">' + SAMPLE + '</span><span class="gfx"></span></span><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></button>' +
+      return '<div class="gfxt' + (on ? ' on' : '') + '" data-k="' + k + '"><button type="button" class="gfxt-b" data-fx="' + k + '" role="checkbox" aria-checked="' + (on ? 'true' : 'false') + '"><span class="gfxck" aria-hidden="true"></span><span class="gfxp"><span class="gfxp-m">' + SAMPLE + '</span><span class="gfx"></span></span><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></button>' +
         (on && k !== 'bw' ? '<label class="gfxt-s"><span>Intensité</span><input type="range" min="10" max="100" step="5" value="' + Math.round(fx[k] * 100) + '" data-fxv="' + k + '" aria-label="Intensité : ' + esc(m.n) + '"></label>' : '') + '</div>';
     }).join('');
     $$('.gfxt', lx).forEach(function (t) {
@@ -753,7 +753,7 @@
       return '<button type="button" data-th="' + t.id + '" class="gth' + (sel === t.id ? ' on' : '') + '"><span class="gth-ic">' + ico(t.icon, t.color, 40) + '</span><b>' + esc(t.name) + '</b><small>' + esc(t.desc) + '</small><span class="gth-mini">' + mini + '</span></button>';
     }).join('');
   }
-  function scaleBtns(sel) { var L2 = SCALES.slice(); if (sel && !L2.some(function (x) { return x[0] === sel; })) { L2.push([sel, '1 : ' + Number(sel).toLocaleString('fr-FR'), 'Échelle actuelle']); L2.sort(function (a, b) { return a[0] - b[0]; }); } return L2.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join(''); }
+  function scaleBtns(sel) { var L2 = SCALES.slice(); if (sel && !L2.some(function (x) { return x[0] === sel; })) { L2.push([sel, '1 : ' + Number(sel).toLocaleString('fr-FR'), 'Échelle actuelle']); L2.sort(function (a, b) { return a[0] - b[0]; }); } return L2.map(function (x) { return '<button type="button" data-sc="' + x[0] + '" class="' + (sel === x[0] ? 'on' : '') + '"><b>' + x[1] + '</b><small>' + x[2] + '</small><i class="sc-idea">' + esc(window.SM_sizeIdea ? window.SM_sizeIdea(x[0]) : '') + '</i></button>'; }).join(''); }
   function stampBtns(list, color) {
     return list.map(function (e) {
       var im = e.art ? (artUri(e.i) ? '<img src="' + artUri(e.i) + '" width="46" height="46" alt="">' : '<span class="gst-ph"></span>') : e.flag ? flagSvg(e.col, 44) : ico(e.i, color, 44);
@@ -1028,6 +1028,7 @@
           var st = { icon: e.i, stroke: color, text: '', size: 12, fontColor: color, font: 'arial', _sc: pick.sc, mm: D().stampMm || 16 };
           pmk.push(new StampMarker(ll, st, { icon: stampIcon(st, 30), interactive: false }).addTo(pm));
         });
+        if (step === 3) applyFx(el, { fx: pick.fx });
         var cap = $('#gw-cap', ov); if (cap) cap.textContent = '1 : ' + pick.sc.toLocaleString('fr-FR') + ' · les éléments mesurent ' + (D().stampMm || 16) + ' mm sur le papier à cette échelle';
       }
       function baseOpts() {
@@ -1058,7 +1059,7 @@
         killMap();
         var body, foot;
         if (step === 1) body = '<label class="gwz-name">Nom du jeu <input id="gw-name" type="text" maxlength="60" placeholder="Ex. Domaine de Henriques, Camp de Pâques…" autocomplete="off" value="' + esc(pick.name) + '"></label><h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
-        else if (step === 3) body = '<h2>Effets sur la carte</h2><p class="gwz-sub">Facultatif : donnez un style à la carte (papier froissé, parchemin, carte pliée…). Rien n’est appliqué par défaut, et vous pourrez tout régler plus tard dans l’onglet Effets.</p><div class="gfx-grid gwz-fx" id="gw-fx"></div>';
+        else if (step === 3) body = '<div class="gwz-cols"><div><h2>Effets sur la carte</h2><p class="gwz-sub">Facultatif : donnez un style à la carte. L’aperçu à droite se met à jour tout de suite. Rien n’est appliqué par défaut, et vous pourrez tout régler plus tard dans l’onglet Effets.</p><div class="gfx-grid" id="gw-fx"></div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
           (step === 3 ? '<button type="button" class="btn-ghost" id="gwz-skip">Passer cette étape</button>' : '') + (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
@@ -1067,6 +1068,9 @@
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); refreshBase(); preview(); }); });
         var nm = $('#gw-name', ov); if (nm) { nm.addEventListener('input', function () { pick.name = nm.value; }); nm.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var nx2 = $('#gwz-next', ov); if (nx2) nx2.click(); } }); setTimeout(function () { nm.focus(); }, 80); }
         refreshBase();
+        function dbl(e) { var nx4 = $('#gwz-next', ov); if (!nx4) return; e.preventDefault(); nx4.click(); }
+        $$('[data-th]', ov).forEach(function (b) { b.addEventListener('dblclick', dbl); });
+        $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('dblclick', dbl); });
         var gb = $('#gw-base', ov); if (gb) gb.addEventListener('change', function () { pick.base = gb.value; preview(); });
         $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
@@ -1074,8 +1078,8 @@
         var fxh = $('#gw-fx', ov);
         if (fxh) {
           renderFxInto(fxh, pick.fx);
-          fxh.addEventListener('click', function (e) { var b = e.target.closest('[data-fx]'); if (!b) return; var k = b.dataset.fx; if (pick.fx[k] != null) delete pick.fx[k]; else pick.fx[k] = FXM[k].v; renderFxInto(fxh, pick.fx); });
-          fxh.addEventListener('input', function (e) { var r = e.target.closest('[data-fxv]'); if (r) pick.fx[r.dataset.fxv] = +r.value / 100; });
+          fxh.addEventListener('click', function (e) { var b = e.target.closest('[data-fx]'); if (!b) return; var k = b.dataset.fx; if (pick.fx[k] != null) delete pick.fx[k]; else pick.fx[k] = FXM[k].v; renderFxInto(fxh, pick.fx); var me = $('#gw-map', ov); if (me) applyFx(me, { fx: pick.fx }); });
+          fxh.addEventListener('input', function (e) { var r = e.target.closest('[data-fxv]'); if (r) { pick.fx[r.dataset.fxv] = +r.value / 100; var me = $('#gw-map', ov); if (me) applyFx(me, { fx: pick.fx }); } });
         }
         var skip = $('#gwz-skip', ov); if (skip) skip.addEventListener('click', function () { pick.fx = {}; var g2 = $('#gwz-go', ov); if (g2) g2.click(); });
         var go = $('#gwz-go', ov);

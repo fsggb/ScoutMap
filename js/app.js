@@ -419,9 +419,16 @@
   });
   $('#zoom-in').addEventListener('click', function () { map.zoomIn(); });
   $('#zoom-out').addEventListener('click', function () { map.zoomOut(); });
-  function renderScaleList() { $('#scale-list').innerHTML = scalesNow().map(function (s) { return '<button data-s="' + s + '">1 : ' + sp(s) + '</button>'; }).join(''); updateScaleUI(); }
+  var SCALE_DESC = { 1000: 'Terrain de camp, bâtiment', 2000: 'Grand terrain, domaine', 5000: 'Village, grand domaine', 10000: 'Commune', 25000: 'Secteur, vallée', 50000: 'Grande zone, massif' };
+  function sizeIdea(sc) {   // ordre de grandeur : 1 cm sur la carte et surface d'une feuille A4 (zone imprimable 19 × 27,7 cm)
+    var cm = sc / 100, w = sc * 0.19, h = sc * 0.277, f = function (m) { return m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + ' km'; };
+    return '1 cm = ' + f(cm) + ' · une feuille A4 ≈ ' + f(w) + ' × ' + f(h);
+  }
+  window.SM_sizeIdea = sizeIdea;
+  function renderScaleList() { $('#scale-list').innerHTML = scalesNow().map(function (s) { return '<button data-s="' + s + '"><b>1 : ' + sp(s) + '</b>' + (SCALE_DESC[s] ? '<em>' + esc(SCALE_DESC[s]) + '</em>' : '') + '<small>' + esc(sizeIdea(s)) + '</small></button>'; }).join(''); updateScaleUI(); }
   renderScaleList(); window.SM_renderScaleList = renderScaleList;
   $('#scale-list').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setScale(+b.dataset.s); });
+  $('#scale-custom').addEventListener('input', function () { var v = +this.value, n = $('#scale-idea'); if (v >= 200) { n.textContent = sizeIdea(v); n.hidden = false; } else n.hidden = true; });
   $('#scale-custom').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { var v = +this.value; if (v >= 200) { setScale(v); this.value = ''; } }
   });
