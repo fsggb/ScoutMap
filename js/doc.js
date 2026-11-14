@@ -370,7 +370,7 @@
       var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
         off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
         title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
-      step('Planche d’assemblage…', function () { return indexSheet(pl, items, o); });
+      if (pl.pages.length > 1) step('Planche d’assemblage…', function () { return indexSheet(pl, items, o); });
       pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, items, o); }); });
     }
     var sizes = '';
@@ -489,7 +489,7 @@
         });
       });
     }
-    if (prm.index) chain = chain.then(function () { if (tok !== BT) throw ABORT; return indexSheet(pl, items, o); });
+    if (prm.index && pl.pages.length > 1) chain = chain.then(function () { if (tok !== BT) throw ABORT; return indexSheet(pl, items, o); });
     pl.pages.forEach(function (pg) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setBusy(true, 'Chargement de la feuille F' + pg.n + ' / ' + o.total + '…'); return pageSheet(pl, pg, items, o); }); });
     chain.then(function () { if (tok === BT) setBusy(false); }).catch(function (e) { if (e === ABORT) return; setBusy(false); SM.toast(e && e.message || 'Document incomplet.'); });
   }
