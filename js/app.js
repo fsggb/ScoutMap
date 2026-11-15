@@ -130,6 +130,7 @@
     lidar: { ign: true, label: 'Relief LiDAR HD', icon: 'mountain', l: 'IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', f: 'png', n: 18, o: { opacity: 0.55 } },
     slope: { ign: true, label: 'Pentes', icon: 'slope', l: 'ELEVATION.SLOPES', f: 'jpeg', n: 14, o: { minZoom: 6, opacity: 0.5 } },
     cadastre: { ign: true, label: 'Cadastre', icon: 'parcel', l: 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS', f: 'png', n: 19, o: { minZoom: 12, opacity: 0.85 } },
+    water: { label: 'Points d’eau', icon: 'drop', vector: true, n: 19, o: {} },
     hiking: { label: 'Sentiers balisés (GR…)', icon: 'route', url: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', n: 18,
       attr: '© <a href="https://hiking.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a> / ' + OSMA + ' contributors', o: { opacity: 0.9, minZoom: 10 } }
   };
@@ -177,7 +178,7 @@
   function buildTiles() {
     Object.keys(tiles).forEach(function (k) { map.removeLayer(tiles[k]); });
     tiles = {};
-    Object.keys(LAYERS).forEach(function (k) { tiles[k] = tile(k, curOff); });
+    Object.keys(LAYERS).forEach(function (k) { tiles[k] = LAYERS[k].vector ? L.layerGroup() : tile(k, curOff); });
     applyLayers();
   }
   // ---------- Date de mise à jour des données (catalogue IGN, CSW de la Géoplateforme) ----------
@@ -338,6 +339,80 @@
       });
     });
   }
+  // ---------- Points d'eau : fontaines, sources, lavoirs, points d'eau (BD TOPO, IGN) et eau potable signalée sur OpenStreetMap ----------
+  var WT = { cells: {}, pend: {}, group: L.layerGroup() }, WT_CELL = 0.1, WT_MINZ = 12;
+  var WT_NAT = { 'Fontaine': ['Fontaine', 'ign'], 'Source': ['Source', 'ign'], 'Source captée': ['Source captée', 'ign'], 'Lavoir': ['Lavoir', 'ign'], 'Point d\'eau': ['Point d’eau', 'ign'], 'Point d’eau': ['Point d’eau', 'ign'], 'Abreuvoir': ['Abreuvoir', 'ign'], 'Citerne': ['Citerne', 'ign'] };
+  function wtIcon(pot) {
+    var c = pot ? '#1565c0' : '#6f9bc9';
+    return L.divIcon({ className: 'wt-ic', iconSize: [22, 22], iconAnchor: [11, 20], html: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2.2C9 6.4 5.8 9.8 5.8 14a6.2 6.2 0 0 0 12.4 0C18.2 9.8 15 6.4 12 2.2Z" fill="' + c + '" stroke="#fff" stroke-width="1.8" stroke-linejoin="round" paint-order="stroke"/><path d="M9.2 14.4a3 3 0 0 0 2.2 2.8" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".85"/></svg>' });
+  }
+  function wtCells(b) { var out = []; for (var i = Math.floor(b.getSouth() / WT_CELL); i <= Math.floor(b.getNorth() / WT_CELL); i++) for (var j = Math.floor(b.getWest() / WT_CELL); j <= Math.floor(b.getEast() / WT_CELL); j++) out.push([i, j]); return out.length > 12 ? [] : out; }
+  function wtAdd(cell, add) {   // fusion : un point OpenStreetMap à moins de 25 m d'un point IGN le remplace (il renseigne la potabilité)
+    var cur = cell.pts || [];
+    add.forEach(function (p) {
+      var k = -1; cur.forEach(function (o, i) { if (k < 0 && Math.abs(o.lat - p.lat) < 0.00023 && Math.abs(o.lon - p.lon) < 0.0003) k = i; });
+      if (k < 0) cur.push(p); else if (p.src === 'OpenStreetMap' && cur[k].src === 'IGN') cur[k] = p;
+    });
+    cell.pts = cur;
+  }
+  function wtFetchTimeout(url, ms) { var c = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (c) c.abort(); }, ms); return fetch(url, c ? { signal: c.signal } : {}).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); throw e; }); }
+  function wtFetchCell(ci, cj) {
+    var key = ci + ',' + cj, cell = WT.cells[key] || (WT.cells[key] = { pts: null, t: 0 }), now = Date.now();
+    if (cell.pts || now - cell.t < 60000) return Promise.resolve();
+    if (WT.pend[key]) return WT.pend[key];
+    var s = ci * WT_CELL, w = cj * WT_CELL, n = s + WT_CELL, e = w + WT_CELL;
+    var ignUrl = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:detail_hydrographique&OUTPUTFORMAT=application/json&COUNT=2000&SRSNAME=EPSG:4326&PROPERTYNAME=nature,toponyme,cleabs,geometrie&BBOX=' +
+      s.toFixed(4) + ',' + w.toFixed(4) + ',' + n.toFixed(4) + ',' + e.toFixed(4) + ',urn:ogc:def:crs:EPSG::4326';
+    var bb = '(' + s + ',' + w + ',' + n + ',' + e + ')', q = '[out:json][timeout:25];(node["amenity"="drinking_water"]' + bb + ';node["man_made"="water_tap"]["drinking_water"!="no"]' + bb + ';node["natural"="spring"]' + bb + ';node["amenity"="fountain"]["drinking_water"="yes"]' + bb + ';node["amenity"="water_point"]' + bb + ';);out;';
+    var ign = wtFetchTimeout(ignUrl, 15000).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
+      var pts = [];
+      (j.features || []).forEach(function (f) {
+        var pr = f.properties || {}, g = f.geometry, nat = WT_NAT[pr.nature]; if (!g || g.type !== 'Point' || !nat) return;
+        pts.push({ lat: g.coordinates[1], lon: g.coordinates[0], kind: nat[0], name: pr.toponyme || '', pot: false, src: 'IGN' });
+      });
+      wtAdd(cell, pts); if (!cell.pts.length) cell.pts = [];
+    }).catch(function () { cell.t = Date.now(); });
+    // eau potable d'OpenStreetMap : chargée en plus, sans retarder l'affichage des données IGN
+    (function tryEnd(k) {
+      if (k >= HK.ends.length) return;
+      wtFetchTimeout(HK.ends[k] + '?data=' + encodeURIComponent(q), 9000).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
+        var add = [];
+        (j.elements || []).forEach(function (el) {
+          if (el.lat == null) return; var t = el.tags || {}, pot = t.amenity === 'drinking_water' || t.man_made === 'water_tap' || t.drinking_water === 'yes' || t.amenity === 'water_point';
+          add.push({ lat: el.lat, lon: el.lon, kind: t.amenity === 'drinking_water' ? 'Eau potable' : t.man_made === 'water_tap' ? 'Robinet d’eau' : t.amenity === 'water_point' ? 'Point d’eau (camping-car)' : t.natural === 'spring' ? 'Source' : 'Fontaine', name: t.name || '', pot: pot, src: 'OpenStreetMap' });
+        });
+        ign.then(function () { wtAdd(cell, add); if (S.ov.water && map.getZoom() >= WT_MINZ) { WT.group.clearLayers(); wtDraw(WT.group, map.getBounds(), map.getZoom()); } });
+      }).catch(function () { tryEnd(k + 1); });
+    })(0);
+    return (WT.pend[key] = ign.then(function () { delete WT.pend[key]; }));
+  }
+  function wtDraw(target, bounds, zoom) {
+    wtCells(bounds).forEach(function (c) {
+      var cell = WT.cells[c[0] + ',' + c[1]]; if (!cell || !cell.pts) return;
+      cell.pts.forEach(function (p) {
+        if (!bounds.contains([p.lat, p.lon])) return;
+        var m = L.marker([p.lat, p.lon], { icon: wtIcon(p.pot), interactive: !target._wtPrint, keyboard: false, zIndexOffset: 700 });
+        if (!target._wtPrint) m.bindTooltip('<b>' + esc(p.kind) + '</b>' + (p.name ? ' · ' + esc(p.name) : '') + '<br>' + (p.pot ? 'Eau potable signalée (' + p.src + ')' : 'Potabilité non garantie : à vérifier sur place') + '<br><small>Source : ' + p.src + '</small>', { direction: 'top', offset: [0, -16] });
+        m.addTo(target);
+      });
+    });
+  }
+  function wtRefresh() {
+    WT.group.clearLayers();
+    if (!S.ov.water) { if (map.hasLayer(WT.group)) map.removeLayer(WT.group); setNote('water', '', ''); return; }
+    if (!map.hasLayer(WT.group)) WT.group.addTo(map);
+    var z = map.getZoom(); if (z < WT_MINZ) { setNote('water', 'Zoomez un peu pour voir les points d’eau.', ''); return; }
+    setNote('water', '', '');
+    var b = map.getBounds(); wtDraw(WT.group, b, z);
+    var todo = wtCells(b).filter(function (c) { var cl = WT.cells[c[0] + ',' + c[1]]; return !cl || (!cl.pts && Date.now() - cl.t > 60000); });
+    if (todo.length) Promise.all(todo.map(function (c) { return wtFetchCell(c[0], c[1]); })).then(function () { if (S.ov.water && map.getZoom() >= WT_MINZ) { WT.group.clearLayers(); wtDraw(WT.group, map.getBounds(), map.getZoom()); } });
+  }
+  var wtTimer; map.on('moveend zoomend', function () { clearTimeout(wtTimer); wtTimer = setTimeout(wtRefresh, 350); });
+  function waterDraw(m) {
+    if (!S.ov.water) return Promise.resolve();
+    var b = m.getBounds(), z = m.getZoom();
+    return Promise.all(wtCells(b).map(function (c) { return wtFetchCell(c[0], c[1]); })).then(function () { var g = L.layerGroup(); g._wtPrint = true; wtDraw(g, b, z); g.addTo(m); });
+  }
   function hkNeeds(b, z) { return hkCells(b).filter(function (c) { var cell = HK.cells[c[0] + ',' + c[1]]; return !cell || (!cell.osm && Date.now() - cell.osmT > 60000) || (z >= HK_IGNZ && !cell.ign && Date.now() - cell.ignT > 60000); }); }
   function hkRefresh() {
     HK.group.clearLayers();
@@ -359,7 +434,7 @@
   function applyLayers() {
     Object.keys(LAYERS).forEach(function (k) {
       var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
-      if (k === 'hiking') on = false;   // les sentiers sont dessinés en rose (vectoriel) : plus de tuiles avec icônes
+      if (k === 'hiking' || LAYERS[k].vector) on = false;   // sentiers et points d'eau sont dessinés en vectoriel
       if (on) { if (!map.hasLayer(tiles[k])) tiles[k].addTo(map); } else if (map.hasLayer(tiles[k])) map.removeLayer(tiles[k]);
     });
     tiles[S.base].bringToBack();
@@ -368,7 +443,7 @@
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
     $('#layer-thumb').src = thumbUrl(S.base);
     $('#base-note').hidden = !!LAYERS[S.base].ign;
-    renderDates(); hkRefresh();
+    renderDates(); hkRefresh(); wtRefresh();
     var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
     [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
   }
@@ -2914,7 +2989,7 @@
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
-    layerDate: layerDate, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist,
+    layerDate: layerDate, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
