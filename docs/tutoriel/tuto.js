@@ -65,6 +65,19 @@ const STEPS = [
     await moveTo('#wps li:nth-child(2)'); await wait(900); await moveTo('#route-reverse'); await wait(1300);
     await clickSel('#wps-toggle'); await wait(1400); await clickSel('#wps-toggle'); await wait(500);
   }, 2],
+  [T, 'Parfois, la carte n’est pas à jour, ou un tout petit sentier n’y figure pas. Plutôt que de faire un grand crochet par les routes, vous pouvez couper court. Faites un clic droit sur la carte : la première option, Placer un point en ligne droite, relie ce point au précédent à vol d’oiseau, sans chercher de chemin.', async () => {
+    const [cx, cy] = await centerPx(); await move(cx - 230, cy - 70); await wait(500);
+    await p.mouse.click(cx - 230, cy - 70, { button: 'right' }); await wait(2800);
+    await moveTo('#ctxmenu .mi:first-child'); await wait(2500); await clickSel('#ctxmenu .mi:first-child'); await wait(2500);
+    for (let k = 0; k < 40; k++) { if (await p.evaluate(() => !!window.SM.RT.route && (window.SM.RT.route.directs || []).length)) break; await wait(1000); }
+    await wait(1200);
+  }, 2],
+  [T, 'Le tronçon apparaît en pointillés, avec son azimut et sa distance à vol d’oiseau. Cette distance est comptée dans le total de l’itinéraire, et le tracé reste modifiable. Un clic droit sur le point permet de revenir au chemin le plus court, ou de le supprimer. Le raccourci Maj plus clic fait la même chose que le clic droit.', async () => {
+    const pt = await p.evaluate(() => { const w = window.SM.S.route.wps; const q = window.SM.map.latLngToContainerPoint([w[w.length - 1].lat, w[w.length - 1].lon]), r = window.SM.map.getContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; });
+    await move(pt[0], pt[1]); await wait(1600); await p.mouse.click(pt[0], pt[1], { button: 'right' }); await wait(4200);
+    const del = await p.$('#ctxmenu .mi:has-text("Supprimer ce point")'); if (del) { const b = await del.boundingBox(); await move(b.x + b.width / 2, b.y + b.height / 2, 14); await wait(1200); await p.mouse.down(); await p.mouse.up(); }
+    await wait(1800);
+  }, 2],
   [T, 'En bas à gauche, le bouton Alertes rassemble les informations importantes, comme un passage en double ou une distance dépassée. Le bouton Réglages ouvre les paramètres de l’itinéraire.', async () => {
     await clickSel('#rail-notif'); await wait(3000); await clickSel('#rail-settings'); await wait(3000); await clickSel('#rail-mode'); await wait(500);
   }, 2],
@@ -120,8 +133,12 @@ const STEPS = [
   [T, 'Un assistant s’affiche à la place de la carte. Première étape : donnez un nom au jeu, puis choisissez son thème, par exemple les guerres de Vendée. Chaque thème apporte ses illustrations, ses bases et ses lignes.', async () => {
     await wait(1000); await clickSel('#gw-name'); await p.keyboard.type('Domaine de Henriques', { delay: 70 }); await wait(800); await p.$eval('#gwz [data-th=vendee]', e => e.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1300); await clickSel('#gwz [data-th=vendee]'); await wait(1800); await clickSel('#gwz-next'); await wait(800);
   }, 5],
-  [T, 'Deuxième étape : l’échelle de départ, adaptée aux jeux de terrain. Un fond de carte adapté au thème est déjà choisi, et l’application vous prévient si un fond est trop flou à cette échelle. Vous pourrez zoomer et dézoomer librement ensuite.', async () => {
-    await clickSel('#gwz [data-sc="5000"]'); await wait(1600); await moveTo('#gw-base'); await wait(1800); await clickSel('#gwz-go'); await wait(2200);
+  [T, 'Deuxième étape : l’échelle de départ, adaptée aux jeux de terrain. Un double-clic sur un thème ou une échelle passe directement à l’étape suivante. Un fond de carte adapté au thème est déjà choisi, et l’application vous prévient si un fond est trop flou à cette échelle. Vous pourrez zoomer et dézoomer librement ensuite.', async () => {
+    await clickSel('#gwz [data-sc="5000"]'); await wait(1600); await moveTo('#gw-base'); await wait(1800); await clickSel('#gwz-next'); await wait(1500);
+  }, 5],
+  [T, 'Troisième étape, facultative : les effets. Cochez par exemple le parchemin ou la carte pliée : l’aperçu se met à jour en direct. Une case verte indique qu’un effet est actif. Vous pouvez aussi passer cette étape et régler les effets plus tard.', async () => {
+    await clickSel('#gwz [data-fx=parch]'); await wait(2200); await clickSel('#gwz [data-fx=fold]'); await wait(2500); await clickSel('#gwz [data-fx=fold]'); await wait(1500); await clickSel('#gwz [data-fx=parch]'); await wait(1200);
+    await clickSel('#gwz-go'); await wait(2200);
     await p.evaluate(() => window.SM.map.setView([43.24346, 1.9244], 17, { animate: false })); await wait(1200);
   }, 5],
   [T, 'À gauche, la bibliothèque a cinq rubriques : Icônes, Équipes, Terrains, Lignes et Images. La recherche retrouve un élément en quelques lettres.', async () => {
