@@ -202,6 +202,7 @@
     el.style.width = wpx + 'px'; el.style.height = hpx + 'px';
     var m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
       keyboard: false, touchZoom: false, tap: false, zoomSnap: 0, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, maxZoom: 19, minZoom: 3 });
+    if (SM.grid) SM.grid.addTo(m);
     if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
       var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
@@ -557,7 +558,7 @@
     if (!r) { s1.innerHTML = head(title, 'Itinéraire non calculé', '1 / 2') + '<p class="d-warn">Cet itinéraire n’a pas encore de tracé calculé.</p>' + foot(); s2.remove(); return Promise.resolve(); }
     return SM.profileFor(r.line).then(function (p) {
       var rows = stepsTable(d, r, p), sub = esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · '));
-      var walk = ((r.dist / 1000) / S.speed + (p ? p.asc / 400 : 0)) * 3600;
+      var walk = SM.walkSecs(p, r.dist);
       // ---------- page 1
       var h = head(title, sub, '1 / 2') + '<section class="d-kpis">' + kpi('Distance', G.fmtDist(r.dist)) + (p ? kpi('Dénivelé', '+ ' + Math.round(p.asc) + ' m') : '') + kpi('Étapes', String(rows.length)) + '</section>';
       h += '<section class="d-sec"><h2>Vue d’ensemble</h2><div class="d-mapbox" id="rov' + uid + '" contenteditable="false"></div></section>';
@@ -611,10 +612,10 @@
       var rows = stepsTable(d, r, p), sub = ['À pied', loop ? 'Boucle' : 'Aller simple', today()];
       h += head(titleFor(c, it, count), esc(sub.join(' · ')));
       h += '<section class="d-kpis">' + kpi('Distance', G.fmtDist(r.dist)) + (p ? kpi('Dénivelé positif', '+ ' + Math.round(p.asc) + ' m') : '');
-      var walk = ((r.dist / 1000) / S.speed + (p ? p.asc / 400 : 0)) * 3600;
+      var walk = SM.walkSecs(p, r.dist);
       if (detail) {
         if (p) h += kpi('Dénivelé négatif', '− ' + Math.round(p.desc) + ' m') + kpi('Altitude', Math.round(p.min) + ' – ' + Math.round(p.max) + ' m');
-        h += kpi('Durée de marche', G.fmtDur(walk)) + kpi('Étapes', String(rows.length));
+        h += kpi('Marche (indicatif)', G.fmtDur(walk)) + kpi('Étapes', String(rows.length));
       } else h += kpi('Étapes', String(rows.length));
       h += '</section>';
       if (detail && d.flagNat && r.nat && r.nat.length) h += '<p class="d-warn">Attention : le tracé semble emprunter ' + r.nat.map(function (n) { return n.label === 'nationale' ? 'une route nationale' : 'la ' + esc(n.label); }).join(', ') + '.</p>';

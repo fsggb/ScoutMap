@@ -269,6 +269,7 @@
         <button type="button" class="btn-ghost danger" id="route-clear"><svg class="ic"><use href="#i-trash"/></svg>Effacer l’itinéraire</button>
       </div>
       <div class="stats" id="route-stats" hidden></div>
+      <div class="natbox" id="nature-box" hidden></div>
       <div id="nat-warn" hidden></div><div id="back-warn" hidden></div>
       <details id="steps-box" class="opts" hidden><summary>Consignes de guidage</summary><ol class="steps" id="steps"></ol></details>
       <div id="tracks-box" hidden><h3 class="sub">Traces importées</h3><ul class="layers" id="layer-list"></ul></div>
@@ -403,12 +404,17 @@
         <div class="seg full pop-tabs" id="pop-tabs" role="tablist">
           <button type="button" data-tab="base" class="on" role="tab">Fond de carte</button>
           <button type="button" data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
+          <button type="button" data-tab="grid" role="tab">Grille</button>
           <button type="button" data-tab="sharp" role="tab">Netteté</button>
         </div>
         <section class="pop-sec" data-tab="base">
           <p class="note first">Le dessin de la carte (un seul à la fois).</p>
           <div class="base-grid" id="base-grid"></div>
           <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
+        </section>
+        <section class="pop-sec" data-tab="grid" hidden>
+          <p class="note first">Quadrillage affiché sur la carte et imprimé avec elle. La taille des cases suit l’échelle.</p>
+          <div class="gridlist" id="grid-list"></div>
         </section>
         <section class="pop-sec" data-tab="info" hidden>
           <p class="note first">Informations ajoutées par-dessus le fond, à combiner comme vous voulez.</p>
@@ -574,6 +580,7 @@
 <script src="js/paginate.js?v=__V__"></script>
 <script src="js/doc.js?v=__V__"></script>
 <script src="js/calques.js?v=__V__"></script>
+<script src="js/grid.js?v=__V__"></script>
 <script src="js/vendor/qrcode.min.js"></script>
 <script src="js/firebase-config.js?v=__V__"></script>
 <script src="js/live.js?v=__V__"></script>

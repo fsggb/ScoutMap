@@ -39,7 +39,7 @@
     name: '', pid: 0, mode: null, rail: 'route', panelOpen: true,
     ver: 4, base: 'otm', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
     detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
-    vis: { route: true, az: true, meas: true, game: true },
+    vis: { route: true, az: true, meas: true, game: true }, grid: { type: 'none' },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
     gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 3, size: 18, fontColor: '#12142b', dash: false },
     tracks: [], view: { c: [46.6, 2.5], z: 5.6 }
@@ -50,7 +50,7 @@
     var saved = JSON.parse(raw || 'null');
     if (saved) {
       if (old) { delete saved.detail; delete saved.snap; if (saved.speed === 4) delete saved.speed; }
-      ['route', 'az', 'meas', 'game', 'vis', 'ov', 'gameStyle'].forEach(function (k) { if (saved[k]) Object.assign(S[k], saved[k]); });
+      ['route', 'az', 'meas', 'game', 'vis', 'ov', 'gameStyle', 'grid'].forEach(function (k) { if (saved[k]) Object.assign(S[k], saved[k]); });
       ['name', 'pid', 'mode', 'rail', 'panelOpen', 'base', 'detail', 'speed', 'profileSrc', 'dockOpen', 'dockH', 'tracks', 'view'].forEach(function (k) { if (saved[k] !== undefined) S[k] = saved[k]; });
       if (Array.isArray(saved.layers)) S.layers = saved.layers.filter(function (l) { return l && l.data && l.type && FRESH[l.type]; });
       if (['route', 'az', 'game'].indexOf(S.rail) < 0) S.rail = 'route';
@@ -112,6 +112,8 @@
     ortho: { base: true, ign: true, label: 'Photographies', l: 'ORTHOIMAGERY.ORTHOPHOTOS', f: 'jpeg', n: 19 },
     otm: { base: true, label: 'Topo (OpenTopoMap)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', n: 17,
       attr: OSMA + ' contributors · © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA)' },
+    scan25: { base: true, label: 'SCAN 25 (Occitanie)', wms: { url: 'https://mapserver.openig.org/maps/openig', layers: 'sc25_topo_jp2-e100_lamb93_d09_8f5762d,sc25_topo_jp2-e100_lamb93_d11_71de4eb,sc25_topo_jp2-e100_lamb93_d12_8c2053d,sc25_topo_jp2-e100_lamb93_d30_ac5415a,sc25_topo_jp2-e100_lamb93_d31_21bcd34,sc25_topo_jp2-e100_lamb93_d32_a7b79f5,sc25_topo_jp2-e100_lamb93_d34_a0e34f8,sc25_topo_jp2-e100_lamb93_d46_45ac667,sc25_topo_jp2-e100_lamb93_d48_567dec6,sc25_topo_jp2-e100_lamb93_d65_635bbbc,sc25_topo_jp2-e100_lamb93_d66_c19e31f,sc25_topo_jp2-e100_lamb93_d81_3388d52,sc25_topo_jp2-e100_lamb93_d82_c843727' }, n: 16,
+      attr: '© IGN – SCAN 25® Topographique, diffusé par <a href="https://www.openig.org" target="_blank" rel="noopener">OPenIG</a> (Occitanie seulement)' },
     esri: { base: true, label: 'Satellite (Esri)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', n: 19,
       attr: 'Tiles © Esri — Source : Esri, Maxar, Earthstar Geographics et la communauté SIG' },
     osm: { base: true, label: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', n: 19, attr: OSMA + ' contributors' },
@@ -135,6 +137,7 @@
   var OVERS = Object.keys(LAYERS).filter(function (k) { return !LAYERS[k].base; });
   function srcUrl(key, z, x, y) {
     var d = LAYERS[key];
+    if (d.wms) return d.wms.url;
     if (d.url) return d.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
     return GP + '/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=' + d.l + '&STYLE=normal&FORMAT=image/' + d.f +
       '&TILEMATRIXSET=PM&TILEMATRIX=' + z + '&TILEROW=' + y + '&TILECOL=' + x;
@@ -145,7 +148,8 @@
      Les serveurs libres (hors IGN) sont limités à un niveau de plus, pour rester raisonnables. */
   function tile(key, off, extra) {
     var d = LAYERS[key]; off = d.ign ? off : Math.min(off, 1);
-    var layer = L.tileLayer(srcUrl(key, '{z}', '{x}', '{y}'), Object.assign({
+    var mk = d.wms ? function (u, o) { return L.tileLayer.wms(d.wms.url, Object.assign({ layers: d.wms.layers, format: 'image/jpeg', version: '1.1.1', transparent: false }, o)); } : L.tileLayer;
+    var layer = mk(srcUrl(key, '{z}', '{x}', '{y}'), Object.assign({
       maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: d.attr || ATTR, keepBuffer: 2, crossOrigin: 'anonymous',
       subdomains: 'abc'
     }, d.o || {}, extra || {}));
@@ -375,6 +379,7 @@
     $('#data-dates').hidden = tab === 'sharp';
   }
   function thumbUrl(key) {
+    if (LAYERS[key].wms) return LAYERS[key].wms.url + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=' + encodeURIComponent(LAYERS[key].wms.layers) + '&STYLES=&SRS=EPSG:3857&BBOX=150000,5400000,170000,5415000&WIDTH=200&HEIGHT=150&FORMAT=image/jpeg';
     var z = 10, n = 1 << z, lon = 5.72, lat = 45.19, r = lat * Math.PI / 180;
     return srcUrl(key, z, Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)).replace('{s}', 'a');
   }
@@ -739,6 +744,17 @@
         .then(function (j) { return j.elevations; });
     })).then(function (parts) { return [].concat.apply([], parts); });
   }
+  // Temps de marche indicatif : vitesse de Tobler selon la pente, ramenée à l'allure choisie (5 km/h à plat par défaut).
+  function walkSecs(p, dist) {
+    var sp = Math.max(1, S.speed || 5);
+    if (!p || !p.pts || p.pts.length < 3) return dist / 1000 / sp * 3600;
+    var z = p.pts.map(function (q) { return q.z; }), s = z.map(function (v, i) { return (z[Math.max(0, i - 1)] + v + z[Math.min(z.length - 1, i + 1)]) / 3; }), k = sp / 5.04, t = 0, last = 0;
+    for (var i = 1; i < p.pts.length; i++) {
+      var ds = Math.max(0.1, p.pts[i].d - p.pts[i - 1].d), sl = Math.max(-0.45, Math.min(0.45, (s[i] - s[i - 1]) / ds)), v = 6 * Math.exp(-3.5 * Math.abs(sl + 0.05)) * k;
+      t += ds / 1000 / v * 3600; last = p.pts[i].d;
+    }
+    return t + Math.max(0, dist - last) / 1000 / sp * 3600;
+  }
   function analyse(pts) {
     var z = pts.map(function (p) { return p.z; });
     var s = z.map(function (v, i) { var a = z[Math.max(0, i - 1)], b = z[Math.min(z.length - 1, i + 1)]; return (a + v + b) / 3; });
@@ -747,7 +763,9 @@
       var d = s[i] - ref;
       if (d >= 2) { asc += d; ref = s[i]; } else if (d <= -2) { desc -= d; ref = s[i]; }
     }
-    return { asc: asc, desc: desc, min: Math.min.apply(null, z), max: Math.max.apply(null, z) };
+    var up = 0, down = 0;
+    for (var j = 1; j < s.length; j++) { var dd = Math.max(1, pts[j].d - pts[j - 1].d), g = (s[j] - s[j - 1]) / dd * 100; if (g > up) up = g; if (-g > down) down = -g; }
+    return { asc: asc, desc: desc, min: Math.min.apply(null, z), max: Math.max.apply(null, z), up: up, down: down };
   }
   function profileFor(line, knownEle) {
     var key = lineKey(line);
@@ -1273,7 +1291,7 @@
   function refreshRouteView() {
     clearTimeout(routeTimer); if (RT.routeCtl) RT.routeCtl.abort();
     clearRouteLines(); syncRouteUi(); renderRouteMarkers();
-    if (RT.route && RT.route.line) { drawRoute(); renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); setRouteStatus(''); refreshProfile(); }
+    if (RT.route && RT.route.line) { drawRoute(); renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); setRouteStatus(''); refreshProfile(); loadNature(); }
     else computeRoute();
     fillPlaces(S.route);
   }
@@ -1282,7 +1300,7 @@
   function computeRoute() {
     clearTimeout(routeTimer);
     clearRouteLines();
-    RT.route = null; renderRouteStats(); renderGauge(); renderNatWarn(); $('#steps-box').hidden = true; renderLayerList(); renderStored();
+    RT.route = null; if ($('#nature-box')) $('#nature-box').hidden = true; renderRouteStats(); renderGauge(); renderNatWarn(); $('#steps-box').hidden = true; renderLayerList(); renderStored();
     if (RT.routeCtl) RT.routeCtl.abort();
     var w = effWps();
     if (w.length < 2) {
@@ -1467,7 +1485,7 @@
     res.back = S.route.noBack ? retrace(res.line) : { runs: [], total: 0 };
     clearRouteLines(); RT.route = res;
     drawRoute(); setRouteStatus('');
-    renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList();
+    renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList(); loadNature();
     if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
     S.profileSrc = 'route'; refreshProfile(); persist();
   }
@@ -1640,8 +1658,63 @@
     if (!r) { el.hidden = true; return; }
     var p = (currentProfile && currentProfile.src === 'route') ? currentProfile : (RT.elevCache[lineKey(r.line)] || null);
     var html = '<div class="' + (overMax() ? 'over' : '') + '"><span>Distance</span><b>' + G.fmtDist(r.dist) + '</b></div><div><span>Durée IGN (à pied)</span><b>' + G.fmtDur(r.dur) + '</b></div>';
-    if (p) html += '<div><span>Dénivelé</span><b>+' + Math.round(p.asc) + ' / −' + Math.round(p.desc) + ' m</b></div><div><span>Marche estimée</span><b>' + G.fmtDur((r.dist / 1000 / S.speed + p.asc / 400) * 3600) + '</b></div>';
+    if (p) html += '<div><span>Dénivelé</span><b>+' + Math.round(p.asc) + ' / −' + Math.round(p.desc) + ' m</b></div><div title="Estimation indicative selon la pente (formule de Tobler) et votre allure de marche"><span>Marche (indicatif)</span><b>' + G.fmtDur(walkSecs(p, r.dist)) + '</b></div><div title="Pente maximale mesurée sur des tronçons d’environ 40 m"><span>Pente max</span><b>+' + Math.round(p.up || 0) + ' % / −' + Math.round(p.down || 0) + ' %</b></div>';
     el.innerHTML = html; el.hidden = false;
+  }
+  // ---------- Nature du parcours : part de route, de chemin et de sentier (BD TOPO de l'IGN, interrogée par tronçons de carte) ----------
+  var NATGRP = [['Route', '#5b6b8c'], ['Route empierrée', '#b08d57'], ['Chemin', '#c6a24e'], ['Sentier', '#2f7d32'], ['Escalier', '#8a5a2b'], ['Autre voie', '#9a9db4'], ['Ligne droite (hors voie)', '#c0262d']];
+  function natGroup(n) {
+    n = String(n || '');
+    if (/^Route à|Rond-point|Bretelle|autoroutier|Piste cyclable/i.test(n)) return 'Route';
+    if (/empierrée/i.test(n)) return 'Route empierrée';
+    if (/^Chemin/i.test(n)) return 'Chemin';
+    if (/Sentier/i.test(n)) return 'Sentier';
+    if (/Escalier/i.test(n)) return 'Escalier';
+    return 'Autre voie';
+  }
+  RT.natCache = RT.natCache || {};
+  function loadNature() {
+    var box = $('#nature-box'), r = RT.route; if (!box) return;
+    if (!r || !r.line || r.line.length < 2) { box.hidden = true; return; }
+    var key = lineKey(r.line);
+    if (RT.natCache[key]) { drawNature(RT.natCache[key]); return; }
+    box.hidden = false; box.innerHTML = '<h4>Nature du parcours</h4><small>Analyse des types de voies…</small>';
+    var pts = G.resample(r.line, Math.max(20, Math.min(1600, Math.round(G.pathLength(r.line) / 30)))), kx = Math.cos(pts[0].lat * Math.PI / 180) || 1;
+    var CELL = 0.03, cells = {};
+    pts.forEach(function (q, i) { var k = Math.floor(q.lat / CELL) + '|' + Math.floor(q.lon / CELL); (cells[k] = cells[k] || []).push(i); });
+    var keys = Object.keys(cells); if (keys.length > 14) { box.hidden = true; return; }     // parcours trop long : pas d'analyse (limite le nombre de requêtes)
+    var cat = new Array(pts.length), dirs = (r.directs || []).map(function (u) { return r.line.slice(u.from, u.to + 1); });
+    function mdist(px, py, ax, ay, bx, by) { var dx = bx - ax, dy = by - ay, t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0; return Math.hypot(ax + t * dx - px, ay + t * dy - py); }
+    Promise.all(keys.map(function (k) {
+      var a = k.split('|').map(Number), la0 = a[0] * CELL - 0.0006, lo0 = a[1] * CELL - 0.0006, la1 = (a[0] + 1) * CELL + 0.0006, lo1 = (a[1] + 1) * CELL + 0.0006;
+      var url = GP + '/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&COUNT=3000&PROPERTYNAME=nature,geometrie&BBOX=' + [lo0, la0, lo1, la1].join(',') + ',EPSG:4326';
+      return fetch(url).then(function (x) { if (!x.ok) throw new Error('WFS'); return x.json(); }).then(function (j) {
+        var segs = [];
+        (j.features || []).forEach(function (f) {
+          var g = f.geometry; if (!g) return; var grp = natGroup(f.properties && f.properties.nature), lines = g.type === 'MultiLineString' ? g.coordinates : [g.coordinates];
+          lines.forEach(function (ln) { for (var i = 0; i + 1 < ln.length; i++) segs.push([ln[i][0] * 111320 * kx, ln[i][1] * 110540, ln[i + 1][0] * 111320 * kx, ln[i + 1][1] * 110540, grp]); });
+        });
+        cells[k].forEach(function (pi) {
+          var q = pts[pi], px = q.lon * 111320 * kx, py = q.lat * 110540, best = 28, g2 = 'Autre voie';
+          var inDirect = dirs.some(function (d) { for (var m = 0; m + 1 < d.length; m++) if (mdist(px, py, d[m][1] * 111320 * kx, d[m][0] * 110540, d[m + 1][1] * 111320 * kx, d[m + 1][0] * 110540) < 4) return true; return false; });
+          if (inDirect) { cat[pi] = 'Ligne droite (hors voie)'; return; }
+          segs.forEach(function (sg) { var d = mdist(px, py, sg[0], sg[1], sg[2], sg[3]); if (d < best) { best = d; g2 = sg[4]; } });
+          cat[pi] = g2;
+        });
+      });
+    })).then(function () {
+      var tot = {}, len = 0;
+      for (var i = 1; i < pts.length; i++) { var dd = pts[i].d - pts[i - 1].d, c = cat[i] || cat[i - 1] || 'Autre voie'; tot[c] = (tot[c] || 0) + dd; len += dd; }
+      RT.natCache[key] = { tot: tot, len: len }; if (RT.route && lineKey(RT.route.line) === key) drawNature(RT.natCache[key]);
+    }).catch(function () { var b = $('#nature-box'); if (b) b.hidden = true; });
+  }
+  function drawNature(n) {
+    var box = $('#nature-box'); if (!box) return;
+    var items = NATGRP.filter(function (g) { return n.tot[g[0]] > 0; });
+    if (!items.length || !n.len) { box.hidden = true; return; }
+    box.innerHTML = '<h4>Nature du parcours</h4><div class="natbar" role="img" aria-label="Répartition des types de voies">' + items.map(function (g) { return '<i style="width:' + (n.tot[g[0]] / n.len * 100).toFixed(1) + '%;background:' + g[1] + '" title="' + esc(g[0]) + '"></i>'; }).join('') + '</div><ul class="natleg">' +
+      items.map(function (g) { return '<li><i style="background:' + g[1] + '"></i>' + esc(g[0]) + '<b>' + G.fmtDist(n.tot[g[0]]) + ' · ' + Math.round(n.tot[g[0]] / n.len * 100) + ' %</b></li>'; }).join('') + '</ul><small>Source : BD TOPO de l’IGN, au plus près du tracé (indicatif).</small>';
+    box.hidden = false;
   }
   function renderGauge() {
     var g = $('#gauge'), on = S.route.maxOn && S.route.maxKm > 0;
@@ -1892,7 +1965,7 @@
   function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function projStore(list) { try { localStorage.setItem(PKEY, JSON.stringify(list)); return true; } catch (e) { toast('Le stockage du navigateur est plein : téléchargez vos travaux pour les garder.'); return false; } }
   function projData(withRes) {
-    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, tracks: S.tracks };
+    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks };
     if (withRes && RT.route && RT.route.line) {
       o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, directs: RT.route.directs || [], nat: RT.route.nat || [],
         portions: (RT.route.portions || []).map(function (q) { return { start: q.start, end: q.end, distance: q.distance, duration: q.duration, steps: [] }; }) };
@@ -1931,6 +2004,7 @@
     if (o.gameStyle) Object.assign(S.gameStyle, o.gameStyle);
     S.tracks = o.tracks || []; S.layers = [];
     if (o.base && LAYERS[o.base] && LAYERS[o.base].base) S.base = o.base;
+    S.grid = o.grid && o.grid.type ? { type: o.grid.type } : { type: 'none' }; if (window.SM && SM.grid) SM.grid.apply();
     if (o.ov) Object.assign(S.ov, o.ov);
     RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, directs: o.res.directs || [], nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
@@ -2030,7 +2104,7 @@
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
   // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
-  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
+  var BASEGROUPS = [['Cartes actuelles', ['plan', 'scan25', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
   var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
   // Un fond est déconseillé quand l'échelle demandée oblige à l'agrandir bien au-delà de sa finesse d'origine
   function baseFit(k, scale, lat) {
@@ -2374,8 +2448,8 @@
   var SIM = { open: false, prof: null, t: [], tot: 1, pos: 0, playing: false, dur: 6, follow: true, raf: 0, last: 0, marker: null, trail: null, rec: false, label: 'Parcours' };
   function simPrepare(p) {
     var z = p.pts.map(function (q) { return q.z; }), s = z.map(function (v, i) { return (z[Math.max(0, i - 1)] + v + z[Math.min(z.length - 1, i + 1)]) / 3; });
-    var asc = 0, t = [0];
-    for (var i = 1; i < p.pts.length; i++) { var dz = s[i] - s[i - 1]; if (dz > 0) asc += dz; t.push(p.pts[i].d / 1000 / S.speed * 3600 + asc / 400 * 3600); }
+    var t = [0], kk = Math.max(1, S.speed || 5) / 5.04;
+    for (var i = 1; i < p.pts.length; i++) { var ds = Math.max(0.1, p.pts[i].d - p.pts[i - 1].d), sl = Math.max(-0.45, Math.min(0.45, (s[i] - s[i - 1]) / ds)); t.push(t[i - 1] + ds / 1000 / (6 * Math.exp(-3.5 * Math.abs(sl + 0.05)) * kk) * 3600); }
     SIM.prof = p; SIM.t = t; SIM.tot = t[t.length - 1] || 1;
   }
   function simAt(tt) {
@@ -2840,7 +2914,7 @@
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
-    layerDate: layerDate, drawDirects: drawDirects,
+    layerDate: layerDate, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
