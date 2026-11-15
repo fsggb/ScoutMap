@@ -112,6 +112,8 @@
     ortho: { base: true, ign: true, label: 'Photographies', l: 'ORTHOIMAGERY.ORTHOPHOTOS', f: 'jpeg', n: 19 },
     otm: { base: true, label: 'Topo (OpenTopoMap)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', n: 17,
       attr: OSMA + ' contributors · © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA)' },
+    esri: { base: true, label: 'Satellite (Esri)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', n: 19,
+      attr: 'Tiles © Esri — Source : Esri, Maxar, Earthstar Geographics et la communauté SIG' },
     osm: { base: true, label: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', n: 19, attr: OSMA + ' contributors' },
     osmfr: { base: true, label: 'OSM France', url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', n: 20, attr: OSMA + ' contributors · © OpenStreetMap France' },
     cyclosm: { base: true, label: 'CyclOSM', url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', n: 20,
@@ -1070,16 +1072,72 @@
     }
     return { order: mk(best), gain: cur > 0 ? 1 - bl / cur : 0 };
   }
+  // Points reliés entre eux en ligne droite = un seul « bloc » : l'ordre interne est figé, le bloc se place comme un seul point
+  // (dans un sens ou dans l'autre), et le calcul automatique de l'ordre de passage se fait normalement pour le reste.
+  function blocksOf(w, loop) {
+    var bl = [], i = 0, n = w.length;
+    while (i < n) { var b = [i]; while (i + 1 < n && w[i + 1].direct) { i++; b.push(i); } bl.push(b); i++; }
+    return bl;
+  }
+  function bestBlockOrder(w, loop) {
+    var bl = blocksOf(w, loop), nb = bl.length, kx = Math.cos(w[0].lat * Math.PI / 180);
+    function D(a, b) { return Math.hypot((w[a].lat - w[b].lat) * 110540, (w[a].lon - w[b].lon) * 111320 * kx); }
+    var fixedEnd = !loop && nb > 1;
+    var mid = []; for (var i = 1; i < (fixedEnd ? nb - 1 : nb); i++) mid.push(i);
+    // longueur d'une suite de blocs, orientation de chaque bloc choisie au mieux (programmation dynamique)
+    function evalOrder(ord) {
+      var seq = [0].concat(ord, fixedEnd ? [nb - 1] : []), INF = 1e18, prev = null, res = [];
+      seq.forEach(function (bi, k) {
+        var b = bl[bi], opts = (k === 0 || (fixedEnd && k === seq.length - 1)) ? [0] : [0, 1], cur = [];
+        opts.forEach(function (o) {
+          var entry = o ? b[b.length - 1] : b[0], exit = o ? b[0] : b[b.length - 1], inner = 0;
+          for (var q = 0; q + 1 < b.length; q++) inner += D(b[q], b[q + 1]);
+          var best = INF, from = -1;
+          if (!prev) best = inner; else prev.forEach(function (p, pi) { var c = p.cost + D(p.exit, entry) + inner; if (c < best) { best = c; from = pi; } });
+          cur.push({ o: o, cost: best, exit: exit, entry: entry, from: from });
+        });
+        res.push(cur); prev = cur;
+      });
+      var bi2 = 0, bc = INF;
+      prev.forEach(function (p, i2) { var c = p.cost + (loop ? D(p.exit, bl[0][0]) : 0); if (c < bc) { bc = c; bi2 = i2; } });
+      var oris = new Array(seq.length), idx = bi2;
+      for (var k = seq.length - 1; k >= 0; k--) { var st = res[k][idx]; oris[k] = st.o; idx = st.from; }
+      return { len: bc, seq: seq, oris: oris };
+    }
+    var cur = evalOrder(mid), best = cur;
+    if (mid.length <= 7) {
+      (function perm(a, k) {
+        if (k === a.length) { var e = evalOrder(a); if (e.len < best.len - 1e-6) best = e; return; }
+        for (var j = k; j < a.length; j++) { var x = a[k]; a[k] = a[j]; a[j] = x; perm(a, k + 1); x = a[k]; a[k] = a[j]; a[j] = x; }
+      })(mid.slice(), 0);
+    } else {
+      var left = mid.slice(), o = [], last = 0;
+      while (left.length) { var bi = 0, bd = Infinity; left.forEach(function (c, k) { var d = D(bl[last][bl[last].length - 1], bl[c][0]); if (d < bd) { bd = d; bi = k; } }); last = left.splice(bi, 1)[0]; o.push(last); }
+      var imp = true, it = 0;
+      while (imp && it++ < 40) {
+        imp = false;
+        for (var a = 0; a < o.length - 1; a++) for (var b2 = a + 1; b2 < o.length; b2++) {
+          var t2 = o.slice(0, a).concat(o.slice(a, b2 + 1).reverse(), o.slice(b2 + 1));
+          if (evalOrder(t2).len < evalOrder(o).len - 1e-6) { o = t2; imp = true; }
+        }
+      }
+      var e2 = evalOrder(o); if (e2.len < best.len) best = e2;
+    }
+    var order = [], flags = [];
+    best.seq.forEach(function (bi, k) { var b = bl[bi].slice(); if (best.oris[k]) b.reverse(); b.forEach(function (x, q) { order.push(x); flags.push(q > 0); }); });
+    return { order: order, flags: flags, gain: cur.len > 0 ? 1 - best.len / cur.len : 0 };
+  }
   function reorderFree(focus) {
     var d = S.route;
     if (d.freeOrder === false || d.wps.length < 3) return;
-    if (d.wps.some(function (x) { return x.direct; })) return;          // avec des tronçons en ligne droite, l'ordre choisi par l'utilisateur est respecté
-    var r = bestOrder(d.wps, !!d.loop);
+    var hasDirect = d.wps.some(function (x) { return x.direct; });
+    var r = hasDirect ? bestBlockOrder(d.wps, !!d.loop) : bestOrder(d.wps, !!d.loop);
     if (r.gain < 0.002) return;
     var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
+    if (r.flags) d.wps.forEach(function (x, k) { if (r.flags[k]) x.direct = true; else delete x.direct; });
     renderRouteMarkers(); renderWpList(); computeRoute(); persist();
     var at = focus ? d.wps.indexOf(focus) : -1; if (at >= 0) select('route', at, true);
-    toast('Ordre de passage optimisé : boucle la plus courte par les points choisis.');
+    toast(hasDirect ? 'Ordre de passage optimisé : les points reliés en ligne droite restent groupés.' : 'Ordre de passage optimisé : boucle la plus courte par les points choisis.');
   }
   function closeLoop() {
     if (S.route.wps.length < 2 || S.route.loop) return;
@@ -1972,7 +2030,7 @@
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
   // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
-  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
+  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
   var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
   // Un fond est déconseillé quand l'échelle demandée oblige à l'agrandir bien au-delà de sa finesse d'origine
   function baseFit(k, scale, lat) {
@@ -2779,6 +2837,7 @@
   loadDates();
 
   // API interne pour doc.js
+  window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     layerDate: layerDate, drawDirects: drawDirects,
