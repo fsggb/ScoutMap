@@ -569,7 +569,7 @@
   function showHome(show) {
     var h = $('#home'); if (!h) return;
     h.hidden = !show;
-    if (show) { renderHome(); if (SIM.open) simClose(true); closePops(); hideCtx(); map.closePopup(); }
+    if (show) { if (window.SM && SM.game && SM.game.closeWizard) SM.game.closeWizard(); renderHome(); if (SIM.open) simClose(true); closePops(); hideCtx(); map.closePopup(); }
     updateHint();
   }
   function startType(t) {
@@ -953,11 +953,11 @@
   function overMax() { return !!(RT.route && S.route.maxOn && S.route.maxKm > 0 && RT.route.dist > S.route.maxKm * 1000); }
 
   var routeLine = null, routeCasing = null;
-  function addWp(p, name, idx) {
+  function addWp(p, name, idx, direct) {
     ensureVisible('route');
     var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
     var at = idx == null ? S.route.wps.length : idx;
-    if (idx != null && S.route.wps[at] && S.route.wps[at].direct) o.direct = true;
+    if (direct) o.direct = true;
     S.route.wps.splice(at, 0, o);
     renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
     fillPlaces(S.route);
@@ -1011,7 +1011,7 @@
   }
   // Placement d'un point : village / hameau / col / sommet proche, sinon chemin le plus proche ; très zoomé, le point reste où l'on clique.
   function snapToChurch(w) {
-    if (!w || S.route.snapChurch === false || w.noSnap) return Promise.resolve();
+    if (!w || S.route.snapChurch === false || w.noSnap || w.direct) return Promise.resolve();
     var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
     if (mpp < 0.55) return ensureAnchor(w);                         // très zoomé : on respecte le clic, mais un point loin de tout chemin est relié en pointillés
     var R = Math.min(1250, Math.max(100, 24 * mpp)), o = { lat: w.lat, lon: w.lon };
@@ -1073,6 +1073,7 @@
   function reorderFree(focus) {
     var d = S.route;
     if (d.freeOrder === false || d.wps.length < 3) return;
+    if (d.wps.some(function (x) { return x.direct; })) return;          // avec des tronçons en ligne droite, l'ordre choisi par l'utilisateur est respecté
     var r = bestOrder(d.wps, !!d.loop);
     if (r.gain < 0.002) return;
     var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
@@ -1096,7 +1097,8 @@
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
-        var q = m.getLatLng(); S.route.wps[i] = { lat: q.lat, lon: q.lng, name: S.route.wps[i].name };
+        var q = m.getLatLng(), old = S.route.wps[i]; S.route.wps[i] = { lat: q.lat, lon: q.lng, name: old.name };
+        if (old.direct) S.route.wps[i].direct = true;                      // un point déplacé reste en ligne droite
         renderWpList(); computeRoute(); persist(); fillPlaces(S.route); ensureAnchor(S.route.wps[i]); reorderFree(S.route.wps[i]);
       });
       m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
@@ -1516,8 +1518,24 @@
   }
   // Insère un point dans le tronçon du tracé le plus proche : la numérotation suit l'ordre de passage.
   function insertOnRoute(p) {
-    var r = RT.route, idx = nearestIndex(r.line, p), leg = legOf(idx);
-    addWp(p, null, Math.min(leg + 1, S.route.wps.length));
+    var r = RT.route, s = nearestSegment(r.line, p), leg = legOfSeg(r, s);
+    var dir = (r.directs || []).some(function (u) { return s >= u.from && s < u.to; });   // le point cliqué sur un tronçon en ligne droite est lui aussi en ligne droite
+    addWp(p, null, Math.min(leg + 1, S.route.wps.length), dir);
+  }
+  // Segment du tracé le plus proche d'un point (distance au segment, pas au sommet : un clic près d'une jonction ne change pas de tronçon).
+  function nearestSegment(line, p) {
+    var kx = Math.cos(p[0] * Math.PI / 180), best = 0, bd = Infinity;
+    for (var i = 0; i + 1 < line.length; i++) {
+      var ax = line[i][1] * kx, ay = line[i][0], bx = line[i + 1][1] * kx, by = line[i + 1][0], px = p[1] * kx, py = p[0];
+      var dx = bx - ax, dy = by - ay, t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+      var d = Math.pow(ax + t * dx - px, 2) + Math.pow(ay + t * dy - py, 2);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  function legOfSeg(r, s) {
+    if (r.bounds) { for (var q = 0; q < r.bounds.length - 1; q++) if (s >= r.bounds[q] && s < r.bounds[q + 1]) return q; return Math.max(0, r.bounds.length - 2); }
+    return legOf(s);
   }
   // Distance (en pixels écran) du point de clic au tracé calculé.
   function pixelDistToRoute(latlng) {

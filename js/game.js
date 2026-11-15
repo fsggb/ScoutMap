@@ -1014,6 +1014,7 @@
         return out;
       }
       function killMap() { if (pm) { pm.remove(); pm = null; } pl = null; pmk = []; }
+      ov._kill = killMap;
       function preview() {
         var th = thNow(), el = $('#gw-map', ov); if (!el) return;
         if (!pm) pm = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0, zoomAnimation: false });
@@ -1154,6 +1155,8 @@
     renderThemes = function () { oldRT(); showSub(SUB); renderGuide(); };
     showSub('elements'); renderGuide();
   })();
+  // Ferme l'assistant de création (retour à l'accueil, changement d'application…)
+  function closeWizard() { var o = document.getElementById('gwz'); if (o) { try { if (o._kill) o._kill(); } catch (e) { /* ignoré */ } o.remove(); } document.body.classList.remove('gw-open'); }
   // ---------- Barre de style en bas de la carte (comme dans un logiciel de dessin) ----------
   (function styleBar() {
     var bar = $('#gbar'), st = $('#gstyle'); if (!bar || !st) return;
@@ -1419,9 +1422,9 @@
     return false;
   }
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
-  function leave() { cancelDraft(); SELID = null; gHandles.clearLayers(); clearFx(); }
+  function leave() { closeWizard(); cancelDraft(); SELID = null; gHandles.clearLayers(); clearFx(); }
 
-  SM.game = { ready: ready, applyFx: applyFx, loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  SM.game = { closeWizard: closeWizard, ready: ready, applyFx: applyFx, loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();
