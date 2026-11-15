@@ -1,0 +1,53 @@
+/* Pont entre ScoutMap (conçu pour un site statique) et l'iframe Google Apps Script. */
+(function () {
+  // les blocs embarqués sont placés après ce script : on les lit au premier usage
+  var blobs = {}, ready = false;
+  function scan() { if (ready) return; ready = true; document.querySelectorAll('script[type="text/x-sm"]').forEach(function (s) { var k = s.getAttribute('data-f'), t = s.textContent; blobs[k] = k === 'index.html' ? t.replace(/<\\\/script/gi, '</script') : t; }); }
+  window.SM_LOC = { search: '', hash: '' };
+
+  // exécute un fichier embarqué (une seule fois) ; renvoie false s'il n'existe pas
+  var done = {};
+  window.SM_LOAD = function (name) {
+    scan(); if (!(name in blobs)) return false;
+    if (done[name]) return true;
+    done[name] = true;
+    var s = document.createElement('script');
+    s.textContent = blobs[name] + '\n//# sourceURL=' + name;
+    document.head.appendChild(s);
+    return true;
+  };
+  // équivalent de fetch() pour les fichiers du site (utilisé par « Enregistrer en page web ») : renvoie une vraie Response
+  window.SM_FETCH = function (u) {
+    scan(); var key = String(u).replace(/^.*?(?=(?:index\.html|css\/|js\/|assets\/)[^?#]*$)/, '').replace(/[?#].*$/, '');
+    if (key === '' && /assets\/fsggb\.png/.test(u)) key = 'assets/fsggb.png';
+    if (key === 'assets/fsggb.png') return fetch(blobs[key]); // data: URI → vraie Response (blob)
+    if (key in blobs) return Promise.resolve(new Response(blobs[key], { status: 200 }));
+    return fetch(u);
+  };
+  // navigation de la fenêtre principale (l'application tourne dans une iframe)
+  window.SM_NAV = function (u) { try { window.open(u, '_top'); } catch (e) { window.location.href = u; } };
+
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { rej(new Error(src)); }; document.head.appendChild(s);
+    });
+  }
+  function start() {
+    var cdn = JSON.parse(document.getElementById('sm-cdn').textContent), order = JSON.parse(document.getElementById('sm-order').textContent);
+    Promise.all(cdn.map(loadScript)).then(function () { order.forEach(window.SM_LOAD); window.dispatchEvent(new Event('sm-ready')); })
+      .catch(function (e) { document.body.insertAdjacentHTML('afterbegin', '<p style="padding:20px;font:16px sans-serif">Chargement impossible (' + e.message + '). Vérifiez la connexion puis rechargez la page.</p>'); });
+  }
+  // Apps Script ne transmet ni ?paramètres ni #ancre à l'iframe : on les relit via google.script.url
+  window.SM_BOOT = function () {
+    if (window.google && google.script && google.script.url && google.script.url.getLocation) {
+      var guard = setTimeout(function () { guard = null; start(); }, 3000);
+      google.script.url.getLocation(function (loc) {
+        if (guard === null) return; clearTimeout(guard);
+        var p = loc && loc.parameter || {}, q = [];
+        Object.keys(p).forEach(function (k) { [].concat(p[k]).forEach(function (v) { q.push(encodeURIComponent(k) + '=' + encodeURIComponent(v)); }); });
+        window.SM_LOC = { search: q.length ? '?' + q.join('&') : '', hash: loc && loc.hash ? '#' + loc.hash : '' };
+        start();
+      });
+    } else { window.SM_LOC = { search: location.search, hash: location.hash }; start(); }
+  };
+})();
