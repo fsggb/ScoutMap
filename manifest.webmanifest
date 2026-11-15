@@ -1,0 +1,17 @@
+{
+  "name": "ScoutMap – FSGGB",
+  "short_name": "ScoutMap",
+  "description": "Itinéraires, azimuts et grands jeux, sur de vraies cartes imprimables. Fonctionne aussi hors connexion.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000761",
+  "theme_color": "#000761",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

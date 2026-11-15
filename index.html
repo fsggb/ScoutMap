@@ -6,6 +6,13 @@
   <meta name="description" content="ScoutMap : cartes IGN, itinéraires à pied, azimuts, profils d'altitude et export PDF/GPX pour l'orientation et les raids scouts.">
   <title>ScoutMap</title>
   <link rel="icon" type="image/png" href="assets/fsggb.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#000761">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ScoutMap">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="css/style.css?v=__V__">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -406,12 +413,16 @@
           <button type="button" data-tab="base" class="on" role="tab">Fond de carte</button>
           <button type="button" data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
           <button type="button" data-tab="grid" role="tab">Grille</button>
+          <button type="button" data-tab="offline" role="tab">Hors connexion</button>
           <button type="button" data-tab="sharp" role="tab">Netteté</button>
         </div>
         <section class="pop-sec" data-tab="base">
           <p class="note first">Le dessin de la carte (un seul à la fois).</p>
           <div class="base-grid" id="base-grid"></div>
           <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
+        </section>
+        <section class="pop-sec" data-tab="offline" hidden>
+          <div class="offbox" id="off-box"></div>
         </section>
         <section class="pop-sec" data-tab="grid" hidden>
           <p class="note first">Quadrillage affiché sur la carte et imprimé avec elle. La taille des cases suit l’échelle.</p>
@@ -489,6 +500,10 @@
       <button class="tuto-chip" data-tuto="route" type="button"><svg class="ic"><use href="#i-play"/></svg>Itinéraire</button>
       <button class="tuto-chip" data-tuto="az" type="button"><svg class="ic"><use href="#i-play"/></svg>Azimuts</button>
       <button class="tuto-chip" data-tuto="game" type="button"><svg class="ic"><use href="#i-play"/></svg>Grand jeu</button>
+    </div>
+    <div class="home-tutos home-app"><span>Sur téléphone</span>
+      <button class="tuto-chip" type="button" data-install><svg class="ic"><use href="#i-download"/></svg>Installer l’application</button>
+      <button class="tuto-chip" type="button" id="home-offline"><svg class="ic"><use href="#i-map"/></svg>Cartes hors connexion</button>
     </div>
     <h2 class="proj-h">Vos travaux dans ce navigateur</h2>
     <ul class="proj-rows" id="proj-rows"></ul>
@@ -582,6 +597,7 @@
 <script src="js/doc.js?v=__V__"></script>
 <script src="js/calques.js?v=__V__"></script>
 <script src="js/grid.js?v=__V__"></script>
+<script src="js/offline.js?v=__V__"></script>
 <script src="js/vendor/qrcode.min.js"></script>
 <script src="js/firebase-config.js?v=__V__"></script>
 <script src="js/live.js?v=__V__"></script>
