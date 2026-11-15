@@ -237,6 +237,7 @@
         if (it.res) {
           if (!o.noLine) L.polyline(it.res.line, { color: '#fff', weight: 9, opacity: .9, lineCap: 'round', lineJoin: 'round' }).addTo(m);
           if (!o.noLine) L.polyline(it.res.line, { color: col, weight: 5, lineCap: 'round', lineJoin: 'round' }).addTo(m);
+          if (!o.noLine && SM.drawDirects) SM.drawDirects(m, it.res, col, 1);
           it.res.line.forEach(function (p) { pts.push(p); });
         }
         d.wps.forEach(function (p, i) { if (!o.noMarkers) L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
