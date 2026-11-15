@@ -1203,6 +1203,7 @@ body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!i
 .gcal-top{display:flex;gap:12px;align-items:flex-start}.gcal-th{flex:none;width:72px;height:48px;border-radius:7px;overflow:hidden;box-shadow:0 0 0 1px var(--line-2)}.gcal-th svg{display:block;width:100%;height:100%}
 .gcal-top .gcal-h{flex:1;min-width:0}.gcal-top .gcal-h small{margin-left:0}
 .gscale button{flex-wrap:wrap}.gscale .sc-idea{flex:1 0 100%}
+.direct-lbl{pointer-events:none}.direct-lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:2px 8px;border-radius:10px;background:#fff;border:1.5px solid var(--c,#000761);color:#12142b;font:700 11px/1.3 system-ui,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

@@ -706,6 +706,7 @@
       if (l.type === 'route' && l.res) {
         L.polyline(l.res.line, { color: '#fff', weight: 8, opacity: 0.85, interactive: false, lineCap: 'round' }).addTo(gStored);
         tip(L.polyline(l.res.line, { color: col, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round', className: 'stored-line' }).on('click', click).on('contextmenu', ctxs)).addTo(gStored);
+        drawDirects(gStored, l.res, col, 0.9);
       }
       if (l.type === 'route') {
         d.wps.forEach(function (p, i) { L.marker([p.lat, p.lon], { icon: pin(lblOf(d, i), clsOf(d, i)), zIndexOffset: 500 }).on('click', click).on('contextmenu', ctxs).addTo(gStored); });
@@ -956,6 +957,7 @@
     ensureVisible('route');
     var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
     var at = idx == null ? S.route.wps.length : idx;
+    if (idx != null && S.route.wps[at] && S.route.wps[at].direct) o.direct = true;
     S.route.wps.splice(at, 0, o);
     renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
     fillPlaces(S.route);
@@ -1109,7 +1111,7 @@
     $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
       return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || p.place || '') + '" placeholder="' + esc(titleOf(d, i)) + '" aria-label="Nom du point (village ou hameau par défaut)">' +
-        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (p.direct && i > 0 ? ' · en ligne droite' : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
     applySel();
   }
@@ -1146,14 +1148,17 @@
     ul.addEventListener('dragend', function () { dragFrom = -1; $$('#wps li').forEach(function (x) { x.classList.remove('dragging', 'drop'); }); });
   })();
   function moveWp(from, to) {
-    var w = S.route.wps, x = w.splice(from, 1)[0]; w.splice(to, 0, x);
+    var w = S.route.wps, x = w.splice(from, 1)[0]; w.splice(to, 0, x); normDirect();
     renderRouteMarkers(); computeRoute(); persist(); select('route', to, true);
     toast('Ordre de passage modifié : les points sont renumérotés.');
   }
-  function removeWp(i) { S.route.wps.splice(i, 1); if (SEL && SEL.k === 'route') SEL = null; renderRouteMarkers(); computeRoute(); persist(); }
+  function normDirect() { var w = S.route.wps; if (w[0] && w[0].direct) delete w[0].direct; }
+  function removeWp(i) { S.route.wps.splice(i, 1); normDirect(); if (SEL && SEL.k === 'route') SEL = null; renderRouteMarkers(); computeRoute(); persist(); }
   function reverseRoute() {
     var w = S.route.wps; if (w.length < 2) { toast('Posez au moins deux points pour inverser le sens.'); return; }
-    S.route.wps = loopOf(S.route) ? [w[0]].concat(w.slice(1).reverse()) : w.reverse();
+    var n0 = w.length, fl = w.map(function (x) { return !!x.direct; }), lp = loopOf(S.route);
+    S.route.wps = lp ? [w[0]].concat(w.slice(1).reverse()) : w.reverse();
+    S.route.wps.forEach(function (x, k) { var f = k < 1 ? false : lp ? (k >= 2 && fl[n0 - k + 1]) : fl[n0 - k]; if (f) x.direct = true; else delete x.direct; });
     select(null); renderRouteMarkers(); computeRoute(); persist();
     toast('Sens du parcours inversé.');
   }
@@ -1184,7 +1189,22 @@
   function setRouteStatus(msg, err) { var el = $('#route-status'); el.textContent = msg || ''; el.className = 'status' + (err ? ' error' : ''); setNote('err', err ? msg : '', 'bad'); }
   function routeColor() { return overMax() ? '#c0262d' : S.route.color; }
   function restyleRoute() { if (routeLine) routeLine.setStyle({ color: routeColor() }); }
+  // Tronçons à vol d'oiseau : le tracé plein est recouvert de blanc puis redessiné en pointillés, avec l'azimut et la distance au milieu.
+  function drawDirects(group, res, col, scale) {
+    var out = []; scale = scale || 1;
+    (res && res.directs || []).forEach(function (u) {
+      var a = res.line[u.from], b = res.line[u.to]; if (!a || !b) return;
+      var seg = res.line.slice(u.from, u.to + 1), mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = G.haversine(a, b), brg = G.bearing(a, b);
+      out.push(L.polyline(seg, { color: '#fff', weight: 10 * scale, opacity: 1, lineCap: 'butt', interactive: false }).addTo(group));
+      out.push(L.polyline(seg, { color: '#fff', weight: 8 * scale, opacity: .9, lineCap: 'round', interactive: false }).addTo(group));
+      out.push(L.polyline(seg, { color: col, weight: 5 * scale, opacity: 1, dashArray: (1 * scale) + ' ' + (7 * scale), lineCap: 'round', interactive: false }).addTo(group));
+      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: '<span style="--c:' + col + '">En ligne droite · ' + Math.round(((brg % 360) + 360) % 360) + '° · ' + G.fmtDist(d) + '</span>' }) }).addTo(group));
+    });
+    return out;
+  }
+  var directLayers = [];
   function clearRouteLines() {
+    directLayers.forEach(function (l) { gRoute.removeLayer(l); }); directLayers = [];
     if (routeLine) { gRoute.removeLayer(routeLine); routeLine = null; }
     if (routeCasing) { gRoute.removeLayer(routeCasing); routeCasing = null; }
     if (backLine) { gRoute.removeLayer(backLine); backLine = null; }
@@ -1212,7 +1232,7 @@
     setRouteStatus('Calcul de l’itinéraire…');
     var tag = S.route.id, tok = RT.rtTok = (RT.rtTok || 0) + 1;
     routeTimer = setTimeout(function () {
-      var jobs = []; w.forEach(function (_, i) { if (i + 1 < w.length) jobs.push(fetchLeg(rp(w[i]), rp(w[i + 1]), null).catch(function (e) { e.leg = i; throw e; })); });
+      var jobs = []; w.forEach(function (_, i) { if (i + 1 < w.length) jobs.push((isDir(w, i + 1) ? Promise.resolve(directLeg(w[i], w[i + 1])) : legFrom(w[i], w[i + 1])).catch(function (e) { e.leg = i; throw e; })); });
       Promise.all(jobs).then(function (legs) {
         if (tag !== S.route.id || tok !== RT.rtTok) return;
         var first = !RT.route;
@@ -1255,7 +1275,7 @@
   }
   // Un point hors sentier (pic, col…) reste exactement où il est ; il est relié en pointillés au chemin le plus proche, qui sert au calcul de l'itinéraire.
   function ensureAnchor(w) {
-    if (!w || w.noAnchor) return Promise.resolve();
+    if (!w || w.noAnchor || w.direct) return Promise.resolve();
     return nearestRoadLadder(w.lat, w.lon).then(function (r) {
       var i = S.route.wps.indexOf(w); if (i < 0) return;
       if (!r) { setRouteStatus('Aucun chemin trouvé à moins de 2,5 km de « ' + nameOf(S.route, i) + ' » : impossible de le relier à l’itinéraire.', true); toast('Je n’arrive pas à trouver de chemin proche de ce point.'); return; }
@@ -1277,6 +1297,7 @@
   }
   function rescueLeg(i, w, tok) {
     var cands = [w[i], w[i + 1]].filter(function (x, k, a) { return x && !x.rescued && a.indexOf(x) === k; });
+    cands = cands.filter(function (x) { return !x.direct; });
     if (!cands.length) return false;
     cands.forEach(function (x) { x.rescued = true; });
     setRouteStatus('Aucun chemin trouvé : recherche du village ou du chemin le plus proche…'); toast('Je n’arrive pas à relier ce point : je cherche le chemin le plus proche.');
@@ -1304,6 +1325,28 @@
     }
   }
   var CST_AUTO = '{"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}', CST_TUN = '{"constraintType":"banned","key":"wayType","operator":"=","value":"tunnel"}';
+  // Tronçon « à vol d'oiseau » : ligne droite entre deux repères, sans chercher de chemin (sentier absent de la carte, raccourci…).
+  function isDir(w, k) { return !!(w[k] && w[k].direct && k > 0 && !(k === w.length - 1 && loopOf(S.route))); }
+  // Tronçon normal ; si le départ est un point en ligne droite posé loin de tout chemin, on le relie en pointillés au chemin le plus proche.
+  function legFrom(a, b) {
+    return fetchLeg(rp(a), rp(b), null).catch(function (e) {
+      if (!a.direct) throw e;
+      return nearestRoadLadder(a.lat, a.lon).then(function (r) {
+        if (!r) throw e;
+        return fetchLeg({ lat: r.lat, lon: r.lon }, rp(b), null).then(function (l) {
+          var dl = directLeg(a, { lat: r.lat, lon: r.lon });
+          return { line: dl.line.concat(l.line), dist: dl.dist + l.dist, dur: dl.dur + l.dur, directIn: dl.line.length - 1, relaxed: l.relaxed,
+            portion: { start: pf(a), end: l.portion.end, distance: dl.dist + (l.portion.distance || l.dist), duration: dl.dur + (l.portion.duration || l.dur), steps: l.portion.steps || [] } };
+        });
+      });
+    });
+  }
+  function directLeg(a, b) {
+    var A = [a.lat, a.lon], B = [b.lat, b.lon], d = G.haversine(A, B), n = Math.max(1, Math.min(80, Math.round(d / 40))), line = [];
+    for (var k = 0; k <= n; k++) line.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n]);
+    var dur = d / (5 / 3.6);
+    return { line: line, dist: d, dur: dur, direct: true, portion: { start: pf(a), end: pf(b), distance: d, duration: dur, steps: [] }, relaxed: false };
+  }
   function fetchLeg(a, b, via, relaxed) {
     var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, relaxed ? 'r' : 't', pf(a), via ? pf(via) : '', pf(b)].join('|');
     if (legCache[key]) return legCache[key];
@@ -1335,14 +1378,17 @@
     legCache[key] = pr; return pr;
   }
   function assemble(legs) {
-    var line = [], bounds = [0], dist = 0, dur = 0, portions = [];
+    var line = [], bounds = [0], dist = 0, dur = 0, portions = [], directs = [];
     legs.forEach(function (l, i) {
       var ln = l.line, st = 0;
       if (line.length && ln.length && line[line.length - 1][0] === ln[0][0] && line[line.length - 1][1] === ln[0][1]) st = 1;
+      var i0 = line.length - st;
+      if (l.directIn) directs.push({ from: i0, to: i0 + l.directIn });
       for (var k = st; k < ln.length; k++) line.push(ln[k]);
       bounds.push(line.length - 1); dist += l.dist; dur += l.dur; portions.push(l.portion);
+      if (l.direct) directs.push({ from: bounds[bounds.length - 2], to: bounds[bounds.length - 1] });
     });
-    return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds, tunnel: legs.some(function (l) { return l.relaxed; }) };
+    return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds, directs: directs, tunnel: legs.some(function (l) { return l.relaxed; }) };
   }
   function showRoute(res, first) {
     var nat = {};
@@ -1419,6 +1465,7 @@
       var mid = u.pts[Math.floor(u.pts.length / 2)], best = Infinity, bi = 0;
       cur.line.forEach(function (q, k) { var d = Math.pow(q[0] - mid[0], 2) + Math.pow((q[1] - mid[1]) * Math.cos(mid[0] * Math.PI / 180), 2); if (d < best) { best = d; bi = k; } });
       for (leg = 0; leg < legs.length - 1 && cur.bounds[leg + 1] < bi; leg++);
+      if (legs[leg].direct || legs[leg].directIn) { step(idx + 1); return; }   // le choix de l'utilisateur (ligne droite) n'est jamais remplacé
       var lk = leg + ':' + legs[leg].dist.toFixed(0); if (seen[lk]) { step(idx + 1); return; } seen[lk] = 1;
       var a = rp(w[leg]), b = rp(w[leg + 1]), p0 = u.pts[0], p1 = u.pts[u.pts.length - 1], kx = Math.cos(mid[0] * Math.PI / 180);
       var dx = (p1[1] - p0[1]) * kx * 111320, dy = (p1[0] - p0[0]) * 110540, nrm = Math.hypot(dx, dy) || 1, ux = -dy / nrm, uy = dx / nrm;
@@ -1461,9 +1508,10 @@
       insertOnRoute([e.latlng.lat, e.latlng.lng]);
     });
     routeLine.on('contextmenu', function (e) { L.DomEvent.stop(e); showCtx(e.originalEvent.clientX, e.originalEvent.clientY, routeLineMenu(e.latlng)); });
+    directLayers = drawDirects(gRoute, r, routeColor());
     routeLine.on('mouseover', function () { if (RT.tool === 'route') routeLine.setStyle({ color: '#c6a24e' }); });
     routeLine.on('mouseout', restyleRoute);
-    routeLine.bringToFront();
+    routeLine.bringToFront(); directLayers.forEach(function (l) { if (l.bringToFront) l.bringToFront(); });
     routeMarkers.forEach(function (m) { m.setZIndexOffset(1000); });
   }
   // Insère un point dans le tronçon du tracé le plus proche : la numérotation suit l'ordre de passage.
@@ -1770,7 +1818,7 @@
   function projData(withRes) {
     var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, tracks: S.tracks };
     if (withRes && RT.route && RT.route.line) {
-      o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, nat: RT.route.nat || [],
+      o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, directs: RT.route.directs || [], nat: RT.route.nat || [],
         portions: (RT.route.portions || []).map(function (q) { return { start: q.start, end: q.end, distance: q.distance, duration: q.duration, steps: [] }; }) };
     }
     return o;
@@ -1808,7 +1856,7 @@
     S.tracks = o.tracks || []; S.layers = [];
     if (o.base && LAYERS[o.base] && LAYERS[o.base].base) S.base = o.base;
     if (o.ov) Object.assign(S.ov, o.ov);
-    RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
+    RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, directs: o.res.directs || [], nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
     select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
     showHome(false); setRail(rail); setTool(rail === 'game' ? 'game' : 'pan'); persist();
@@ -2012,6 +2060,7 @@
     closePops();
     if (RT.tool === 'route') {
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
+      if (e.originalEvent && e.originalEvent.shiftKey && S.route.wps.length) { placeAs('direct', p); return; }
       if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
@@ -2039,9 +2088,11 @@
     if (a === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); setRail('meas'); setTool('pan'); return; }
     var w = S.route.wps, o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
     ensureVisible('route');
-    if (a === 'start') w.unshift(o); else if (a === 'end') w.push(o);
+    if (a === 'direct') { if (w.length) o.direct = true; w.push(o); }
+    else if (a === 'start') w.unshift(o); else if (a === 'end') w.push(o);
     else if (w.length < 2) w.push(o); else w.splice(w.length - 1, 0, o);
-    setRail('route'); setTool('pan'); renderRouteMarkers(); computeRoute(); persist(); fillPlaces(S.route);
+    setRail('route'); setTool(a === 'direct' ? 'route' : 'pan'); renderRouteMarkers(); computeRoute(); persist(); fillPlaces(S.route);
+    if (a === 'direct') toast('Point ajouté en ligne droite depuis le précédent (pointillés). Clic droit sur un point pour changer ce choix.');
   }
 
   // ---------- Menus contextuels (clic droit) ----------
@@ -2069,12 +2120,17 @@
     setRail('route'); setTool('pan'); select('route', i);
     var inp = $('#wps .wp-name[data-i="' + i + '"]'); if (inp) { inp.focus(); inp.select(); }
   }
+  function setDirect(i, on) {
+    var w = S.route.wps[i]; if (!w) return; if (on) w.direct = true; else delete w.direct;
+    renderRouteMarkers(); renderWpList(); computeRoute(); persist();
+  }
   function routePtMenu(i) {
     var d = S.route, n = d.wps.length, p = [d.wps[i].lat, d.wps[i].lon], loop = loopOf(d);
     var m = [
       { t: 'Renommer…', i: 'edit', a: function () { renameWp(i); } },
       { t: 'Supprimer ce point', i: 'trash', k: 'Suppr', danger: true, a: function () { removeWp(i); } }
     ];
+    if (i > 0) m.unshift(d.wps[i].direct ? { t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } } : { t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
     if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
     if (i === 0 && n >= 2 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });
@@ -2113,6 +2169,8 @@
   function mapMenu(latlng) {
     var p = [latlng.lat, latlng.lng], m = [];
     if (S.mode === 'route') m = [
+      { t: 'Placer un point en ligne droite (vol d’oiseau)', i: 'route', a: function () { placeAs('direct', p); } },
+      CSEP,
       { t: 'Départ ici', i: 'pin', a: function () { placeAs('start', p); } },
       { t: 'Étape ici', i: 'pin', a: function () { placeAs('via', p); } },
       { t: 'Arrivée ici', i: 'pin', a: function () { placeAs('end', p); } }];
@@ -2705,7 +2763,7 @@
   // API interne pour doc.js
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
-    layerDate: layerDate,
+    layerDate: layerDate, drawDirects: drawDirects,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
