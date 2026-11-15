@@ -112,7 +112,7 @@
     ortho: { base: true, ign: true, label: 'Photographies', l: 'ORTHOIMAGERY.ORTHOPHOTOS', f: 'jpeg', n: 19 },
     otm: { base: true, label: 'Topo (OpenTopoMap)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', n: 17,
       attr: OSMA + ' contributors · © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA)' },
-    scan25: { base: true, label: 'SCAN 25 (Occitanie)', scan: true, n: 16,
+    scan25: { base: true, hidden: true, label: 'SCAN 25 (Occitanie)', scan: true, n: 16,
       attr: '© IGN – SCAN 25® Topographique, diffusé par <a href="https://www.openig.org" target="_blank" rel="noopener">OPenIG</a> (Occitanie seulement)' },
     esri: { base: true, label: 'Satellite (Esri)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', n: 19,
       attr: 'Tiles © Esri — Source : Esri, Maxar, Earthstar Geographics et la communauté SIG' },
@@ -391,37 +391,42 @@
     });
   }
   // ---------- Points d'eau : fontaines, sources, lavoirs, points d'eau (BD TOPO, IGN) et eau potable signalée sur OpenStreetMap ----------
-  var WT = { cells: {}, pend: {}, group: L.layerGroup() }, WT_CELL = 0.1, WT_MINZ = 12;
+  var WT = { cells: {}, pend: {}, group: L.layerGroup(), ends: ['https://overpass-api.de/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'] }, WT_CELL = 0.1, WT_MINZ = 12;
   var WT_NAT_UNUSED = { 'Fontaine': ['Fontaine', 'ign'], 'Source': ['Source', 'ign'], 'Source captée': ['Source captée', 'ign'], 'Lavoir': ['Lavoir', 'ign'], 'Point d\'eau': ['Point d’eau', 'ign'], 'Point d’eau': ['Point d’eau', 'ign'], 'Abreuvoir': ['Abreuvoir', 'ign'], 'Citerne': ['Citerne', 'ign'] };
   function wtIcon(pot) {
     var c = pot ? '#1565c0' : '#6f9bc9';
     return L.divIcon({ className: 'wt-ic', iconSize: [22, 22], iconAnchor: [11, 20], html: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2.2C9 6.4 5.8 9.8 5.8 14a6.2 6.2 0 0 0 12.4 0C18.2 9.8 15 6.4 12 2.2Z" fill="' + c + '" stroke="#fff" stroke-width="1.8" stroke-linejoin="round" paint-order="stroke"/><path d="M9.2 14.4a3 3 0 0 0 2.2 2.8" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".85"/></svg>' });
   }
   function wtCells(b) { var out = []; for (var i = Math.floor(b.getSouth() / WT_CELL); i <= Math.floor(b.getNorth() / WT_CELL); i++) for (var j = Math.floor(b.getWest() / WT_CELL); j <= Math.floor(b.getEast() / WT_CELL); j++) out.push([i, j]); return out.length > 12 ? [] : out; }
-  function wtFetchTimeout(url, ms) { var c = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (c) c.abort(); }, ms); return fetch(url, c ? { signal: c.signal } : {}).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); throw e; }); }
+  // Une seule requête à la fois vers Overpass (les serveurs publics refusent les rafales).
+  var wtQ = Promise.resolve();
+  function wtQueue(fn) { var r = wtQ.then(fn); wtQ = r.then(function () {}, function () {}); return r; }
+  function wtFetchTimeout(url, ms, body) { var c = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (c) c.abort(); }, ms), o = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body }; if (c) o.signal = c.signal; return fetch(url, o).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); throw e; }); }
   var wtWarned = false;
   function wtFetchCell(ci, cj) {
     var key = ci + ',' + cj, cell = WT.cells[key] || (WT.cells[key] = { pts: null, t: 0 }), now = Date.now();
     if (cell.pts || now - cell.t < 60000) return Promise.resolve();
     if (WT.pend[key]) return WT.pend[key];
     var s = ci * WT_CELL, w = cj * WT_CELL, n = s + WT_CELL, e = w + WT_CELL;
-    var bb = '(' + s + ',' + w + ',' + n + ',' + e + ')';
+    var bb = '(' + s.toFixed(5) + ',' + w.toFixed(5) + ',' + n.toFixed(5) + ',' + e.toFixed(5) + ')';
     // eau potable seulement : fontaines à boire, robinets, sources et puits signalés potables (OpenStreetMap)
     var q = '[out:json][timeout:25];(node["amenity"="drinking_water"]' + bb + ';node["man_made"="water_tap"]["drinking_water"!="no"]' + bb + ';node["amenity"="fountain"]["drinking_water"="yes"]' + bb + ';node["natural"="spring"]["drinking_water"="yes"]' + bb + ';node["man_made"="water_well"]["drinking_water"="yes"]' + bb + ';node["amenity"="water_point"]["drinking_water"!="no"]' + bb + ';);out;';
+    var lastErr = '';
     function tryEnd(k) {
-      if (k >= HK.ends.length) return Promise.reject(new Error('indisponible'));
-      return wtFetchTimeout(HK.ends[k] + '?data=' + encodeURIComponent(q), 14000).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function () { return tryEnd(k + 1); });
+      if (k >= WT.ends.length) return Promise.reject(new Error(lastErr || 'indisponible'));
+      return wtFetchTimeout(WT.ends[k], 20000, 'data=' + encodeURIComponent(q)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) { if (!j || !j.elements) throw new Error('réponse vide'); return j; }).catch(function (er) { lastErr = (WT.ends[k].split('/')[2] || '') + ' : ' + (er && er.name === 'AbortError' ? 'délai dépassé' : (er && er.message) || 'erreur'); return tryEnd(k + 1); });
     }
-    return (WT.pend[key] = tryEnd(0).then(function (j) {
+    return (WT.pend[key] = wtQueue(function () { return tryEnd(0); }).then(function (j) {
       var out = [];
       (j.elements || []).forEach(function (el) {
         if (el.lat == null) return; var t = el.tags || {};
         out.push({ lat: el.lat, lon: el.lon, kind: t.amenity === 'drinking_water' ? 'Eau potable' : t.man_made === 'water_tap' ? 'Robinet d’eau' : t.amenity === 'water_point' ? 'Point d’eau' : t.natural === 'spring' ? 'Source potable' : t.man_made === 'water_well' ? 'Puits potable' : 'Fontaine', name: t.name || '', pot: true, src: 'OpenStreetMap' });
       });
       cell.pts = out;
-    }).catch(function () {
+    }).catch(function (er) {
       cell.t = Date.now();
-      if (!wtWarned) { wtWarned = true; toast('Le service des points d’eau potable (OpenStreetMap) ne répond pas : réessayez dans un moment.'); }
+      if (window.console) console.warn('Points d’eau :', er && er.message);
+      if (!wtWarned) { wtWarned = true; toast('Points d’eau potable indisponibles (OpenStreetMap) — ' + ((er && er.message) || 'pas de réponse') + '. Nouvel essai en déplaçant la carte.'); }
     }).then(function () { delete WT.pend[key]; }));
   }
   function wtDraw(target, bounds, zoom) {
@@ -2125,7 +2130,7 @@
     S.game = Object.assign(freshGame(null, 1), o.game || {}); S.game.shapes = (o.game && o.game.shapes) || [];
     if (o.gameStyle) Object.assign(S.gameStyle, o.gameStyle);
     S.tracks = o.tracks || []; S.layers = [];
-    if (o.base && LAYERS[o.base] && LAYERS[o.base].base) S.base = o.base;
+    if (o.base && LAYERS[o.base] && LAYERS[o.base].base && !LAYERS[o.base].hidden) S.base = o.base;
     S.grid = o.grid && o.grid.type ? { type: o.grid.type } : { type: 'none' }; if (window.SM && SM.grid) SM.grid.apply();
     if (o.ov) Object.assign(S.ov, o.ov);
     RT.route = o.res && o.res.line ? { line: o.res.line, dist: o.res.dist, dur: o.res.dur, bounds: o.res.bounds, directs: o.res.directs || [], nat: o.res.nat || [], portions: o.res.portions || [], back: { runs: [], total: 0 } } : null;
@@ -2226,7 +2231,7 @@
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
   // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
-  var BASEGROUPS = [['Cartes actuelles', ['plan', 'scan25', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
+  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
   var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
   // Un fond est déconseillé quand l'échelle demandée oblige à l'agrandir bien au-delà de sa finesse d'origine
   function baseFit(k, scale, lat) {
