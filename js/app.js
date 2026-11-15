@@ -1198,7 +1198,7 @@
       out.push(L.polyline(seg, { color: '#fff', weight: 10 * scale, opacity: 1, lineCap: 'butt', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: '#fff', weight: 8 * scale, opacity: .9, lineCap: 'round', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: col, weight: 5 * scale, opacity: 1, dashArray: (1 * scale) + ' ' + (7 * scale), lineCap: 'round', interactive: false }).addTo(group));
-      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: '<span style="--c:' + col + '">En ligne droite · ' + Math.round(((brg % 360) + 360) % 360) + '° · ' + G.fmtDist(d) + '</span>' }) }).addTo(group));
+      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: '<span style="--c:' + col + '" title="En ligne droite : ' + G.fmtDist(d) + '">' + Math.round(((brg % 360) + 360) % 360) + '°</span>' }) }).addTo(group));
     });
     return out;
   }
