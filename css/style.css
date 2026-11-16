@@ -1237,6 +1237,7 @@ body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!i
 .off-prog{min-height:1em}
 .off-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}.off-list li{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line);border-radius:10px}.off-list li>div{flex:1;min-width:0;display:grid}.off-list b{color:var(--navy);font-size:13px}.off-list small{color:var(--muted);font-size:11px}
 .off-note{margin:0;font-size:11.5px;color:var(--muted);line-height:1.45}
+.scan-key{margin:10px 0;padding:9px 11px;border:1px solid var(--line-2);border-radius:12px;background:#fff}.scan-key b{color:var(--navy);font-size:13px}.scan-key p{margin:3px 0 6px;font-size:11.5px;color:var(--muted);line-height:1.4}.scan-key-row{display:flex;gap:6px}.scan-key-row input{flex:1;min-width:0;height:34px;padding:0 9px;border:1.5px solid var(--line-2);border-radius:9px;font:inherit;font-size:12.5px}.scan-key-row button{height:34px;padding:0 12px;border:0;border-radius:9px;background:var(--navy);color:#fff;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}.scan-key-row #scan-key-del{background:#c0262d}.scan-key-row [hidden]{display:none}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */
