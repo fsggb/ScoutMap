@@ -62,7 +62,7 @@
   } catch (e) { /* stockage indisponible */ }
   if (TYPES.indexOf(S.mode) < 0) S.mode = 'route';
   if (!S.pid) S.pid = nid();
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && /^[0-9a-f]{32}$/i.test((function () { try { return localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { return ''; } })()))) S.base = 'otm';
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && /^([0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i.test((function () { try { return localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { return ''; } })()))) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -152,7 +152,10 @@
   SCAN25.cfg = null;
   try {
     var k25 = (localStorage.getItem('scoutmap.scan25key') || '').trim();
-    if (/^[0-9a-f]{32}$/i.test(k25)) {
+    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(k25)) {   // relais Apps Script : la clé reste dans les propriétés du script
+      SCAN25.key = k25; SCAN25.cfg = { t: 'gas', url: k25 };
+      LAYERS.scan25.hidden = false; LAYERS.scan25.label = 'SCAN 25 (IGN)'; LAYERS.scan25.attr = '© IGN – SCAN 25® (licence IGN)';
+    } else if (/^[0-9a-f]{32}$/i.test(k25)) {
       SCAN25.key = k25;
       SCAN25.cfg = { t: 'xyz', url: 'https://data.geopf.fr/private/wmts?apikey=' + k25 + '&SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}' };
       LAYERS.scan25.hidden = false; LAYERS.scan25.label = 'SCAN 25 (IGN)'; LAYERS.scan25.attr = '© IGN – SCAN 25® (licence IGN, clé personnelle)';
@@ -204,6 +207,18 @@
   function scan25Layer(off, extra) {
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
     var o = Object.assign({ maxZoom: 19, maxNativeZoom: 16, attribution: LAYERS.scan25.attr, keepBuffer: 2 }, extra || {});
+    if (c.t === 'gas') {
+      var G = L.GridLayer.extend({ createTile: function (co, done) {
+        var im = document.createElement('img'), n = 0; im.alt = ''; im.crossOrigin = 'anonymous';
+        (function go() {
+          fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j.d) throw new Error(j.err || 'vide'); im.onload = function () { done(null, im); }; im.src = 'data:image/jpeg;base64,' + j.d;
+          }).catch(function () { if (++n < 3) setTimeout(go, 700 * n); else done(new Error('relais'), im); });
+        })();
+        return im;
+      } });
+      return new G(Object.assign({ tileSize: 256 }, o));
+    }
     if (c.t === 'wms') return L.tileLayer.wms(c.url, Object.assign({ layers: c.layers, format: c.fmt, version: '1.1.1', transparent: false }, o));
     return L.tileLayer(c.url, Object.assign({ tms: !!c.tms }, o));
   }
@@ -2263,7 +2278,7 @@
     var inp = $('#scan-key'), ok = $('#scan-key-ok'), del = $('#scan-key-del'); if (!inp) return;
     if (SCAN25.key) { inp.value = SCAN25.key; del.hidden = false; }
     ok.addEventListener('click', function () {
-      var v = inp.value.trim(); if (!/^[0-9a-f]{32}$/i.test(v)) { toast('La clé doit faire 32 caractères (lettres a-f et chiffres).'); return; }
+      var v = inp.value.trim(); if (!/^[0-9a-f]{32}$/i.test(v) && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)) { toast('Collez la clé de 32 caractères, ou l’adresse du relais Apps Script (…/exec).'); return; }
       try { localStorage.setItem('scoutmap.scan25key', v); } catch (e) { toast('Impossible d’enregistrer la clé sur cet appareil.'); return; }
       S.base = 'scan25'; persist(); location.reload();
     });
