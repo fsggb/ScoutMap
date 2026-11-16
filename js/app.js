@@ -62,7 +62,7 @@
   } catch (e) { /* stockage indisponible */ }
   if (TYPES.indexOf(S.mode) < 0) S.mode = 'route';
   if (!S.pid) S.pid = nid();
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0) S.base = 'otm';
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && /^[0-9a-f]{32}$/i.test((function () { try { return localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { return ''; } })()))) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -148,7 +148,16 @@
      Les serveurs libres (hors IGN) sont limités à un niveau de plus, pour rester raisonnables. */
   // ---------- SCAN 25 (Occitanie), flux d'OPenIG : on cherche automatiquement l'adresse de tuiles qui répond depuis cet appareil ----------
   var SCAN25 = { cfg: null, busy: null, tried: 0 };
-  try { SCAN25.cfg = JSON.parse(localStorage.getItem('scoutmap.scan25') || 'null'); } catch (e) { SCAN25.cfg = null; }
+  // SCAN 25 IGN : nécessite une clé personnelle (gratuite, cartes.gouv.fr), conservée sur CET appareil seulement : jamais dans le site ni dans les projets partagés.
+  SCAN25.cfg = null;
+  try {
+    var k25 = (localStorage.getItem('scoutmap.scan25key') || '').trim();
+    if (/^[0-9a-f]{32}$/i.test(k25)) {
+      SCAN25.key = k25;
+      SCAN25.cfg = { t: 'xyz', url: 'https://data.geopf.fr/private/wmts?apikey=' + k25 + '&SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}' };
+      LAYERS.scan25.hidden = false; LAYERS.scan25.label = 'SCAN 25 (IGN)'; LAYERS.scan25.attr = '© IGN – SCAN 25® (licence IGN, clé personnelle)';
+    }
+  } catch (e) { /* ignoré */ }
   var OPG = 'https://mapserver.openig.org';
   var OPG_DEPTS = ['d09_8f5762d', 'd11_71de4eb', 'd12_8c2053d', 'd30_ac5415a', 'd31_21bcd34', 'd32_a7b79f5', 'd34_a0e34f8', 'd46_45ac667', 'd48_567dec6', 'd65_635bbbc', 'd66_c19e31f', 'd81_3388d52', 'd82_c843727'].map(function (x) { return 'sc25_topo_jp2-e100_lamb93_' + x; });
   function scan25Candidates() {
@@ -475,13 +484,7 @@
     return Promise.all(hkCells(b).map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { hkDraw(m, b, z, true); });
   }
   function applyLayers() {
-    if (S.base === 'scan25' && !SCAN25.cfg && !SCAN25.busy) {
-      ensureScan25().then(function (c) {
-        if (S.base !== 'scan25') return;
-        if (c) { var old = tiles.scan25; if (old && map.hasLayer(old)) map.removeLayer(old); tiles.scan25 = tile('scan25', curOff); applyLayers(); }
-        else { S.base = 'plan'; persist(); applyLayers(); toast('Le service SCAN 25 d’OPenIG ne répond pas depuis cet appareil (réseau ou service indisponible). Retour au Plan IGN.'); }
-      });
-    }
+    if (S.base === 'scan25' && !SCAN25.cfg) S.base = 'plan';
     Object.keys(LAYERS).forEach(function (k) {
       var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
       if (k === 'hiking' || LAYERS[k].vector) on = false;   // sentiers et points d'eau sont dessinés en vectoriel
@@ -2231,7 +2234,7 @@
     S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
   });
   // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
-  var BASEGROUPS = [['Cartes actuelles', ['plan', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
+  var BASEGROUPS = [['Cartes actuelles', ['plan', 'scan25', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
   var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
   // Un fond est déconseillé quand l'échelle demandée oblige à l'agrandir bien au-delà de sa finesse d'origine
   function baseFit(k, scale, lat) {
@@ -2240,7 +2243,7 @@
     if (over > 1.6) return { ok: false, text: 'Trop flou à 1 : ' + Number(scale).toLocaleString('fr-FR') + ' (données prévues pour des échelles plus petites)' };
     return { ok: true };
   }
-  function baseOrdered() { var out = []; BASEGROUPS.forEach(function (g) { g[1].forEach(function (k) { if (LAYERS[k] && out.indexOf(k) < 0) out.push(k); }); }); BASES.forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); return out; }
+  function baseOrdered() { var out = []; BASEGROUPS.forEach(function (g) { g[1].forEach(function (k) { if (LAYERS[k] && !LAYERS[k].hidden && out.indexOf(k) < 0) out.push(k); }); }); BASES.forEach(function (k) { if (!LAYERS[k].hidden && out.indexOf(k) < 0) out.push(k); }); return out; }
   function groupOf(k) { for (var i = 0; i < BASEGROUPS.length; i++) if (BASEGROUPS[i][1].indexOf(k) >= 0) return BASEGROUPS[i][0]; return 'Autres'; }
   window.SM_baseMeta = { groups: BASEGROUPS, year: BASEYEAR, fit: baseFit, ordered: baseOrdered, groupOf: groupOf };
   function renderBaseGrid() {
@@ -2248,7 +2251,7 @@
     BASEGROUPS.forEach(function (g) {
       h += '<h4 class="bg-h">' + esc(g[0]) + '</h4>';
       g[1].forEach(function (k) {
-        if (!LAYERS[k]) return; var f = baseFit(k, sc, lat);
+        if (!LAYERS[k] || LAYERS[k].hidden) return; var f = baseFit(k, sc, lat);
         h += '<button type="button" data-base="' + k + '" class="' + (f.ok ? '' : 'poor') + '" title="' + esc(LAYERS[k].label + (BASEYEAR[k] ? ' (' + BASEYEAR[k] + ')' : '') + (f.ok ? '' : ' : ' + f.text)) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(LAYERS[k].label) + '</span>' + (f.ok ? '' : '<i class="bg-w">Déconseillé à cette échelle</i>') + '</button>';
       });
     });
@@ -2256,6 +2259,16 @@
     $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
     if (typeof loadThumbs === 'function' && !$('#layer-pop').hidden) loadThumbs();
   }
+  (function () {
+    var inp = $('#scan-key'), ok = $('#scan-key-ok'), del = $('#scan-key-del'); if (!inp) return;
+    if (SCAN25.key) { inp.value = SCAN25.key; del.hidden = false; }
+    ok.addEventListener('click', function () {
+      var v = inp.value.trim(); if (!/^[0-9a-f]{32}$/i.test(v)) { toast('La clé doit faire 32 caractères (lettres a-f et chiffres).'); return; }
+      try { localStorage.setItem('scoutmap.scan25key', v); } catch (e) { toast('Impossible d’enregistrer la clé sur cet appareil.'); return; }
+      S.base = 'scan25'; persist(); location.reload();
+    });
+    del.addEventListener('click', function () { try { localStorage.removeItem('scoutmap.scan25key'); } catch (e) { /* ignoré */ } if (S.base === 'scan25') S.base = 'plan'; persist(); location.reload(); });
+  })();
   renderBaseGrid(); map.on('zoomend', function () { if (!$('#layer-pop').hidden) renderBaseGrid(); });
   var lb0 = $('#layer-btn'); if (lb0) lb0.addEventListener('click', function () { setTimeout(renderBaseGrid, 0); });
   $('#ov-grid').innerHTML = OVERS.map(function (k) { return '<button data-ov="' + k + '" title="' + esc(LAYERS[k].label) + '"><span class="ov-ic">' + ic(LAYERS[k].icon) + '</span><span>' + esc(LAYERS[k].label) + '</span></button>'; }).join('');
