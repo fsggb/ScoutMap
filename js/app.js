@@ -62,7 +62,14 @@
   } catch (e) { /* stockage indisponible */ }
   if (TYPES.indexOf(S.mode) < 0) S.mode = 'route';
   if (!S.pid) S.pid = nid();
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && /^([0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i.test((function () { try { return localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { return ''; } })()))) S.base = 'otm';
+  // Clé SCAN 25 : celle de l'appareil (collée dans l'appli) ou, à défaut, celle injectée au déploiement par le secret GitHub SCAN25_KEY.
+  var SCAN25_BUILD = '__SCAN25_KEY__';
+  function scan25Src() {
+    var v = '', t = ''; try { v = (localStorage.getItem('scoutmap.scan25key') || '').trim(); t = localStorage.getItem('scouthub.token') || ''; } catch (e) { /* ignoré */ }
+    return v || (/^[0-9a-f]{32}$/i.test(SCAN25_BUILD) ? SCAN25_BUILD : '') || (t ? 'hub' : '');   // « hub » : membre connecté à ScoutHub, la clé est gardée par le serveur ScoutHub
+  }
+  var SCAN25_OK = /^(hub|[0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i;
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -151,8 +158,11 @@
   // SCAN 25 IGN : nécessite une clé personnelle (gratuite, cartes.gouv.fr), conservée sur CET appareil seulement : jamais dans le site ni dans les projets partagés.
   SCAN25.cfg = null;
   try {
-    var k25 = (localStorage.getItem('scoutmap.scan25key') || '').trim();
-    if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(k25)) {   // relais Apps Script : la clé reste dans les propriétés du script
+    var k25 = scan25Src();
+    if (k25 === 'hub') {   // membre ScoutHub : tuiles demandées au serveur ScoutHub (clé IGN dans ses propriétés)
+      SCAN25.cfg = { t: 'gas', hub: true };
+      LAYERS.scan25.hidden = false; LAYERS.scan25.label = 'SCAN 25 (IGN)'; LAYERS.scan25.attr = '© IGN – SCAN 25® (licence IGN, via ScoutHub)';
+    } else if (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(k25)) {   // relais Apps Script : la clé reste dans les propriétés du script
       SCAN25.key = k25; SCAN25.cfg = { t: 'gas', url: k25 };
       LAYERS.scan25.hidden = false; LAYERS.scan25.label = 'SCAN 25 (IGN)'; LAYERS.scan25.attr = '© IGN – SCAN 25® (licence IGN)';
     } else if (/^[0-9a-f]{32}$/i.test(k25)) {
@@ -211,8 +221,14 @@
       var G = L.GridLayer.extend({ createTile: function (co, done) {
         var im = document.createElement('img'), n = 0; im.alt = ''; im.crossOrigin = 'anonymous';
         (function go() {
-          fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y).then(function (r) { return r.json(); }).then(function (j) {
-            if (!j.d) throw new Error(j.err || 'vide'); im.onload = function () { done(null, im); }; im.src = 'data:image/jpeg;base64,' + j.d;
+          var req = c.hub
+            ? Promise.resolve(window.ScoutHub && ScoutHub.ready).then(function () {
+                if (!window.SCOUTHUB_API) throw new Error('ScoutHub non configuré');
+                return fetch(window.SCOUTHUB_API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', token: localStorage.getItem('scouthub.token') || '', z: co.z, x: co.x, y: co.y }) });
+              })
+            : fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y);
+          req.then(function (r) { return r.json(); }).then(function (j) {
+            if (!j.d) { if (j.error === 'Action inconnue.' && !SCAN25.warned) { SCAN25.warned = true; toast('Le serveur ScoutHub n’a pas encore la mise à jour SCAN 25 (Code.gs à redéployer).'); } throw new Error(j.err || j.error || 'vide'); } im.onload = function () { done(null, im); }; im.src = 'data:image/jpeg;base64,' + j.d;
           }).catch(function () { if (++n < 3) setTimeout(go, 700 * n); else done(new Error('relais'), im); });
         })();
         return im;
@@ -2276,7 +2292,8 @@
   }
   (function () {
     var inp = $('#scan-key'), ok = $('#scan-key-ok'), del = $('#scan-key-del'); if (!inp) return;
-    if (SCAN25.key) { inp.value = SCAN25.key; del.hidden = false; }
+    var own = ''; try { own = localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { /* ignoré */ }
+    if (own) { inp.value = own; del.hidden = false; } else if (SCAN25.key) { inp.placeholder = 'Une clé est déjà intégrée au site'; }
     ok.addEventListener('click', function () {
       var v = inp.value.trim(); if (!/^[0-9a-f]{32}$/i.test(v) && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)) { toast('Collez la clé de 32 caractères, ou l’adresse du relais Apps Script (…/exec).'); return; }
       try { localStorage.setItem('scoutmap.scan25key', v); } catch (e) { toast('Impossible d’enregistrer la clé sur cet appareil.'); return; }
