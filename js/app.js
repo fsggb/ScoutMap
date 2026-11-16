@@ -218,9 +218,13 @@
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
     var o = Object.assign({ maxZoom: 19, maxNativeZoom: 16, attribution: LAYERS.scan25.attr, keepBuffer: 2 }, extra || {});
     if (c.t === 'gas') {
+      // Tuiles demandées au serveur Apps Script : 6 à la fois au plus (Google refuse les rafales), 3 essais, cause de l'échec signalée une fois.
+      var running = 0, queue = [];
+      var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
       var G = L.GridLayer.extend({ createTile: function (co, done) {
-        var im = document.createElement('img'), n = 0; im.alt = ''; im.crossOrigin = 'anonymous';
-        (function go() {
+        var im = document.createElement('img'), n = 0; im.alt = '';
+        var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + msg + ').'); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
+        var go = function () {
           var req = c.hub
             ? Promise.resolve(window.ScoutHub && ScoutHub.ready).then(function () {
                 if (!window.SCOUTHUB_API) throw new Error('ScoutHub non configuré');
@@ -228,12 +232,15 @@
               })
             : fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y);
           req.then(function (r) { return r.json(); }).then(function (j) {
-            if (!j.d) { if (j.error === 'Action inconnue.' && !SCAN25.warned) { SCAN25.warned = true; toast('Le serveur ScoutHub n’a pas encore la mise à jour SCAN 25 (Code.gs à redéployer).'); } throw new Error(j.err || j.error || 'vide'); } im.onload = function () { done(null, im); }; im.src = 'data:image/jpeg;base64,' + j.d;
-          }).catch(function () { if (++n < 3) setTimeout(go, 700 * n); else done(new Error('relais'), im); });
-        })();
+            running--; pump();
+            if (!j.d) { var m = j.err || j.error || 'réponse vide'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer'; if (/HTTP 40[134]|Session|session|non configur|invalide|inconnue|redéployer/.test(m) || ++n >= 3) return fail(m); queue.push(go); pump(); return; }
+            im.onload = function () { done(null, im); }; im.onerror = function () { fail('image illisible'); }; im.src = 'data:image/jpeg;base64,' + j.d;
+          }).catch(function (e) { running--; pump(); if (++n < 3) setTimeout(function () { queue.push(go); pump(); }, 700 * n); else fail((e && e.message) || 'serveur injoignable'); });
+        };
+        queue.push(go); pump();
         return im;
       } });
-      return new G(Object.assign({ tileSize: 256 }, o));
+      return new G(Object.assign({ tileSize: 256, minNativeZoom: 6, maxNativeZoom: 16 }, o));
     }
     if (c.t === 'wms') return L.tileLayer.wms(c.url, Object.assign({ layers: c.layers, format: c.fmt, version: '1.1.1', transparent: false }, o));
     return L.tileLayer(c.url, Object.assign({ tms: !!c.tms }, o));
