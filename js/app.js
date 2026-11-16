@@ -511,6 +511,11 @@
   }
   function wtCells(b) { var out = []; for (var i = Math.floor(b.getSouth() / WT_CELL); i <= Math.floor(b.getNorth() / WT_CELL); i++) for (var j = Math.floor(b.getWest() / WT_CELL); j <= Math.floor(b.getEast() / WT_CELL); j++) out.push([i, j]); return out.length > 12 ? [] : out; }
   // Une seule requête à la fois vers Overpass (les serveurs publics refusent les rafales).
+  // Points d'eau potable demandés d'abord au serveur ScoutHub (il interroge OpenStreetMap et garde le résultat en mémoire) ; en secours, directement à Overpass.
+  function hubEau(s, w, n, e) {
+    return hubApi().then(function (api) { return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'eau', b: [s, w, n, e] }) }); })
+      .then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok || !j.el) throw new Error((j && j.error) || 'réponse vide'); return { elements: j.el }; });
+  }
   var wtQ = Promise.resolve();
   function wtQueue(fn) { var r = wtQ.then(fn); wtQ = r.then(function () {}, function () {}); return r; }
   function wtFetchTimeout(url, ms, body) { var c = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (c) c.abort(); }, ms), o = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body }; if (c) o.signal = c.signal; return fetch(url, o).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); throw e; }); }
@@ -528,7 +533,7 @@
       if (k >= WT.ends.length) return Promise.reject(new Error(lastErr || 'indisponible'));
       return wtFetchTimeout(WT.ends[k], 20000, 'data=' + encodeURIComponent(q)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) { if (!j || !j.elements) throw new Error('réponse vide'); return j; }).catch(function (er) { lastErr = (WT.ends[k].split('/')[2] || '') + ' : ' + (er && er.name === 'AbortError' ? 'délai dépassé' : (er && er.message) || 'erreur'); return tryEnd(k + 1); });
     }
-    return (WT.pend[key] = wtQueue(function () { return tryEnd(0); }).then(function (j) {
+    return (WT.pend[key] = wtQueue(function () { return hubEau(s, w, n, e).catch(function () { return tryEnd(0); }); }).then(function (j) {
       var out = [];
       (j.elements || []).forEach(function (el) {
         if (el.lat == null) return; var t = el.tags || {};
