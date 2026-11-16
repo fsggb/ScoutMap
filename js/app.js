@@ -2292,6 +2292,9 @@
   }
   (function () {
     var inp = $('#scan-key'), ok = $('#scan-key-ok'), del = $('#scan-key-del'); if (!inp) return;
+    var box = inp.closest('.scan-key');
+    if (SCAN25.cfg && SCAN25.cfg.hub) { box.innerHTML = '<b>SCAN 25 IGN</b><p>Vous êtes connecté à ScoutHub : le SCAN 25 est activé, aucune clé à saisir.</p>'; return; }
+    var hint = document.createElement('p'); hint.innerHTML = 'Membre FSGGB ? <a href="/ScoutHub/" target="_blank" rel="noopener">Connectez-vous à ScoutHub</a> dans ce navigateur, puis rechargez : le SCAN 25 s’active sans clé.'; box.insertBefore(hint, box.querySelector('.scan-key-row'));
     var own = ''; try { own = localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { /* ignoré */ }
     if (own) { inp.value = own; del.hidden = false; } else if (SCAN25.key) { inp.placeholder = 'Une clé est déjà intégrée au site'; }
     ok.addEventListener('click', function () {
