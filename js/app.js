@@ -2247,11 +2247,20 @@
   // ---------- Fonds, couches, netteté (fenêtres flottantes) ----------
   // Les vignettes des fonds ne sont chargées qu'à la première ouverture du panneau.
   function loadThumbs() { $$('#base-grid img[data-src]').forEach(function (i) { if (i.dataset.src) { i.src = i.dataset.src; i.dataset.src = ''; } }); }
+  // Version du site (identifiant du déploiement, lu dans l'adresse du script) et mise à jour forcée : efface le cache hors connexion et recharge.
+  var SITE_V = (function () { var s = document.querySelector('script[src*="js/app.js"]'), m = s && /[?&]v=([0-9a-f]{6,})/.exec(s.src); return m ? m[1] : 'locale'; })();
+  function forceUpdate() {
+    var jobs = [];
+    if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+    if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('sm-shell-') === 0; }).map(function (k) { return caches.delete(k); })); }));
+    Promise.all(jobs).catch(function () {}).then(function () { toast('Mise à jour… rechargement'); setTimeout(function () { location.reload(); }, 400); });
+  }
   function togglePop(id, force) {
     if (id === 'layer-pop') loadThumbs();
-    ['layer-pop', 'scale-pop'].forEach(function (p) { $('#' + p).hidden = p !== id ? true : (force ? false : !$('#' + p).hidden); });
+    if (id === 'off-pop' && window.SM && SM.offRender) SM.offRender();
+    ['layer-pop', 'scale-pop', 'off-pop'].forEach(function (p) { $('#' + p).hidden = p !== id ? true : (force ? false : !$('#' + p).hidden); });
   }
-  function closePops() { $('#layer-pop').hidden = true; $('#scale-pop').hidden = true; }
+  function closePops() { $('#layer-pop').hidden = true; $('#scale-pop').hidden = true; $('#off-pop').hidden = true; }
   $('#layer-btn').addEventListener('click', function () { togglePop('layer-pop'); });
   $('#scale-btn').addEventListener('click', function () { togglePop('scale-pop'); });
   $$('[data-close]').forEach(function (b) { b.addEventListener('click', function () { $('#' + b.dataset.close).hidden = true; }); });
@@ -2890,7 +2899,8 @@
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
     ],
     create: [
-      { t: 'Simulation du parcours…', i: 'play', a: simOpen, dis: function () { return !currentProfile; } }
+      { t: 'Simulation du parcours…', i: 'play', a: simOpen, dis: function () { return !currentProfile; } },
+      { t: 'Hors connexion et application…', i: 'download', a: function () { togglePop('off-pop', true); } }
     ],
     view: [
       { t: 'Fond de carte et informations…', i: 'map', a: function () { togglePop('layer-pop', true); popTab('base'); } },
@@ -2908,7 +2918,8 @@
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Installer l’application / hors connexion…', i: 'download', a: function () { togglePop('layer-pop', true); popTab('offline'); } },
+      { t: 'Installer l’application / hors connexion…', i: 'download', a: function () { togglePop('off-pop', true); } },
+      { t: 'Forcer la mise à jour du site (version ' + SITE_V + ')', i: 'download', a: forceUpdate },
       '-',
       { t: 'Tutoriel global', i: 'play', a: function () { openTuto('global'); } },
       { t: 'Tutoriel itinéraire', i: 'route', a: function () { openTuto('route'); } },
@@ -3091,7 +3102,7 @@
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
-    openOffline: function () { showHome(false); togglePop('layer-pop', true); popTab('offline'); },
+    openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,

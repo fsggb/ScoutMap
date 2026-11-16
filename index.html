@@ -407,13 +407,17 @@
         <button type="button" class="scalebtn" id="scale-btn" title="Échelle de la carte (cliquer pour la régler)"><small>Échelle</small><b id="scale-val">1 : 25 000</b></button>
       </div>
 
+      <div class="pop layer-pop" id="off-pop" hidden>
+        <div class="pop-h"><b>Hors connexion et application</b><button type="button" class="ibtn" data-close="off-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="offbox" id="off-box"></div>
+      </div>
+
       <div class="pop layer-pop" id="layer-pop" hidden>
         <div class="pop-h"><b>Fonds et informations</b><button type="button" class="ibtn" data-close="layer-pop" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button></div>
         <div class="seg full pop-tabs" id="pop-tabs" role="tablist">
           <button type="button" data-tab="base" class="on" role="tab">Fond de carte</button>
           <button type="button" data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
           <button type="button" data-tab="grid" role="tab">Grille</button>
-          <button type="button" data-tab="offline" role="tab">Hors connexion</button>
           <button type="button" data-tab="sharp" role="tab">Netteté</button>
         </div>
         <section class="pop-sec" data-tab="base">
@@ -421,9 +425,6 @@
           <div class="base-grid" id="base-grid"></div>
           <div class="scan-key"><b>SCAN 25 IGN</b><p>Carte IGN au 1 : 25 000, réservée aux détenteurs d’une clé personnelle gratuite (<a href="https://cartes.gouv.fr/aide/fr/partenaires/ign/representations-cartographiques-souveraines/creation-cles-donnees-scan/" target="_blank" rel="noopener">comment l’obtenir</a>). La clé reste sur cet appareil.</p><div class="scan-key-row"><input id="scan-key" type="password" autocomplete="off" spellcheck="false" placeholder="Clé (32 caractères) ou adresse du relais …/exec"><button type="button" id="scan-key-ok">Enregistrer</button><button type="button" id="scan-key-del" hidden>Retirer</button></div></div>
           <p class="note" id="base-note" hidden>Fonds libres OpenStreetMap : consultation à l’écran. L’impression multi-feuilles utilise le Plan IGN (données ouvertes de la Géoplateforme).</p>
-        </section>
-        <section class="pop-sec" data-tab="offline" hidden>
-          <div class="offbox" id="off-box"></div>
         </section>
         <section class="pop-sec" data-tab="grid" hidden>
           <p class="note first">Quadrillage affiché sur la carte et imprimé avec elle. La taille des cases suit l’échelle.</p>

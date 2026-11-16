@@ -149,11 +149,11 @@
       else if (t.closest('[data-oshow]')) show(+t.closest('[data-oshow]').dataset.oshow);
     });
     box.addEventListener('change', function (ev) { var c = ev.target.closest('[data-ol]'); if (c) { st.layers[c.dataset.ol] = c.checked; render(); } });
-    var tab = $('#pop-tabs [data-tab=offline]'); if (tab) tab.addEventListener('click', render);
-    map.on('moveend', function () { if (!$('#layer-pop').hidden && $('#layer-pop .pop-sec[data-tab=offline]') && !$('#layer-pop .pop-sec[data-tab=offline]').hidden && !st.busy) { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; } });
+  // la fenêtre « Hors connexion » est indépendante : rendue au démarrage et à chaque déplacement de la carte
+    map.on('moveend', function () { if (!$('#off-pop').hidden && !st.busy) { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; } });
   }
   var ho = $('#home-offline'); if (ho) ho.addEventListener('click', function () { if (SM.openOffline) SM.openOffline(); });
-  SM.install = install;
+  SM.install = install; SM.offRender = function () { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; };
   document.querySelectorAll('[data-install]').forEach(function (b) { b.addEventListener('click', install); });
   render();
 })();
