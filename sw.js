@@ -51,7 +51,8 @@ self.addEventListener('fetch', function (e) {
       const cache = await caches.open(SHELL);
       try {
         const ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, sameOrigin ? 5000 : 8000);
-        const r = await fetch(req, { signal: ctl.signal }); clearTimeout(t);
+        // pages et scripts du site : on revalide toujours auprès du serveur (le cache HTTP de GitHub Pages garde 10 min)
+        const r = await fetch(sameOrigin ? new Request(req, { cache: 'no-cache' }) : req, { signal: ctl.signal }); clearTimeout(t);
         if (r && r.ok) cache.put(req, r.clone());
         return r;
       } catch (er) {
