@@ -66,7 +66,7 @@
   var SCAN25_BUILD = '__SCAN25_KEY__';
   function scan25Src() {
     var v = '', t = ''; try { v = (localStorage.getItem('scoutmap.scan25key') || '').trim(); t = localStorage.getItem('scouthub.token') || ''; } catch (e) { /* ignoré */ }
-    return v || (/^[0-9a-f]{32}$/i.test(SCAN25_BUILD) ? SCAN25_BUILD : '') || (t ? 'hub' : '');   // « hub » : membre connecté à ScoutHub, la clé est gardée par le serveur ScoutHub
+    return v || (/^[0-9a-f]{32}$/i.test(SCAN25_BUILD) ? SCAN25_BUILD : '') || 'hub';   // « hub » : tuiles demandées au serveur ScoutHub (clé IGN gardée côté serveur), sans connexion nécessaire
   }
   var SCAN25_OK = /^(hub|[0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i;
   if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
@@ -226,9 +226,8 @@
         var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + msg + ').'); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
         var go = function () {
           var req = c.hub
-            ? Promise.resolve(window.ScoutHub && ScoutHub.ready).then(function () {
-                if (!window.SCOUTHUB_API) throw new Error('ScoutHub non configuré');
-                return fetch(window.SCOUTHUB_API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', token: localStorage.getItem('scouthub.token') || '', z: co.z, x: co.x, y: co.y }) });
+            ? hubApi().then(function (api) {
+                return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', token: localStorage.getItem('scouthub.token') || '', z: co.z, x: co.x, y: co.y }) });
               })
             : fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y);
           req.then(function (r) { return r.json(); }).then(function (j) {
@@ -2262,6 +2261,15 @@
     if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('sm-shell-') === 0; }).map(function (k) { return caches.delete(k); })); }));
     Promise.all(jobs).catch(function () {}).then(function () { toast('Mise à jour… rechargement'); setTimeout(function () { location.reload(); }, 400); });
   }
+  // Adresse du serveur ScoutHub : lue dans config.js de ScoutHub (même site), chargée à la demande.
+  var HUB_P = null;
+  function hubApi() {
+    if (window.SCOUTHUB_API) return Promise.resolve(window.SCOUTHUB_API);
+    if (HUB_P) return HUB_P;
+    function load(src) { return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = src; sc.onload = function () { window.SCOUTHUB_API ? res(window.SCOUTHUB_API) : rej(new Error('adresse du serveur absente')); }; sc.onerror = function () { rej(new Error('config ScoutHub introuvable')); }; document.head.appendChild(sc); }); }
+    HUB_P = load('/ScoutHub/config.js').catch(function () { return load('https://fsggb.github.io/ScoutHub/config.js'); }).catch(function (e) { HUB_P = null; throw new Error('ScoutHub injoignable (' + (e && e.message) + ')'); });
+    return HUB_P;
+  }
   function togglePop(id, force) {
     if (id === 'layer-pop') loadThumbs();
     if (id === 'off-pop' && window.SM && SM.offRender) SM.offRender();
@@ -2309,8 +2317,7 @@
   (function () {
     var inp = $('#scan-key'), ok = $('#scan-key-ok'), del = $('#scan-key-del'); if (!inp) return;
     var box = inp.closest('.scan-key');
-    if (SCAN25.cfg && SCAN25.cfg.hub) { box.innerHTML = '<b>SCAN 25 IGN</b><p>Vous êtes connecté à ScoutHub : le SCAN 25 est activé, aucune clé à saisir.</p>'; return; }
-    var hint = document.createElement('p'); hint.innerHTML = 'Membre FSGGB ? <a href="/ScoutHub/" target="_blank" rel="noopener">Connectez-vous à ScoutHub</a> dans ce navigateur, puis rechargez : le SCAN 25 s’active sans clé.'; box.insertBefore(hint, box.querySelector('.scan-key-row'));
+    if (SCAN25.cfg && SCAN25.cfg.hub) { box.innerHTML = '<b>SCAN 25 IGN</b><p>Activé pour tout le monde : la clé IGN est gardée par le serveur de la fédération, aucune saisie nécessaire.</p>'; return; }
     var own = ''; try { own = localStorage.getItem('scoutmap.scan25key') || ''; } catch (e) { /* ignoré */ }
     if (own) { inp.value = own; del.hidden = false; } else if (SCAN25.key) { inp.placeholder = 'Une clé est déjà intégrée au site'; }
     ok.addEventListener('click', function () {
