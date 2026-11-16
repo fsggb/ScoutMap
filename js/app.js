@@ -37,7 +37,7 @@
   var MODE_INFO = { route: { label: 'Itinéraire', icon: 'route' }, az: { label: 'Azimuts', icon: 'compass' }, meas: { label: 'Mesure', icon: 'ruler' }, game: { label: 'Grand jeu', icon: 'flag' } };
   var S = {
     name: '', pid: 0, mode: null, rail: 'route', panelOpen: true,
-    ver: 4, base: 'otm', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
+    ver: 5, base: 'scan25', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
     detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true }, grid: { type: 'none' },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
@@ -55,7 +55,8 @@
       if (Array.isArray(saved.layers)) S.layers = saved.layers.filter(function (l) { return l && l.data && l.type && FRESH[l.type]; });
       if (['route', 'az', 'game'].indexOf(S.rail) < 0) S.rail = 'route';
       if ((saved.ver || 0) < 4) { S.base = 'otm'; S.ov.hiking = true; }   // nouveaux réglages par défaut
-      S.ver = 4; S.layers = [];                                           // plus de calques superposés
+      if ((saved.ver || 0) < 5) S.base = 'scan25';                        // le SCAN 25 devient le fond par défaut
+      S.ver = 5; S.layers = [];                                           // plus de calques superposés
       if (!S.view || !S.view.c) S.view = { c: [46.6, 2.5], z: 5.6 };
       delete S.route.profile;
     }
@@ -214,11 +215,76 @@
       SCAN25.tried++; return null;
     }));
   }
+  // Adresse du serveur ScoutHub : lue dans config.js de ScoutHub (même site), chargée à la demande.
+  var HUB_P = null;
+  function hubApi() {
+    if (window.SCOUTHUB_API) return Promise.resolve(window.SCOUTHUB_API);
+    if (HUB_P) return HUB_P;
+    function load(src) { return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = src; sc.onload = function () { window.SCOUTHUB_API ? res(window.SCOUTHUB_API) : rej(new Error('adresse du serveur absente')); }; sc.onerror = function () { rej(new Error('config ScoutHub introuvable')); }; document.head.appendChild(sc); }); }
+    HUB_P = load('/ScoutHub/config.js').catch(function () { return load('https://fsggb.github.io/ScoutHub/config.js'); }).catch(function (e) { HUB_P = null; throw new Error('ScoutHub injoignable (' + (e && e.message) + ')'); });
+    return HUB_P;
+  }
+  // ---- Tuiles SCAN 25 par lots : une seule requête au serveur pour jusqu'à 16 tuiles (le serveur les demande à l'IGN en parallèle) + mémoire durable sur l'appareil.
+  var S25 = { q: [], timer: null, busy: 0, mem: {}, nmem: 0, store: null, batchOk: true };
+  function s25Store() { return S25.store || (S25.store = window.caches ? caches.open('sm-s25').catch(function () { return null; }) : Promise.resolve(null)); }
+  function s25Url(z, x, y) { return 'https://s25.local/' + z + '/' + x + '/' + y; }
+  function s25Get(z, x, y) {
+    var k = z + '/' + x + '/' + y; if (S25.mem[k]) return Promise.resolve(S25.mem[k]);
+    return s25Store().then(function (c) { return c ? c.match(s25Url(z, x, y)) : null; }).then(function (r) { return r ? r.text() : null; }).then(function (t) { if (t) { S25.mem[k] = t; S25.nmem++; } return t; }, function () { return null; });
+  }
+  function s25Put(z, x, y, d) {
+    if (S25.nmem > 250) { S25.mem = {}; S25.nmem = 0; }
+    S25.mem[z + '/' + x + '/' + y] = d; S25.nmem++;
+    s25Store().then(function (c) { if (c) return c.put(s25Url(z, x, y), new Response(d)); }).catch(function () { /* stockage plein : ignoré */ });
+  }
+  function s25Fetch(z, x, y) {
+    return s25Get(z, x, y).then(function (hit) { return hit || new Promise(function (res, rej) { S25.q.push({ z: z, x: x, y: y, res: res, rej: rej, n: 0 }); s25Kick(); }); });
+  }
+  function s25Kick() { if (S25.q.length >= 16) { s25Pump(); return; } if (!S25.timer) S25.timer = setTimeout(function () { S25.timer = null; s25Pump(); }, 30); }
+  function s25Pump() {
+    while (S25.busy < 3 && S25.q.length) s25Send(S25.q.splice(Math.max(0, S25.q.length - 16)));   // les tuiles les plus récentes d'abord (la vue actuelle)
+  }
+  function s25Retry(it, msg) {
+    if (/non configur|Limite|Action inconnue|invalide/.test(msg || '') || ++it.n >= 3) { it.rej(new Error(msg || 'échec')); return; }
+    setTimeout(function () { S25.q.push(it); s25Kick(); }, 600 * it.n);
+  }
+  function s25One(it) {   // ancien serveur sans lots : une tuile par requête
+    return hubApi().then(function (api) { return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', z: it.z, x: it.x, y: it.y }) }); })
+      .then(function (r) { return r.json(); }).then(function (j) { if (j.d) { s25Put(it.z, it.x, it.y, j.d); it.res(j.d); } else s25Retry(it, j.error || j.err); }, function (e) { s25Retry(it, e && e.message); });
+  }
+  function s25Send(items) {
+    S25.busy++;
+    var done = function () { S25.busy--; s25Pump(); };
+    if (!S25.batchOk) { Promise.all(items.map(s25One)).then(done, done); return; }
+    hubApi().then(function (api) { return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25b', t: items.map(function (i) { return [i.z, i.x, i.y]; }) }) }); })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok && j.error === 'Action inconnue.') { S25.batchOk = false; return Promise.all(items.map(s25One)); }
+        if (!j.ok) throw new Error(j.error || 'erreur du serveur');
+        items.forEach(function (it, k) { var d = j.t && j.t[k]; if (d) { s25Put(it.z, it.x, it.y, d); it.res(d); } else s25Retry(it, j.e || 'tuile absente'); });
+      }).catch(function (e) { items.forEach(function (it) { s25Retry(it, e && e.message); }); }).then(done, done);
+  }
+  // Aperçu réel du SCAN 25 (vraie tuile, comme les autres fonds) pour les vignettes
+  function s25Thumb(img) {
+    if (!img) return;
+    var n = 1 << 10, lat = 45.19 * Math.PI / 180, x = Math.floor((5.72 + 180) / 360 * n), y = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n);
+    s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ });
+  }
   function scan25Layer(off, extra) {
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
     var o = Object.assign({ maxZoom: 19, maxNativeZoom: 16, attribution: LAYERS.scan25.attr, keepBuffer: 2 }, extra || {});
     if (c.t === 'gas') {
       // Tuiles demandées au serveur Apps Script : 6 à la fois au plus (Google refuse les rafales), 3 essais, cause de l'échec signalée une fois.
+      if (c.hub) {
+        var H = L.GridLayer.extend({ createTile: function (co, done) {
+          var im = document.createElement('img'); im.alt = '';
+          s25Fetch(co.z, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
+            var m = (e && e.message) || 'échec'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer';
+            if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + m + ').'); } done(new Error(m), im);
+          });
+          return im;
+        } });
+        return new H(Object.assign({ tileSize: 256, minNativeZoom: 6, maxNativeZoom: 16 }, o));
+      }
       var running = 0, queue = [];
       var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
       var G = L.GridLayer.extend({ createTile: function (co, done) {
@@ -531,7 +597,7 @@
     $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
     $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', !!S.ov[b.dataset.ov]); });
     $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
-    $('#layer-thumb').src = thumbUrl(S.base);
+    $('#layer-thumb').src = thumbUrl(S.base); if (S.base === 'scan25' && SCAN25.cfg && SCAN25.cfg.hub) s25Thumb($('#layer-thumb'));
     $('#base-note').hidden = !!LAYERS[S.base].ign;
     renderDates(); hkRefresh(); wtRefresh();
     var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
@@ -2252,7 +2318,7 @@
 
   // ---------- Fonds, couches, netteté (fenêtres flottantes) ----------
   // Les vignettes des fonds ne sont chargées qu'à la première ouverture du panneau.
-  function loadThumbs() { $$('#base-grid img[data-src]').forEach(function (i) { if (i.dataset.src) { i.src = i.dataset.src; i.dataset.src = ''; } }); }
+  function loadThumbs() { $$('#base-grid img[data-src]').forEach(function (i) { if (i.dataset.src) { i.src = i.dataset.src; i.dataset.src = ''; var b = i.closest('button'); if (b && b.dataset.base === 'scan25' && SCAN25.cfg && SCAN25.cfg.hub) s25Thumb(i); } }); }
   // Version du site (identifiant du déploiement, lu dans l'adresse du script) et mise à jour forcée : efface le cache hors connexion et recharge.
   var SITE_V = (function () { var s = document.querySelector('script[src*="js/app.js"]'), m = s && /[?&]v=([0-9a-f]{6,})/.exec(s.src); return m ? m[1] : 'locale'; })();
   function forceUpdate() {
@@ -2260,15 +2326,6 @@
     if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
     if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('sm-shell-') === 0; }).map(function (k) { return caches.delete(k); })); }));
     Promise.all(jobs).catch(function () {}).then(function () { toast('Mise à jour… rechargement'); setTimeout(function () { location.reload(); }, 400); });
-  }
-  // Adresse du serveur ScoutHub : lue dans config.js de ScoutHub (même site), chargée à la demande.
-  var HUB_P = null;
-  function hubApi() {
-    if (window.SCOUTHUB_API) return Promise.resolve(window.SCOUTHUB_API);
-    if (HUB_P) return HUB_P;
-    function load(src) { return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = src; sc.onload = function () { window.SCOUTHUB_API ? res(window.SCOUTHUB_API) : rej(new Error('adresse du serveur absente')); }; sc.onerror = function () { rej(new Error('config ScoutHub introuvable')); }; document.head.appendChild(sc); }); }
-    HUB_P = load('/ScoutHub/config.js').catch(function () { return load('https://fsggb.github.io/ScoutHub/config.js'); }).catch(function (e) { HUB_P = null; throw new Error('ScoutHub injoignable (' + (e && e.message) + ')'); });
-    return HUB_P;
   }
   function togglePop(id, force) {
     if (id === 'layer-pop') loadThumbs();
