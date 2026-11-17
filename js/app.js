@@ -265,7 +265,8 @@
   }
   // Service de tuiles SCAN 25 (Cloudflare Workers, gratuit) : la clé IGN reste dans le coffre du service, les tuiles sont servies en binaire et mises en cache :
   // aussi rapide que les autres fonds. Sans adresse configurée (ou si le service tombe), on retombe sur les lots du serveur ScoutHub.
-  var S25P = { url: '', ok: false, fails: 0, seen: false };   // adresse du service : voir docs/cloudflare-scan25/LISEZ-MOI.md
+  // Service SCAN 25 : le serveur Cloudflare de ScoutHub (clé IGN dans le magasin de secrets du compte, cache 30 jours)
+  var S25P = { url: 'https://scouthub.fsggb.workers.dev/scan25/{z}/{x}/{y}.jpg', ok: true, fails: 0, seen: false };
   try { var u25 = localStorage.getItem('scoutmap.s25url'); if (u25 && /^https:\/\/[\w.-]+\/scan25\/\{z\}\/\{x\}\/\{y\}\.jpg$/.test(u25)) { S25P.url = u25; S25P.ok = true; } } catch (e) { /* ignoré */ }
   function s25ProxyUrl(z, x, y) { return S25P.url.replace('{z}', z).replace('{x}', x).replace('{y}', y); }
   // Aperçu réel du SCAN 25 (vraie tuile, comme les autres fonds) pour les vignettes
