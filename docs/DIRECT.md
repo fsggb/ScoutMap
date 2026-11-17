@@ -1,26 +1,11 @@
-# Jeu en direct (positions, chat, QR code)
+# Partage en direct (itinéraire, azimuts, grand jeu : positions, discussion, QR code)
 
-Un chef crée un jeu en direct depuis **Grand jeu ▸ Partager en direct…** : un QR code (et un lien) est affiché. Les autres chefs le scannent, saisissent leur prénom et voient le jeu en lecture seule, les positions des autres chefs en temps réel et le chat. Le créateur peut modifier le jeu ; ses modifications sont envoyées toutes les 4 secondes. Il peut aussi envoyer un **lien administrateur** (bouton Inviter) : l’autre chef devient co-administrateur et modifie la carte comme lui. « Révoquer » invalide les liens administrateur.
+Un chef partage ce qu'il a ouvert (**itinéraire**, **azimuts** ou **grand jeu**) avec le bouton **Partager en direct** : un QR code (et un lien) est affiché. Les autres chefs le scannent, saisissent leur prénom et voient la carte en lecture seule, les positions des autres chefs en temps réel et la discussion. Le créateur peut modifier la carte ; ses modifications sont envoyées toutes les 4 secondes. Il peut aussi envoyer un **lien administrateur** (bouton Inviter) : l’autre chef devient co-administrateur et modifie la carte comme lui. « Révoquer » invalide les liens administrateur.
 
 ## Principe
-- Base **Firebase Realtime Database** (Google), authentification **anonyme**. Config publique dans `js/firebase-config.js` (vide = fonction désactivée).
-- Tout ce qui est écrit (jeu, positions, messages) est **chiffré dans le navigateur** (AES-GCM) avec une clé qui n'est que dans le lien (`#k=…`, jamais envoyée au serveur). Identifiant de salle : 16 caractères aléatoires.
-- Règles d'accès : `docs/firebase-rules.json` (à coller dans Firebase ▸ Realtime Database ▸ Règles).
-- Les positions sont publiées si la case « Je partage ma position » est cochée (toutes les ~3 s, et au moins toutes les 12 s) ; décocher efface la position du jeu en direct. « Terminer le jeu en direct » supprime tout.
-- Limite : sur téléphone, le navigateur coupe la géolocalisation quand l'écran est verrouillé.
-
-## Mise en place Firebase
-1. console.firebase.google.com : créer un projet, ajouter une application web (`</>`) et copier `firebaseConfig`.
-2. Authentication ▸ Méthode de connexion ▸ **Anonyme** : activer.
-3. Realtime Database ▸ Créer (Belgique, mode verrouillé), puis **Règles** : coller `docs/firebase-rules.json`.
-4. Renseigner `window.SM_FIREBASE = { … }` dans `js/firebase-config.js` (avec `databaseURL`).
-
-## Azimuts et avatars
-- **Azimuts :** le bouton « Partager en direct… » existe aussi dans l'application Azimuts : les autres chefs voient le parcours (points, azimuts, distances, profil) et les positions ; chaque chef peut se placer à un poste.
-- **Avatars :** dans l'onglet « Chefs », « Mon avatar » permet de choisir une icône (celles du thème du jeu) et une couleur ; elles servent de marqueur de position et d'image dans la discussion.
-
-## Liens administrateur (règles à mettre à jour)
-Les règles Firebase ont changé : recoller `docs/firebase-rules.json` dans Realtime Database ▸ Règles, puis Publier. Le lien administrateur contient un jeton secret (`&a=…`) ; il est enregistré dans `admtok` (non lisible par les autres) et le co-administrateur s’inscrit dans `admins/<son identifiant>`.
-
-## Règles évolutives
-Les règles acceptent tout nouveau champ ajouté à une salle (`rooms/<salle>/<nouveau champ>`) : le créateur et les co-administrateurs peuvent l'écrire, tous les participants connectés peuvent le lire (texte jusqu'à 200 ko, nombre, booléen ou objet). Une nouvelle fonction du jeu en direct qui ajoute des données au niveau de la salle n'oblige donc pas à republier les règles. Il ne faut les modifier que pour une donnée que chaque participant écrit lui-même (comme `pos` et `chat`) ou qui doit rester secrète (comme `admtok`).
+- Service : le serveur **Cloudflare** de ScoutHub (`wss://scouthub.fsggb.workers.dev/direct/<identifiant>`, code dans le dépôt ScoutHub, dossier `cloudflare/`, classe `Partage`). Un objet par partage, connexions WebSocket ; rien à configurer dans ScoutMap.
+- Tout ce qui est envoyé (carte, positions, messages) est **chiffré dans le navigateur** (AES-GCM) avec une clé qui n'est que dans le lien (`#k=…`, jamais envoyée au serveur). Identifiant du partage : 16 caractères aléatoires.
+- Droits vérifiés par le serveur : seul le créateur (secret gardé sur son appareil) ou un co-administrateur (jeton du lien administrateur) peut changer la carte ; seul le créateur peut créer ou révoquer les liens administrateur et terminer le partage.
+- Les positions sont publiées si la case « Je partage ma position » est cochée (toutes les ~3 s, et au moins toutes les 12 s) ; décocher efface la position. « Terminer le partage » supprime tout ; un partage inactif est effacé au bout de 3 jours.
+- Coupure réseau : reconnexion automatique. Sur téléphone, le navigateur coupe la géolocalisation quand l'écran est verrouillé.
+- Anciens liens `?salle=` : toujours acceptés (mais les partages créés avec l'ancien service Firebase n'existent plus).
