@@ -1,5 +1,7 @@
 # Service de tuiles SCAN 25 (Cloudflare Workers) : gratuit, rapide, clé privée
 
+> **En service :** le serveur Cloudflare de ScoutHub (`https://scouthub.fsggb.workers.dev/scan25/{z}/{x}/{y}.jpg`, code dans le dépôt ScoutHub, dossier `cloudflare/`) rend déjà ce service ; la clé IGN est dans le magasin de secrets du compte (`IGN_SCAN25_KEY`). Le Worker séparé décrit ci-dessous n'est plus nécessaire.
+
 - **Gratuit, sans carte bancaire** : offre « Workers Free » de Cloudflare (100 000 demandes par jour).
 - **Clé privée** : elle est enregistrée comme « secret » du Worker. Elle n'apparaît ni dans le code, ni dans ScoutMap, ni dans le navigateur.
 - **Rapide** : les tuiles sont servies en binaire et gardées 7 jours dans le cache Cloudflare : la 2e demande d'une même tuile est instantanée pour tout le monde.
