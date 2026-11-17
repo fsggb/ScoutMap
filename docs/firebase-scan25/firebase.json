@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "public": "hosting",
+    "rewrites": [
+      { "source": "/scan25/**", "function": { "functionId": "scan25", "region": "europe-west1" } }
+    ]
+  },
+  "functions": [
+    { "source": "functions", "codebase": "default", "runtime": "nodejs20" }
+  ]
+}

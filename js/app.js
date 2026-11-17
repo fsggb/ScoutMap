@@ -263,10 +263,15 @@
         items.forEach(function (it, k) { var d = j.t && j.t[k]; if (d) { s25Put(it.z, it.x, it.y, d); it.res(d); } else s25Retry(it, j.e || 'tuile absente'); });
       }).catch(function (e) { items.forEach(function (it) { s25Retry(it, e && e.message); }); }).then(done, done);
   }
+  // Service de tuiles SCAN 25 sur Firebase (clé IGN gardée côté serveur, tuiles servies en binaire et mises en cache par le CDN Firebase) :
+  // aussi rapide que les autres fonds. Tant qu'il n'est pas déployé (ou s'il tombe), on retombe sur les lots du serveur ScoutHub.
+  var S25P = { url: 'https://scoutmap-fsggb.web.app/scan25/{z}/{x}/{y}.jpg', ok: true, fails: 0, seen: false };
+  function s25ProxyUrl(z, x, y) { return S25P.url.replace('{z}', z).replace('{x}', x).replace('{y}', y); }
   // Aperçu réel du SCAN 25 (vraie tuile, comme les autres fonds) pour les vignettes
   function s25Thumb(img) {
     if (!img) return;
     var n = 1 << 10, lat = 45.19 * Math.PI / 180, x = Math.floor((5.72 + 180) / 360 * n), y = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n);
+    if (S25P.ok) { img.onerror = function () { img.onerror = null; s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ }); }; img.src = s25ProxyUrl(10, x, y); return; }
     s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ });
   }
   function scan25Layer(off, extra) {
@@ -277,10 +282,22 @@
       if (c.hub) {
         var H = L.GridLayer.extend({ createTile: function (co, done) {
           var im = document.createElement('img'); im.alt = '';
-          s25Fetch(co.z, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
-            var m = (e && e.message) || 'échec'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer';
-            if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + m + ').'); } done(new Error(m), im);
-          });
+          var viaRelay = function () {   // secours : lots demandés au serveur ScoutHub
+            s25Fetch(co.z, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
+              var m = (e && e.message) || 'échec'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer';
+              if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + m + ').'); } done(new Error(m), im);
+            });
+          };
+          if (!S25P.ok) { viaRelay(); return im; }
+          var plain = false;
+          im.crossOrigin = 'anonymous';
+          im.onload = function () { S25P.seen = true; S25P.fails = 0; done(null, im); };
+          im.onerror = function () {
+            if (!plain) { plain = true; im.removeAttribute('crossorigin'); im.src = s25ProxyUrl(co.z, co.x, co.y); return; }   // sans CORS : l'affichage marche quand même
+            if (!S25P.seen && ++S25P.fails >= 4) S25P.ok = false;
+            viaRelay();
+          };
+          im.src = s25ProxyUrl(co.z, co.x, co.y);
           return im;
         } });
         return new H(Object.assign({ tileSize: 256, minNativeZoom: 6, maxNativeZoom: 16 }, o));
