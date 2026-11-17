@@ -418,7 +418,6 @@
           <button type="button" data-tab="base" class="on" role="tab">Fond de carte</button>
           <button type="button" data-tab="info" role="tab">Informations<i class="tab-badge" id="tab-badge" hidden></i></button>
           <button type="button" data-tab="grid" role="tab">Grille</button>
-          <button type="button" data-tab="sharp" role="tab">Netteté</button>
         </div>
         <section class="pop-sec" data-tab="base">
           <p class="note first">Le dessin de la carte (un seul à la fois).</p>
@@ -432,13 +431,9 @@
         </section>
         <section class="pop-sec" data-tab="info" hidden>
           <p class="note first">Informations ajoutées par-dessus le fond, à combiner comme vous voulez.</p>
+          <p class="note" id="ov-scan-note" hidden>Sentiers balisés et courbes de niveau sont déjà dessinés sur le SCAN 25 : ils sont masqués ici.</p>
           <div class="ov-grid" id="ov-grid"></div>
           <button type="button" class="btn-ghost" id="ov-none"><svg class="ic"><use href="#i-x"/></svg>Tout retirer</button>
-        </section>
-        <section class="pop-sec" data-tab="sharp" hidden>
-          <p class="note first">Précision du fond de carte à l’écran et à l’impression.</p>
-          <div class="seg full" id="detail-seg"><button type="button" data-v="auto">Auto</button><button type="button" data-v="0">Standard</button><button type="button" data-v="1">Détaillée</button><button type="button" data-v="2">Très détaillée</button></div>
-          <p class="note"><b>Auto</b> (recommandé) : fond standard quand vous voyez une grande étendue (toute la France), fond détaillé dès que vous vous approchez. « Détaillée » affiche le niveau de carte immédiatement plus précis, réduit à l’échelle choisie : à 1 : 25 000, vous voyez le fond du niveau juste au-dessus, au lieu d’une carte dézoomée.</p>
         </section>
         <div class="data-dates" id="data-dates"></div>
       </div>
