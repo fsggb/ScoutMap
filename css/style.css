@@ -1243,6 +1243,7 @@ body.gw-open #gbar,body.gw-open #gpalette,body.gw-open #share-btn{display:none!i
 .base-grid .base-main button{font-size:12.5px}
 .base-grid .base-more{grid-column:1/-1;display:block;width:100%;margin-top:4px;padding:9px 12px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;color:var(--navy);font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;flex-direction:row}
 .base-grid .base-more:hover{background:#f4f5fb}
+.data-dates p{margin:0;font-size:11.5px;color:#6a6d80}
 @page{size:A4 portrait;margin:10mm}
 
 /* ---------- Adaptation aux petits écrans ---------- */

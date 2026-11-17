@@ -365,7 +365,7 @@
     applyLayers();
   }
   // ---------- Date de mise à jour des données (catalogue IGN, CSW de la Géoplateforme) ----------
-  var DSET = { plan: 'IGNF_PLAN-IGN', ortho: 'IGNF_BD-ORTHO', etat: 'IGNF_SCAN-EM-40K', contour: 'IGNF_COURBES-DE-NIVEAU', shade: 'IGNF_BD-ALTI',
+  var DSET = { scan25: 'IGNF_SCAN-25', plan: 'IGNF_PLAN-IGN', ortho: 'IGNF_BD-ORTHO', etat: 'IGNF_SCAN-EM-40K', contour: 'IGNF_COURBES-DE-NIVEAU', shade: 'IGNF_BD-ALTI',
     lidar: 'IGNF_MNT-LIDAR-HD', slope: 'IGNF_BD-ALTI', cadastre: 'IGNF_PARCELLAIRE-EXPRESS-PCI' };
   var DDATE = {};   // identifiant de jeu de données -> 'AAAA-MM-JJ'
   try { var dc = JSON.parse(localStorage.getItem('scoutmap.dates') || '{}'); if (dc && Date.now() - (dc.t || 0) < 864e5) DDATE = dc.d || {}; } catch (e) { /* ignore */ }
@@ -396,15 +396,9 @@
   }
   var attrDate = '';
   function renderDates() {
-    var keys = [S.base].concat(OVERS.filter(ovOn)), html = '';
-    keys.forEach(function (k) {
-      var i = layerDate(k); if (!i) return;
-      html += '<li' + (i.old ? ' class="old"' : '') + '><b>' + esc(LAYERS[k].label) + '</b><span>' + esc(i.txt) + (i.old ? ' · à vérifier' : '') + '</span></li>';
-    });
-    var el = $('#data-dates');
-    if (el) el.innerHTML = '<h4>Mise à jour des données</h4><ul>' + html + '</ul>' +
-      (S.base === 'ortho' ? '<p class="note">Photographies : la date de prise de vue varie selon le département. <a href="https://data.geopf.fr/annexes/ressources/fiches/photographies-aeriennes-RVB/geoportail_dates_des_prises_de_vues_aeriennes-RVB.pdf" target="_blank" rel="noopener">Voir les dates par département (IGN)</a>.</p>' : '') +
-      '<p class="note">Date de révision indiquée par le catalogue de la Géoplateforme (IGN) ; elle peut précéder de quelques semaines l’affichage de la carte.</p>';
+    var el = $('#data-dates'), i = layerDate(S.base), txt = '';
+    if (i) txt = i.iso ? 'Mise à jour : ' + fmtDate(i.iso) : (i.pending || ['etat', 'carte1950', 'cassini', 'cassiniroi', 'photo1950'].indexOf(S.base) >= 0) ? '' : 'Mise à jour continue';
+    if (el) el.innerHTML = txt ? '<p>' + esc(txt) + '</p>' : '';
     // ligne discrète en bas de la carte : date du fond
     var bi = layerDate(S.base);
     if (attrCtl) {
@@ -626,7 +620,6 @@
     $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', ovOn(b.dataset.ov)); b.hidden = S.base === 'scan25' && !!SCAN_HAS[b.dataset.ov]; });
     $('#ov-scan-note').hidden = S.base !== 'scan25';
     $('#layer-thumb').src = thumbUrl(S.base); if (S.base === 'scan25' && SCAN25.cfg && SCAN25.cfg.hub) s25Thumb($('#layer-thumb'));
-    $('#base-note').hidden = !!LAYERS[S.base].ign;
     renderDates(); hkRefresh(); wtRefresh();
     var nOv = OVERS.filter(ovOn).length;
     [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
