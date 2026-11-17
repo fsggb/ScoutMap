@@ -367,12 +367,11 @@
   // ---------- Date de mise à jour des données (catalogue IGN, CSW de la Géoplateforme) ----------
   var DSET = { scan25: 'IGNF_SCAN-25', plan: 'IGNF_PLAN-IGN', ortho: 'IGNF_BD-ORTHO', etat: 'IGNF_SCAN-EM-40K', contour: 'IGNF_COURBES-DE-NIVEAU', shade: 'IGNF_BD-ALTI',
     lidar: 'IGNF_MNT-LIDAR-HD', slope: 'IGNF_BD-ALTI', cadastre: 'IGNF_PARCELLAIRE-EXPRESS-PCI' };
-  var DDATE = {};   // identifiant de jeu de données -> 'AAAA-MM-JJ'
-  try { var dc = JSON.parse(localStorage.getItem('scoutmap.dates') || '{}'); if (dc && Date.now() - (dc.t || 0) < 864e5) DDATE = dc.d || {}; } catch (e) { /* ignore */ }
+  var DDATE = {};   // identifiant de jeu de données -> 'AAAA-MM-JJ' (dernière date connue, affichée tout de suite puis revérifiée à chaque ouverture)
+  try { var dc = JSON.parse(localStorage.getItem('scoutmap.dates') || '{}'); if (dc && dc.d) DDATE = dc.d; } catch (e) { /* ignore */ }
   function fmtDate(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); }
   function ageDays(iso) { return Math.round((Date.now() - new Date(iso + 'T12:00:00').getTime()) / 864e5); }
   function fetchDate(id) {
-    if (DDATE[id]) return Promise.resolve(DDATE[id]);
     return fetch(GP + '/csw?REQUEST=GetRecordById&SERVICE=CSW&VERSION=2.0.2&OUTPUTSCHEMA=http://standards.iso.org/iso/19115/-3/mdb/2.0&elementSetName=full&ID=' + encodeURIComponent(id))
       .then(function (r) { return r.ok ? r.text() : ''; }).then(function (x) {
         var best = '', re = /<cit:CI_Date>([\s\S]*?)<\/cit:CI_Date>/g, m;
@@ -407,10 +406,14 @@
       if (attrDate) attrCtl.addAttribution(attrDate);
     }
   }
+  // Les dates sont relues auprès du catalogue de l'IGN à chaque ouverture, puis toutes les 20 minutes et au retour sur l'onglet : une nouvelle édition s'affiche d'elle-même.
+  var datesT = 0;
   function loadDates() {
-    var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; });
+    var ids = {}; Object.keys(DSET).forEach(function (k) { ids[DSET[k]] = 1; }); datesT = Date.now();
     Promise.all(Object.keys(ids).map(fetchDate)).then(renderDates);
   }
+  setInterval(function () { if (document.visibilityState === 'visible') loadDates(); }, 20 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && Date.now() - datesT > 5 * 60 * 1000) loadDates(); });
   // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (via Waymarked Trails) ----------
   // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
   // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
