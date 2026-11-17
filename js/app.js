@@ -356,7 +356,8 @@
   var GROUPS = { route: gRoute, az: gAz, meas: gMeas, game: gGame };
 
   // Netteté : automatique = fond standard quand on voit une grande étendue, détaillé quand on s'approche.
-  function wantOff() { return S.detail === 'auto' ? (curScale() >= 200000 ? 0 : 1) : +S.detail; }
+  // Netteté toujours automatique : fond détaillé dès qu'on s'approche, sauf sur un écran à faible densité de pixels où cela ne changerait rien à l'œil.
+  function wantOff() { var dpr = window.devicePixelRatio || 1; return curScale() >= 200000 || dpr < 1.25 ? 0 : 1; }
   function buildTiles() {
     Object.keys(tiles).forEach(function (k) { map.removeLayer(tiles[k]); });
     tiles = {};
@@ -395,7 +396,7 @@
   }
   var attrDate = '';
   function renderDates() {
-    var keys = [S.base].concat(OVERS.filter(function (k) { return S.ov[k]; })), html = '';
+    var keys = [S.base].concat(OVERS.filter(ovOn)), html = '';
     keys.forEach(function (k) {
       var i = layerDate(k); if (!i) return;
       html += '<li' + (i.old ? ' class="old"' : '') + '><b>' + esc(LAYERS[k].label) + '</b><span>' + esc(i.txt) + (i.old ? ' · à vérifier' : '') + '</span></li>';
@@ -595,36 +596,39 @@
   function hkNeeds(b, z) { return hkCells(b).filter(function (c) { var cell = HK.cells[c[0] + ',' + c[1]]; return !cell || (!cell.osm && Date.now() - cell.osmT > 60000) || (z >= HK_IGNZ && !cell.ign && Date.now() - cell.ignT > 60000); }); }
   function hkRefresh() {
     HK.group.clearLayers();
-    if (!S.ov.hiking) { if (map.hasLayer(HK.group)) map.removeLayer(HK.group); return; }
+    if (!ovOn('hiking')) { if (map.hasLayer(HK.group)) map.removeLayer(HK.group); return; }
     if (!map.hasLayer(HK.group)) HK.group.addTo(map);
     var z = map.getZoom(); if (z < HK_MINZ) return;
     var b = map.getBounds();
     hkDraw(HK.group, b, z, true);
     var todo = hkNeeds(b, z);
-    if (todo.length) Promise.all(todo.map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { if (S.ov.hiking && map.getZoom() >= HK_MINZ) { HK.group.clearLayers(); hkDraw(HK.group, map.getBounds(), map.getZoom(), true); } });
+    if (todo.length) Promise.all(todo.map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { if (ovOn('hiking') && map.getZoom() >= HK_MINZ) { HK.group.clearLayers(); hkDraw(HK.group, map.getBounds(), map.getZoom(), true); } });
   }
   var hkTimer; map.on('moveend zoomend', function () { clearTimeout(hkTimer); hkTimer = setTimeout(hkRefresh, 350); });
   // Pour les documents imprimés : charge les cellules nécessaires puis dessine dans la carte du document.
   function hikeDraw(m) {
-    if (!S.ov.hiking) return Promise.resolve();
+    if (!ovOn('hiking')) return Promise.resolve();
     var b = m.getBounds(), z = m.getZoom();
     return Promise.all(hkCells(b).map(function (c) { return hkFetchCell(c[0], c[1], z >= HK_IGNZ); })).then(function () { hkDraw(m, b, z, true); });
   }
+  // Ce que le SCAN 25 dessine déjà : inutile (et gênant) de le superposer.
+  var SCAN_HAS = { hiking: true, contour: true };
+  function ovOn(k) { return !!S.ov[k] && !(S.base === 'scan25' && SCAN_HAS[k]); }
   function applyLayers() {
     if (S.base === 'scan25' && !SCAN25.cfg) S.base = 'plan';
     Object.keys(LAYERS).forEach(function (k) {
-      var on = LAYERS[k].base ? k === S.base : !!S.ov[k];
+      var on = LAYERS[k].base ? k === S.base : ovOn(k);
       if (k === 'hiking' || LAYERS[k].vector) on = false;   // sentiers et points d'eau sont dessinés en vectoriel
       if (on) { if (!map.hasLayer(tiles[k])) tiles[k].addTo(map); } else if (map.hasLayer(tiles[k])) map.removeLayer(tiles[k]);
     });
     tiles[S.base].bringToBack();
     $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
-    $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', !!S.ov[b.dataset.ov]); });
-    $$('#detail-seg button').forEach(function (b) { b.classList.toggle('on', String(b.dataset.v) === String(S.detail)); });
+    $$('#ov-grid button').forEach(function (b) { b.classList.toggle('on', ovOn(b.dataset.ov)); b.hidden = S.base === 'scan25' && !!SCAN_HAS[b.dataset.ov]; });
+    $('#ov-scan-note').hidden = S.base !== 'scan25';
     $('#layer-thumb').src = thumbUrl(S.base); if (S.base === 'scan25' && SCAN25.cfg && SCAN25.cfg.hub) s25Thumb($('#layer-thumb'));
     $('#base-note').hidden = !!LAYERS[S.base].ign;
     renderDates(); hkRefresh(); wtRefresh();
-    var nOv = OVERS.filter(function (k) { return S.ov[k]; }).length;
+    var nOv = OVERS.filter(ovOn).length;
     [$('#tab-badge'), $('#lb-badge')].forEach(function (b) { b.hidden = !nOv; b.textContent = '+' + nOv; });
   }
   // Panneau « Fonds et informations » : trois onglets (fond de carte / informations affichées / netteté).
@@ -677,7 +681,7 @@
   map.on('zoom move', updateScaleUI);
   map.on('zoomend', function () {
     updateScaleUI();
-    if (S.detail === 'auto') { var o = wantOff(); if (o !== curOff) { curOff = o; buildTiles(); } }
+    { var o = wantOff(); if (o !== curOff) { curOff = o; buildTiles(); } }
   });
   $('#zoom-in').addEventListener('click', function () { map.zoomIn(); });
   $('#zoom-out').addEventListener('click', function () { map.zoomOut(); });
@@ -2363,12 +2367,14 @@
   document.addEventListener('mousedown', function (e) {
     if (!e.target.closest('.pop,.layerbtn,.scalebtn,#open-basemaps')) closePops();
   });
-  $('#base-grid').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.base = b.dataset.base; applyLayers(); persist(); } });
-  $('#ov-grid').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.ov[b.dataset.ov] = !S.ov[b.dataset.ov]; applyLayers(); persist(); } });
-  $('#detail-seg').addEventListener('click', function (e) {
+  $('#base-grid').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
-    S.detail = b.dataset.v === 'auto' ? 'auto' : +b.dataset.v; curOff = wantOff(); buildTiles(); persist();
+    if (b.dataset.more) { baseMore = !baseMore; renderBaseGrid(); return; }
+    if (!b.dataset.base) return;
+    S.base = b.dataset.base; if (BASE_MAIN.indexOf(S.base) >= 0) baseMore = false;
+    applyLayers(); renderBaseGrid(); persist();
   });
+  $('#ov-grid').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { S.ov[b.dataset.ov] = !S.ov[b.dataset.ov]; applyLayers(); persist(); } });
   // Groupes de fonds : cartes actuelles, photographies, cartes anciennes (du plus récent au plus ancien)
   var BASEGROUPS = [['Cartes actuelles', ['plan', 'scan25', 'otm', 'osm', 'osmfr', 'cyclosm']], ['Photographies aériennes', ['ortho', 'esri', 'photo1950']], ['Cartes anciennes', ['carte1950', 'etat', 'cassiniroi', 'cassini']]];
   var BASEYEAR = { carte1950: '≈ 1950', etat: '1820-1866', cassiniroi: 'XVIIIe siècle', cassini: 'XVIIIe siècle', photo1950: '1950-1965' };
@@ -2382,15 +2388,27 @@
   function baseOrdered() { var out = []; BASEGROUPS.forEach(function (g) { g[1].forEach(function (k) { if (LAYERS[k] && !LAYERS[k].hidden && out.indexOf(k) < 0) out.push(k); }); }); BASES.forEach(function (k) { if (!LAYERS[k].hidden && out.indexOf(k) < 0) out.push(k); }); return out; }
   function groupOf(k) { for (var i = 0; i < BASEGROUPS.length; i++) if (BASEGROUPS[i][1].indexOf(k) >= 0) return BASEGROUPS[i][0]; return 'Autres'; }
   window.SM_baseMeta = { groups: BASEGROUPS, year: BASEYEAR, fit: baseFit, ordered: baseOrdered, groupOf: groupOf };
+  // Choix par défaut : SCAN 25, puis photos aériennes récentes ; tous les autres fonds sont dans « Tous les fonds de carte… ».
+  var BASE_MAIN = ['scan25', 'ortho'], BASE_MAIN_LBL = { scan25: 'SCAN 25 (carte IGN)', ortho: 'Photos aériennes récentes' }, baseMore = false;
+  function baseBtn(k, sc, lat, lbl) {
+    var f = baseFit(k, sc, lat), name = lbl || LAYERS[k].label;
+    return '<button type="button" data-base="' + k + '" class="' + (f.ok ? '' : 'poor') + '" title="' + esc(LAYERS[k].label + (BASEYEAR[k] ? ' (' + BASEYEAR[k] + ')' : '') + (f.ok ? '' : ' : ' + f.text)) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(name) + '</span>' + (f.ok ? '' : '<i class="bg-w">Déconseillé à cette échelle</i>') + '</button>';
+  }
   function renderBaseGrid() {
-    var sc = curScale(), lat = map.getCenter().lat, h = '';
-    BASEGROUPS.forEach(function (g) {
-      h += '<h4 class="bg-h">' + esc(g[0]) + '</h4>';
-      g[1].forEach(function (k) {
-        if (!LAYERS[k] || LAYERS[k].hidden) return; var f = baseFit(k, sc, lat);
-        h += '<button type="button" data-base="' + k + '" class="' + (f.ok ? '' : 'poor') + '" title="' + esc(LAYERS[k].label + (BASEYEAR[k] ? ' (' + BASEYEAR[k] + ')' : '') + (f.ok ? '' : ' : ' + f.text)) + '"><img alt="" data-src="' + thumbUrl(k) + '"><span>' + esc(LAYERS[k].label) + '</span>' + (f.ok ? '' : '<i class="bg-w">Déconseillé à cette échelle</i>') + '</button>';
+    var sc = curScale(), lat = map.getCenter().lat, h = '<div class="base-main">', viewer = document.body.classList.contains('viewer');
+    var main = BASE_MAIN.filter(function (k) { return LAYERS[k] && !LAYERS[k].hidden; });
+    if (main.indexOf(S.base) < 0 && LAYERS[S.base]) main.push(S.base);   // fond choisi dans la bibliothèque : reste visible ici
+    main.forEach(function (k) { h += baseBtn(k, sc, lat, BASE_MAIN_LBL[k]); });
+    h += '</div>';
+    if (!viewer) h += '<button type="button" class="base-more" data-more="1">' + (baseMore ? 'Masquer les autres fonds' : 'Tous les fonds de carte…') + '</button>';
+    if (baseMore && !viewer) {
+      BASEGROUPS.forEach(function (g) {
+        var ks = g[1].filter(function (k) { return LAYERS[k] && !LAYERS[k].hidden && BASE_MAIN.indexOf(k) < 0; });
+        if (!ks.length) return;
+        h += '<h4 class="bg-h">' + esc(g[0]) + '</h4>';
+        ks.forEach(function (k) { h += baseBtn(k, sc, lat); });
       });
-    });
+    }
     $('#base-grid').innerHTML = h;
     $$('#base-grid button').forEach(function (b) { b.classList.toggle('on', b.dataset.base === S.base); });
     if (typeof loadThumbs === 'function' && !$('#layer-pop').hidden) loadThumbs();
@@ -3088,7 +3106,7 @@
       S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
       // la page seule s'ouvre cadrée sur le jeu (la mise en page est terminée après un court délai)
       if (!window.SM_LIVE_ROOM) setTimeout(function () { map.invalidateSize(); var b0 = layerBounds(S.rail === 'route' ? 'route' : S.rail); if (b0 && b0.isValid && b0.isValid()) fit(b0, { padding: [50, 50], maxZoom: 18 }); }, 500);
-      $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho'].indexOf(b.dataset.base) < 0) b.hidden = true; });
+      $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho', 'scan25'].indexOf(b.dataset.base) < 0) b.hidden = true; });
       $$('#pop-tabs [data-tab=sharp]').forEach(function (b) { b.hidden = true; });
       $('#btn-edit').hidden = !!window.SM_LIVE_ROOM;
       $('#btn-edit').addEventListener('click', function () { window.open(APP_URL + '#projet=' + b64e(JSON.stringify(projData(false))), '_blank'); });
@@ -3198,7 +3216,7 @@
   window.SM = {
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
-    layerDate: layerDate, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
+    layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,

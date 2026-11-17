@@ -216,7 +216,7 @@
         })();
       });
       setTimeout(fin, 30000);
-      Object.keys(SM.LAYERS).forEach(function (k) { var d = SM.LAYERS[k]; if (!d.base && !d.vector && S.ov[k] && (!o.ignOnly || d.ign) && (k !== 'hiking' || SM.hikeFailed())) SM.tile(k, off).addTo(m); });
+      Object.keys(SM.LAYERS).forEach(function (k) { var d = SM.LAYERS[k]; if (!d.base && !d.vector && SM.ovOn(k) && (!o.ignOnly || d.ign) && (k !== 'hiking' || SM.hikeFailed())) SM.tile(k, off).addTo(m); });
     });
     docMaps.push(m); return m;
   }
