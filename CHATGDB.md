@@ -21,7 +21,8 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 
 ## Limites
 - Itinéraires : à pied ou en voiture seulement (pas de vélo/VTT).
-- Pas de SCAN 25 (clé API requise) ; le Plan IGN le remplace.
+- SCAN 25 (carte IGN au 1:25 000) : fond `scan25`, servi par le serveur Cloudflare de ScoutHub (clé IGN cachée), jusqu’au zoom 16.
+- Partage en direct (itinéraire, azimuts ou grand jeu) : QR code et lien `?direct=…`, positions, discussion, chiffrés ; serveur Cloudflare de ScoutHub.
 - La déclinaison magnétique est à saisir à la main ; la convergence des méridiens est ignorée.
 - Le dénivelé est une estimation lissée (échantillons d'environ 40 m).
 
