@@ -5,7 +5,8 @@ Un seul bouton : **Partager** (colonne de boutons à droite de la carte). Un QR 
 ## Le panneau (3 onglets)
 - **Personnes** : qui est connecté (en ligne, parti il y a x min), qui partage sa position. Un interrupteur « Montrer ma position sur la carte » (activé par défaut). Un clic sur une personne centre la carte sur elle ; « Voir tout le monde sur la carte » cadre tout le groupe. Chacun se voit sur la carte, avec son prénom, dès que sa position est connue.
 - **Discussion** : messages de tout le monde, pastille rouge quand un message arrive.
-- **Réglages** : prénom, droits (lecture seule, co-administrateur, chef), appel vocal Google Meet, lien co-administrateur (pour le chef), quitter ou terminer le partage.
+- **Réglages** : prénom, droits (lecture seule, co-administrateur, chef), lien co-administrateur (pour le chef), quitter ou terminer le partage.
+- Une **pastille verte** sur le bouton « Partage » (même côté que les alertes) indique le nombre de personnes connectées ; une pastille rouge à gauche signale les messages non lus.
 - Le bouton **Inviter** (en haut du panneau) rouvre le QR code à tout moment.
 
 Les avatars ont été supprimés : chaque personne est un rond de couleur avec l'initiale de son prénom.
