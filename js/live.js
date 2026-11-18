@@ -1,6 +1,7 @@
 /* ScoutMap : partage en direct d'un itinéraire, d'azimuts ou d'un grand jeu.
-   Un bouton « Partager » : QR code / lien pour inviter, puis un panneau à trois onglets — Personnes (qui est connecté, qui est où),
-   Discussion, Réglages. Chaque personne connectée apparaît sur la carte avec son prénom.
+   Un onglet « Partage » dans le panneau latéral : bouton « Partager » (QR code / lien pour inviter), puis trois onglets — Personnes (qui est connecté,
+   qui est où), Discussion, Réglages. Chaque personne connectée apparaît sur la carte avec son prénom. Les personnes invitées (page en lecture seule,
+   sans panneau latéral) retrouvent la même interface dans un panneau flottant.
    Les échanges passent par le serveur Cloudflare de ScoutHub (une connexion WebSocket par partage), chiffrés (AES-GCM) dans le navigateur
    avec une clé qui n'est que dans le lien : le serveur ne voit rien de lisible. Seul le chef qui a lancé le partage (ou un co-administrateur)
    modifie la carte ; les autres la reçoivent en lecture seule. */
@@ -99,7 +100,7 @@
       if (st.chat.some(function (c) { return c.k === m.k; })) return;
       st.chat.push({ k: m.k, at: m.at || now(), d: d }); st.chat.sort(function (a, b) { return a.at - b.at; }); if (st.chat.length > 120) st.chat.shift();
       var fresh = now() - (m.at || now()) < 30000;
-      if (d.u !== st.uid && fresh && !(st.panelOpen && st.tab === 'chat')) { st.unread++; badge(); }
+      if (d.u !== st.uid && fresh && !(isOpen() && st.tab === 'chat')) { st.unread++; badge(); }
       var meet = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(d.m || '');
       if (meet && now() - (m.at || now()) < 3 * 3600 * 1000) { st.call = meet[0]; showCall(); }
       renderChat();
@@ -112,15 +113,20 @@
   }
 
   // ---------- Panneau : Personnes / Discussion / Réglages ----------
-  var btn, panel, dlg;
+  var btn, panel, dlg, floating = !!window.SM_VIEWER;
+  function modeNow() { return S.mode === 'az' ? 'les azimuts' : S.mode === 'route' ? 'l’itinéraire' : S.mode === 'game' ? 'le grand jeu' : ''; }
   function build() {
     if (panel) return;
-    btn = document.createElement('button'); btn.id = 'live-btn'; btn.type = 'button'; btn.hidden = true; btn.title = 'Partage en direct : personnes connectées et discussion'; btn.setAttribute('aria-label', 'Partage en direct');
-    btn.innerHTML = '<svg class="ic"><use href="#i-people"/></svg><i class="lv-badge" hidden></i>';
-    var z = $('.zoomctl'); if (z) z.appendChild(btn); else document.body.appendChild(btn);
-    btn.addEventListener('click', function () { togglePanel(); });
-    panel = document.createElement('div'); panel.id = 'live-panel'; panel.hidden = true;
+    if (floating) {
+      btn = document.createElement('button'); btn.id = 'live-btn'; btn.type = 'button'; btn.hidden = true; btn.title = 'Partage en direct : personnes connectées et discussion'; btn.setAttribute('aria-label', 'Partage en direct');
+      btn.innerHTML = '<svg class="ic"><use href="#i-people"/></svg><i class="lv-badge" hidden></i>';
+      var z = $('.zoomctl'); if (z) z.appendChild(btn); else document.body.appendChild(btn);
+      btn.addEventListener('click', function () { togglePanel(); });
+    }
+    panel = document.createElement('div'); panel.id = 'live-panel'; panel.hidden = floating;
     panel.innerHTML =
+      '<div class="lv-idle" id="lv-idle"></div>' +
+      '<div id="lv-live" hidden>' +
       '<div class="lv-head"><div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
       '<button type="button" class="btn-primary sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button>' +
       '<button type="button" class="ibtn" id="lv-x" aria-label="Réduire"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
@@ -134,8 +140,9 @@
         '<button type="button" class="btn-ghost sm" id="lv-all">Voir tout le monde sur la carte</button></div>' +
       '<div class="lv-pane" data-lp="chat" hidden><div class="lv-chat" id="lv-chat" aria-live="polite"></div>' +
         '<form class="lv-form" id="lv-form"><input id="lv-msg" type="text" maxlength="400" placeholder="Écrire un message…" autocomplete="off"><button type="submit" class="btn-primary sm">Envoyer</button></form></div>' +
-      '<div class="lv-pane" data-lp="settings" hidden><div id="lv-set"></div></div>';
-    ($('.stage') || document.body).appendChild(panel);
+      '<div class="lv-pane" data-lp="settings" hidden><div id="lv-set"></div></div></div>';
+    var host = !floating && $('#live-host');
+    if (host) host.appendChild(panel); else ($('.stage') || document.body).appendChild(panel);
     dlg = document.createElement('dialog'); dlg.id = 'dlg-live'; dlg.className = 'dlg-live'; document.body.appendChild(dlg);
     $('#lv-x').addEventListener('click', function () { togglePanel(false); });
     $('#lv-invite').addEventListener('click', showInvite);
@@ -150,7 +157,20 @@
       if (p.lat != null) { map.setView([p.lat, p.lon], Math.max(map.getZoom(), 15), { animate: true }); if (window.innerWidth <= 860) togglePanel(false); }
       else toast(r.dataset.u === st.uid ? (st.geoErr ? geoText() : 'Votre position n’est pas partagée.') : (p.n || 'Cette personne') + ' ne partage pas sa position.');
     });
+    var rb = $('#rail-share'); if (rb) rb.addEventListener('click', function () { setTimeout(onOpen, 0); });
+    renderIdle();
   }
+  // Écran d'accueil de l'onglet « Partage » tant qu'aucun partage n'est en cours
+  function renderIdle() {
+    var el = $('#lv-idle'); if (!el) return;
+    var q = modeNow();
+    el.innerHTML = q
+      ? '<p><b>Partagez ' + q + ' avec d’autres personnes.</b></p><ul><li>Elles scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion est incluse.</li></ul><button type="button" class="btn-primary" id="lv-startbtn"><svg class="ic"><use href="#i-people"/></svg>Partager maintenant</button><p class="lv-note">Tout est chiffré : seules les personnes qui ont le lien peuvent lire.</p>'
+      : '<p><b>Le partage en direct</b> fonctionne avec un itinéraire, des azimuts ou un grand jeu. Ouvrez-en un depuis l’accueil, puis revenez ici.</p>';
+    var b = $('#lv-startbtn'); if (b) b.addEventListener('click', start);
+  }
+  function isOpen() { return floating ? st.panelOpen : (SM.subOpen && SM.subOpen() === 'share'); }
+  function onOpen() { if (!st.room) { renderIdle(); return; } if (st.tab === 'chat') { st.unread = 0; badge(); var c = $('#lv-chat'); if (c) c.scrollTop = c.scrollHeight; } renderPeople(); }
   function setTab(k) {
     st.tab = k; $$('.lv-tabs [data-lt]').forEach(function (t) { t.classList.toggle('on', t.dataset.lt === k); });
     $$('.lv-pane').forEach(function (p) { p.hidden = p.dataset.lp !== k; });
@@ -159,10 +179,18 @@
     if (k === 'people') renderPeople();
   }
   function togglePanel(on) {
-    st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen; document.body.classList.toggle('lv-open', st.panelOpen);
-    if (st.panelOpen) { if (st.tab === 'chat') { st.unread = 0; badge(); var c = $('#lv-chat'); c.scrollTop = c.scrollHeight; } renderPeople(); }
+    if (floating) {
+      st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen; document.body.classList.toggle('lv-open', st.panelOpen);
+    } else {
+      var open = SM.subOpen && SM.subOpen() === 'share', want = on === undefined ? !open : on;
+      if (want && !open) SM.showSub('share'); else if (!want && open) SM.showSub(null);
+    }
+    if (isOpen()) onOpen();
   }
-  function badge() { var b = $('.lv-badge', btn), n = st.unread > 9 ? '9+' : st.unread; b.hidden = !st.unread; b.textContent = n; var t = $('#lv-tb'); if (t) { t.hidden = !st.unread; t.textContent = n; } }
+  function badge() {
+    var n = st.unread > 9 ? '9+' : st.unread, b = btn && $('.lv-badge', btn), r = $('#share-badge'), t = $('#lv-tb');
+    [b, r, t].forEach(function (e) { if (e) { e.hidden = !st.unread; e.textContent = n; } });
+  }
   function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
   function showCall() { var a = $('#lv-call'); if (!a || !st.call) return; a.href = st.call; a.hidden = false; }
 
@@ -230,7 +258,8 @@
     }).then(function () { startGeo(); saveSession(); toast('Partage en direct retrouvé.'); }).catch(function () { st.fini = true; if (st.ws) st.ws.close(); st.room = null; st.key = null; st.owner = false; st.admin = false; clearSession(); });
   }
   function active() {
-    btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
+    if (btn) btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
+    $('#lv-idle').hidden = true; $('#lv-live').hidden = false; var rs = $('#rail-share'); if (rs) rs.classList.add('live-on');
     st.known = null; setTab('people'); renderSettings(); togglePanel(true);
     st.timers.push(setInterval(renderPeople, 5000));
     st.timers.push(setInterval(function () { beat(); }, 10000));
@@ -417,7 +446,8 @@
     stopGeo(); st.fini = true; if (st.ws) { try { st.ws.close(); } catch (e) { /* ignoré */ } st.ws = null; } st.carte = null; st.loaded = false;
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.remote = {}; st.chat = []; st.unread = 0; st.call = null; st.known = null;
-    if (btn) btn.hidden = true; if (panel) panel.hidden = true; st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active');
+    if (btn) btn.hidden = true; if (floating && panel) panel.hidden = true; st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active');
+    if ($('#lv-live')) { $('#lv-live').hidden = true; $('#lv-idle').hidden = false; renderIdle(); } var rs = $('#rail-share'); if (rs) rs.classList.remove('live-on'); badge();
     if ($('#lv-call')) $('#lv-call').hidden = true; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
     st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.psec = null; st.lastGame = '';
     clearSession();
@@ -433,5 +463,5 @@
   else if (!room && P && P.get('salle')) setTimeout(function () { toast('Ce lien date de l’ancien système de partage, qui n’existe plus : demandez un nouveau QR code.'); }, 600);
   else if (!room) setTimeout(resume, 800);
   else if (room) { build(); setTimeout(function () { toast('Lien incomplet : scannez de nouveau le QR code (il manque la clé).'); }, 600); }
-  var gb = $('#share-btn'); if (gb) gb.addEventListener('click', start);
+  build();
 })();

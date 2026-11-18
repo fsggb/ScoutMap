@@ -118,6 +118,7 @@
     <span class="rail-line"></span>
     <button type="button" class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
     <span class="rail-sp"></span>
+    <button type="button" class="rail-btn" data-rail="share" id="rail-share" title="Partage en direct : inviter, voir qui est connecté, discuter"><svg class="ic"><use href="#i-people"/></svg><span>Partage</span><i class="rail-badge" id="share-badge" hidden></i></button>
     <button type="button" class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
     <button type="button" class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
   </nav>
@@ -305,6 +306,10 @@
           <button type="button" class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
+    <section class="pane" data-pane="share" hidden>
+      <h2 class="pane-title">Partage en direct</h2>
+      <div id="live-host"></div>
+    </section>
     <section class="pane" data-pane="notif" hidden>
       <h2 class="pane-title">Alertes</h2>
       <p class="help">Les informations importantes sur votre travail en cours apparaissent ici : tracé qui repasse au même endroit, route nationale, tunnel, distance maximale dépassée, points hors sentier…</p>
@@ -397,7 +402,6 @@
         <button type="button" id="zoom-out" title="Zoom arrière (échelle inférieure)" aria-label="Zoom arrière"><svg class="ic"><use href="#i-minus"/></svg></button>
         <button type="button" id="fit-all" title="Recadrer la carte sur le tracé" aria-label="Recadrer sur le tracé"><svg class="ic"><use href="#i-fit"/></svg></button>
         <button type="button" id="locate" title="Ma position" aria-label="Ma position"><svg class="ic"><use href="#i-locate"/></svg></button>
-        <button type="button" id="share-btn" class="share-btn" title="Partager en direct avec les autres chefs (code QR, positions, discussion)" aria-label="Partager en direct"><svg class="ic"><use href="#i-people"/></svg><span>Partager</span></button>
       </div>
 
       <div class="bl">

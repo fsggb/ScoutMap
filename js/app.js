@@ -817,7 +817,7 @@
     b.addEventListener('click', function () {
       var r = b.dataset.rail;
       if (r === 'home') { showHome(true); return; }
-      if (r === 'notif' || r === 'settings') { showSub(SUB === r ? null : r); return; }
+      if (r === 'notif' || r === 'settings' || r === 'share') { showSub(SUB === r ? null : r); return; }
       // bouton de l'application en cours : revient aux outils (ou rouvre le panneau)
       if (SUB) { showSub(null); return; }
       if (!S.panelOpen) { S.panelOpen = true; applyPanel(); persist(); return; }
@@ -3213,6 +3213,7 @@
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
+    showSub: showSub, subOpen: function () { return SUB; },
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
