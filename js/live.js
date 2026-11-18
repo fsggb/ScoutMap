@@ -77,6 +77,8 @@
         if (m.t === 'pos') { decodeOne(m.u, m.d, m.at); return; }
         if (m.t === 'sanspos') { delete st.remote[m.u]; renderPeople(); return; }
         if (m.t === 'msg') { recuMsg(m); return; }
+        if (m.t === 'sig') { if (SM.appel) SM.appel.sig(m); return; }
+        if (m.t === 'turn') { if (SM.appel) SM.appel.turn(m); return; }
         if (m.t === 'fin') { if (!st.owner) finish('Le partage a été terminé par la personne qui l’avait lancé.'); return; }
         if (m.t === 'revoque') { st.admin = false; st.atok = null; saveSession(); renderSettings(); toast('Votre lien administrateur a été révoqué : vous suivez ' + quoi() + ' en lecture seule.'); }
       };
@@ -104,8 +106,10 @@
       renderChat();
     }).catch(function () { /* ignoré */ });
   }
+  // Carte encore vide chez le chef : on n'échoue pas, elle s'affichera dès qu'elle sera publiée
+  function attenteCarte(e) { if (e && /Rien n/.test(e.message || '')) { toast('Le partage est lancé, mais rien n’est encore posé sur la carte : elle apparaîtra dès que la personne qui partage aura dessiné.'); return; } throw e; }
   function carteRecue() {
-    if (!st.loaded) return;
+    if (!st.loaded) { if (!st.owner) loadGame().catch(function () { /* ignoré */ }); return; }
     if (st.admin) { if (st.lastGame && JSON.stringify(snapshot()) !== st.lastGame) return; loadGame(false, true).catch(function () { /* ignoré */ }); return; }
     loadGame().catch(function () { /* ignoré */ });
   }
@@ -128,6 +132,7 @@
       '<div class="lv-head"><div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
       '<button type="button" class="btn-primary sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button>' +
       '<button type="button" class="ibtn" id="lv-x" aria-label="Réduire"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
+      '<div class="lv-callbar" id="lv-callbar" hidden></div>' +
       '<div class="lv-tabs" role="tablist"><button type="button" role="tab" data-lt="people" class="on">Personnes</button>' +
       '<button type="button" role="tab" data-lt="chat">Discussion <i class="lv-tb" id="lv-tb" hidden></i></button>' +
       '<button type="button" role="tab" data-lt="settings">Réglages</button></div>' +
@@ -163,7 +168,7 @@
     var q = modeNow();
     el.innerHTML = q
       ? '<p><b>Partagez ' + q + ' avec d’autres personnes.</b></p><ul><li>Elles scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion est incluse.</li></ul><button type="button" class="btn-primary" id="lv-startbtn"><svg class="ic"><use href="#i-people"/></svg>Partager maintenant</button><p class="lv-note">Tout est chiffré : seules les personnes qui ont le lien peuvent lire.</p>'
-      : '<p><b>Le partage en direct</b> fonctionne avec un itinéraire, des azimuts ou un grand jeu. Ouvrez-en un depuis l’accueil, puis revenez ici.</p>';
+      : '<p><b>Partagez la carte en direct avec d’autres personnes.</b></p><ul><li>Elles scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion et des appels vocaux sont inclus.</li></ul><button type="button" class="btn-primary" id="lv-startbtn"><svg class="ic"><use href="#i-people"/></svg>Partager maintenant</button><p class="lv-note">La carte est vide pour l’instant : ce que vous poserez (itinéraire, azimuts, grand jeu) apparaîtra chez les autres. Tout est chiffré.</p>';
     var b = $('#lv-startbtn'); if (b) b.addEventListener('click', start);
   }
   function isOpen() { return floating ? st.panelOpen : (SM.subOpen && SM.subOpen() === 'share'); }
@@ -213,9 +218,8 @@
     if (!configured()) { toast('Ce navigateur ne permet pas le partage en direct.'); return; }
     if (!window.crypto || !crypto.subtle) { toast('Le partage en direct demande une connexion sécurisée (https).'); return; }
     if (st.room) { togglePanel(true); return; }
-    if (S.mode !== 'game' && S.mode !== 'az' && S.mode !== 'route') { toast('Ouvrez un itinéraire, des azimuts ou un grand jeu pour le partager.'); return; }
-    st.mode = S.mode;
-    if (!hasContent()) { toast(st.mode === 'az' ? 'Posez d’abord des points sur la carte des azimuts, puis partagez-les.' : st.mode === 'route' ? 'Posez d’abord le départ et au moins une étape de l’itinéraire, puis partagez-le.' : 'Dessinez d’abord quelque chose sur la carte du jeu, puis partagez-le.'); return; }
+    st.mode = (S.mode === 'game' || S.mode === 'az' || S.mode === 'route') ? S.mode : 'game';
+    var vide = S.mode !== st.mode || !hasContent();     // carte vide : simple avertissement, le partage n'est pas bloqué
     getName('Partager ' + quoi() + ' en direct', 'Lancer le partage', function () {
       toast('Lancement du partage…');
       st.room = rand(16); st.key = b64u(crypto.getRandomValues(new Uint8Array(16))); st.psec = rand(32);
@@ -224,6 +228,7 @@
         st.owner = true; return publishGame();
       }).then(function () {
         active(); startGeo(); showInvite(); saveSession();
+        if (vide) setTimeout(function () { toast('Attention : la carte est vide pour l’instant. Le partage est lancé ; ce que vous poserez sur la carte apparaîtra chez les autres.'); }, 900);
       }).catch(function (e) { st.fini = true; if (st.ws) st.ws.close(); st.room = null; toast('Impossible de lancer le partage : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
     });
   }
@@ -236,7 +241,7 @@
       toast('Connexion au partage…');
       importKey(key).then(function (k) { st.ck = k; return connect({ adm: atok }); }).then(function (m) {
         if (m.admin && !m.proprio) st.atok = atok;
-        active(); return st.owner ? null : loadGame();
+        active(); return st.owner ? null : loadGame().catch(attenteCarte);
       }).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); if (!window.SM_VIEWER) SM.setMode(st.mode); toast('Vous êtes co-administrateur : vous pouvez modifier la carte.'); } startGeo(); saveSession(); })
         .catch(function (e) { if (e && e.name === 'OperationError') e = new Error('Lien incomplet : scannez de nouveau le QR code.'); st.fini = true; if (st.ws) st.ws.close(); st.room = null; toast(e && e.message ? e.message : 'Connexion impossible.'); });
     };
@@ -250,7 +255,7 @@
     build(); st.room = s.room; st.key = s.key; st.psec = s.psec || null; st.atok = s.atok || null; st.mode = s.mode || 'game';
     importKey(s.key).then(function (k) { st.ck = k; return connect(); }).then(function () {
       if (s.owner && !st.owner) throw new Error('fin');
-      active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
+      active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().catch(attenteCarte).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
     }).then(function () { startGeo(); saveSession(); toast('Partage en direct retrouvé.'); }).catch(function () { st.fini = true; if (st.ws) st.ws.close(); st.room = null; st.key = null; st.owner = false; st.admin = false; clearSession(); });
   }
   function active() {
@@ -358,6 +363,7 @@
       var p = all[u], online = on(u), me = u === st.uid, state = me ? (st.geoErr && st.share ? '<button type="button" class="lv-retry" data-retry>Réessayer</button>' : '') : online ? (p.lat != null ? 'en ligne · position partagée' : 'en ligne · position non partagée') : 'parti ' + ago(p.t);
       return '<button type="button" class="lv-p' + (online ? '' : ' old') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c || colorOf(u)) + '">' + initial(p.n) + '</i><span class="lv-pn"><b>' + esc(p.n || '?') + (me ? ' (moi)' : '') + '</b><small>' + (me ? (p.lat != null ? 'sur la carte' : 'pas sur la carte') : state) + '</small></span>' + (me ? state : '') + (p.lat != null ? '<svg class="ic lv-loc"><use href="#i-target"/></svg>' : '') + '</button>';
     }).join('');
+    if (SM.appel) SM.appel.maj();
     // annonces discrètes : « Marie a rejoint »
     if (st.known === null) { st.known = {}; ids.forEach(function (u) { st.known[u] = 1; }); }
     else ids.forEach(function (u) { if (!st.known[u]) { st.known[u] = 1; if (u !== st.uid && on(u) && all[u].n) toast(all[u].n + ' a rejoint le partage.'); } });
@@ -423,6 +429,7 @@
     var moi = st.owner; setTimeout(function () { finish(moi ? 'Partage terminé.' : 'Vous avez quitté le partage.'); }, moi ? 300 : 0);
   }
   function finish(msg) {
+    if (SM.appel) SM.appel.fin();
     stopGeo(); st.fini = true; if (st.ws) { try { st.ws.close(); } catch (e) { /* ignoré */ } st.ws = null; } st.carte = null; st.loaded = false;
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.remote = {}; st.chat = []; st.unread = 0; st.known = null;
@@ -436,6 +443,8 @@
 
   // ---------- Branchements ----------
   SM.live = { start: start, join: join, active: function () { return !!st.room; } };
+  // Interface interne pour appel.js (appels vocaux) : état du partage, chiffrement, envoi, annonces
+  SM.liveApi = { st: st, enc: enc, dec: dec, envoi: envoi, toast: toast, esc: esc, colorOf: colorOf, everyone: everyone, initial: initial, isOpen: isOpen, togglePanel: togglePanel };
   var P; try { P = new URLSearchParams(location.search); } catch (e) { P = null; }
   var room = P && P.get('direct'), km = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);
   var am = /[#&]a=([A-Za-z0-9_-]+)/.exec(location.hash);
