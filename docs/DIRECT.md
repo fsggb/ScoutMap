@@ -1,11 +1,19 @@
-# Partage en direct (itinéraire, azimuts, grand jeu : positions, discussion, QR code)
+# Partage en direct (itinéraire, azimuts, grand jeu)
 
-Un chef partage ce qu'il a ouvert (**itinéraire**, **azimuts** ou **grand jeu**) avec le bouton **Partager en direct** : un QR code (et un lien) est affiché. Les autres chefs le scannent, saisissent leur prénom et voient la carte en lecture seule, les positions des autres chefs en temps réel et la discussion. Le créateur peut modifier la carte ; ses modifications sont envoyées toutes les 4 secondes. Il peut aussi envoyer un **lien administrateur** (bouton Inviter) : l’autre chef devient co-administrateur et modifie la carte comme lui. « Révoquer » invalide les liens administrateur.
+Un seul bouton : **Partager** (colonne de boutons à droite de la carte). Un QR code et un lien s'affichent : les personnes invitées le scannent, entrent leur prénom (une seule fois) et apparaissent aussitôt sur la carte.
 
-## Principe
-- Service : le serveur **Cloudflare** de ScoutHub (`wss://scouthub.fsggb.workers.dev/direct/<identifiant>`, code dans le dépôt ScoutHub, dossier `cloudflare/`, classe `Partage`). Un objet par partage, connexions WebSocket ; rien à configurer dans ScoutMap.
-- Tout ce qui est envoyé (carte, positions, messages) est **chiffré dans le navigateur** (AES-GCM) avec une clé qui n'est que dans le lien (`#k=…`, jamais envoyée au serveur). Identifiant du partage : 16 caractères aléatoires.
-- Droits vérifiés par le serveur : seul le créateur (secret gardé sur son appareil) ou un co-administrateur (jeton du lien administrateur) peut changer la carte ; seul le créateur peut créer ou révoquer les liens administrateur et terminer le partage.
-- Les positions sont publiées si la case « Je partage ma position » est cochée (toutes les ~3 s, et au moins toutes les 12 s) ; décocher efface la position. « Terminer le partage » supprime tout ; un partage inactif est effacé au bout de 3 jours.
-- Coupure réseau : reconnexion automatique. Sur téléphone, le navigateur coupe la géolocalisation quand l'écran est verrouillé.
-- Anciens liens `?salle=` : toujours acceptés (mais les partages créés avec l'ancien service Firebase n'existent plus).
+## Le panneau (3 onglets)
+- **Personnes** : qui est connecté (en ligne, parti il y a x min), qui partage sa position. Un interrupteur « Montrer ma position sur la carte » (activé par défaut). Un clic sur une personne centre la carte sur elle ; « Voir tout le monde sur la carte » cadre tout le groupe. Chacun se voit sur la carte, avec son prénom, dès que sa position est connue.
+- **Discussion** : messages de tout le monde, pastille rouge quand un message arrive.
+- **Réglages** : prénom, droits (lecture seule, co-administrateur, chef), appel vocal Google Meet, lien co-administrateur (pour le chef), quitter ou terminer le partage.
+- Le bouton **Inviter** (en haut du panneau) rouvre le QR code à tout moment.
+
+Les avatars ont été supprimés : chaque personne est un rond de couleur avec l'initiale de son prénom.
+
+## Principe technique
+- Service : le serveur **Cloudflare** de ScoutHub (`wss://scouthub.fsggb.workers.dev/direct/<identifiant>`, code dans le dépôt ScoutHub, dossier `cloudflare/`, classe `Partage`). Un objet par partage, connexions WebSocket. **Firebase n'est plus utilisé nulle part.**
+- Tout ce qui est envoyé (carte, positions, présence, messages) est **chiffré dans le navigateur** (AES-GCM) avec une clé qui n'est que dans le lien (`#k=…`, jamais envoyée au serveur). Identifiant du partage : 16 caractères aléatoires.
+- Présence : chaque appareil envoie un signe de vie chiffré toutes les 10 s (avec sa position s'il la partage). « En ligne » = signe de vie de moins de 45 s ; une personne absente depuis plus de 15 min disparaît de la liste. Quitter envoie un départ immédiat.
+- Droits vérifiés par le serveur : seul le créateur (secret gardé sur son appareil) ou un co-administrateur (jeton du lien administrateur) peut changer la carte ; seul le créateur peut créer ou révoquer le lien co-administrateur et terminer le partage. Les autres reçoivent la carte en lecture seule ; les modifications du chef sont envoyées toutes les 4 s.
+- « Terminer le partage » supprime tout ; un partage inactif est effacé au bout de 3 jours. Coupure réseau : reconnexion automatique. Sur téléphone, le navigateur coupe la géolocalisation quand l'écran est verrouillé.
+- Anciens liens `?salle=` (ancien service Firebase) : ils n'existent plus ; ScoutMap l'indique et demande un nouveau QR code.
