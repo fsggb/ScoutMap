@@ -101,8 +101,6 @@
       st.chat.push({ k: m.k, at: m.at || now(), d: d }); st.chat.sort(function (a, b) { return a.at - b.at; }); if (st.chat.length > 120) st.chat.shift();
       var fresh = now() - (m.at || now()) < 30000;
       if (d.u !== st.uid && fresh && !(isOpen() && st.tab === 'chat')) { st.unread++; badge(); }
-      var meet = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(d.m || '');
-      if (meet && now() - (m.at || now()) < 3 * 3600 * 1000) { st.call = meet[0]; showCall(); }
       renderChat();
     }).catch(function () { /* ignoré */ });
   }
@@ -130,7 +128,6 @@
       '<div class="lv-head"><div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
       '<button type="button" class="btn-primary sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button>' +
       '<button type="button" class="ibtn" id="lv-x" aria-label="Réduire"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
-      '<a class="lv-call" id="lv-call" target="_blank" rel="noopener" hidden>📞 Appel en cours : rejoindre</a>' +
       '<div class="lv-tabs" role="tablist"><button type="button" role="tab" data-lt="people" class="on">Personnes</button>' +
       '<button type="button" role="tab" data-lt="chat">Discussion <i class="lv-tb" id="lv-tb" hidden></i></button>' +
       '<button type="button" role="tab" data-lt="settings">Réglages</button></div>' +
@@ -192,7 +189,6 @@
     [b, r, t].forEach(function (e) { if (e) { e.hidden = !st.unread; e.textContent = n; } });
   }
   function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
-  function showCall() { var a = $('#lv-call'); if (!a || !st.call) return; a.href = st.call; a.hidden = false; }
 
   // ---------- Création et accès ----------
   function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : st.mode === 'route' ? S.route.wps.length > 1 : S.game.shapes.length > 0; }
@@ -259,7 +255,7 @@
   }
   function active() {
     if (btn) btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
-    $('#lv-idle').hidden = true; $('#lv-live').hidden = false; var rs = $('#rail-share'); if (rs) rs.classList.add('live-on');
+    $('#lv-idle').hidden = true; $('#lv-live').hidden = false; 
     st.known = null; setTab('people'); renderSettings(); togglePanel(true);
     st.timers.push(setInterval(renderPeople, 5000));
     st.timers.push(setInterval(function () { beat(); }, 10000));
@@ -287,7 +283,7 @@
 
   // ---------- Discussion ----------
   function linkify(s) {
-    return esc(s || '').replace(/(https?:\/\/[^\s<]+)/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + (/meet\.google\.com/.test(u) ? '📞 Rejoindre l’appel Meet' : u) + '</a>'; });
+    return esc(s || '').replace(/(https?:\/\/[^\s<]+)/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
   }
   function renderChat() {
     var box = $('#lv-chat'); if (!box) return;
@@ -302,21 +298,6 @@
     if (!st.room) return;
     enc({ u: st.uid, n: st.name, c: colorOf(st.uid), m: m.slice(0, 400) }).then(function (e) { if (!envoi({ t: 'msg', d: e })) toast('Message non envoyé : connexion en cours de rétablissement.'); }).catch(function () { toast('Message non envoyé.'); });
   }
-  // Appel vocal : on ouvre Google Meet, puis le lien de la réunion est collé ici et envoyé à tout le monde
-  function callDialog() {
-    var d = dlgOpen('<h2>Appel vocal</h2><p class="dlg-sub">1. Ouvrez Google Meet et démarrez une réunion.<br>2. Collez ci-dessous le lien de la réunion : il sera envoyé à tout le monde dans la discussion.</p>' +
-      '<div class="dlg-actions" style="justify-content:flex-start"><a class="btn-ghost" href="https://meet.google.com/new" target="_blank" rel="noopener">1. Ouvrir Google Meet</a></div>' +
-      '<input class="lv-link" id="lv-meetlink" type="url" placeholder="https://meet.google.com/abc-defg-hij" aria-label="Lien de la réunion Meet">' +
-      '<div class="dlg-actions"><button class="btn-ghost" id="lv-mc" type="button">Annuler</button><button class="btn-primary" id="lv-ms" type="button">2. Envoyer le lien</button></div>');
-    var i = $('#lv-meetlink', d); i.focus();
-    $('#lv-mc', d).addEventListener('click', function () { d.close(); });
-    function send() {
-      var v = i.value.trim(); if (!/^https?:\/\//i.test(v)) { toast('Collez le lien complet de la réunion (il commence par https://).'); return; }
-      sendChat('📞 Appel vocal : ' + v); d.close(); setTab('chat'); toast('Lien envoyé.');
-    }
-    $('#lv-ms', d).addEventListener('click', send); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
-  }
-
   // ---------- Ma position (affichée tout de suite sur la carte, indépendamment du serveur) ----------
   function geoText() {
     if (!st.share) return 'Masquée : les autres ne voient pas où vous êtes.';
@@ -370,6 +351,7 @@
     ids.sort(function (a, b) { return a === st.uid ? -1 : b === st.uid ? 1 : (on(b) - on(a)) || (all[a].n || '').localeCompare(all[b].n || ''); });
     var nOn = ids.filter(on).length;
     $('#lv-count').textContent = nOn + (nOn > 1 ? ' personnes connectées' : ' personne connectée');
+    var rc = $('#share-count'); if (rc) { rc.hidden = false; rc.textContent = String(nOn); rc.title = nOn + (nOn > 1 ? ' personnes connectées' : ' personne connectée'); }
     var sh = $('#lv-sharing'); if (sh) sh.checked = st.share;
     var g = $('#lv-geo'); if (g) g.textContent = geoText();
     $('#lv-people').innerHTML = ids.map(function (u) {
@@ -404,12 +386,10 @@
     el.innerHTML =
       '<label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="btn-ghost sm" id="lv-nms">Enregistrer</button></span></label>' +
       '<p class="lv-role">' + esc(droits) + '</p>' +
-      '<button type="button" class="btn-ghost" id="lv-meet">📞 Appel vocal (Google Meet)</button>' +
       (st.owner ? '<div class="lv-adm"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="dlg-actions"><button class="btn-ghost sm" id="lv-acopy" type="button">Copier le lien</button><button class="btn-ghost sm" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
       '<button type="button" class="btn-ghost danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button>';
     function saveNm() { var n = $('#lv-nm').value.trim(); if (!n) return; saveName(n); beat(true); renderPeople(); toast('Prénom enregistré.'); }
     $('#lv-nms').addEventListener('click', saveNm); $('#lv-nm').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNm(); });
-    $('#lv-meet').addEventListener('click', callDialog);
     $('#lv-end').addEventListener('click', endOrLeave);
     var ac = $('#lv-acopy');
     if (ac) {
@@ -445,10 +425,10 @@
   function finish(msg) {
     stopGeo(); st.fini = true; if (st.ws) { try { st.ws.close(); } catch (e) { /* ignoré */ } st.ws = null; } st.carte = null; st.loaded = false;
     st.timers.forEach(clearInterval); st.timers = [];
-    gLive.clearLayers(); st.markers = {}; st.remote = {}; st.chat = []; st.unread = 0; st.call = null; st.known = null;
+    gLive.clearLayers(); st.markers = {}; st.remote = {}; st.chat = []; st.unread = 0; st.known = null;
     if (btn) btn.hidden = true; if (floating && panel) panel.hidden = true; st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active');
-    if ($('#lv-live')) { $('#lv-live').hidden = true; $('#lv-idle').hidden = false; renderIdle(); } var rs = $('#rail-share'); if (rs) rs.classList.remove('live-on'); badge();
-    if ($('#lv-call')) $('#lv-call').hidden = true; if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
+    if ($('#lv-live')) { $('#lv-live').hidden = true; $('#lv-idle').hidden = false; renderIdle(); } var rc = $('#share-count'); if (rc) rc.hidden = true; badge();
+    if ($('#lv-chat')) $('#lv-chat').innerHTML = '';
     st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.psec = null; st.lastGame = '';
     clearSession();
     toast(msg);
