@@ -89,6 +89,9 @@
     if (C.on || C.busy) return;
     if (members().length) { join(); return; }                       // un appel est déjà en cours : on le rejoint
     sig({ k: 'ring' }); join(true);
+    // l'appelant renouvelle la sonnerie toutes les 5 s (45 s au plus) tant que personne n'a rejoint : une personne dont la connexion revient ou qui ouvre la page l'entend aussi
+    var t0 = Date.now(); clearInterval(C.ringer);
+    C.ringer = setInterval(function () { if (!C.on && !C.busy || Date.now() - t0 > 45000 || members().some(function (u) { return u !== st.uid; })) { clearInterval(C.ringer); C.ringer = null; return; } sig({ k: 'ring' }); }, 5000);
   }
   function join(fresh) {
     if (C.on || C.busy) return;
@@ -133,8 +136,7 @@
     var r = note(u, nom); r.t = Date.now();
     if (C.dismissed[u] && Date.now() - C.dismissed[u] < 120000) return;
     C.ring = { u: u, n: nom || 'Quelqu’un', t: Date.now() };
-    try { if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 250]); } catch (e) { /* ignoré */ }
-    beep(3);
+    // la sonnerie (vibrations répétées, bip, notification en arrière-plan) est gérée dans maj() tant que l'appel sonne
   }
   function beep(n) {
     try {
@@ -169,12 +171,15 @@
   // Une seule barre d'appel : dans le volet « Partage » quand il est ouvert, sinon en bannière flottante. Le bouton d'appel de l'en-tête ne sert qu'à lancer un appel.
   function maj() {
     if (!st.room) { var d0 = dock; if (d0) d0.hidden = true; var cb0 = $('#lv-callbar'); if (cb0) cb0.hidden = true; return; }
+    if (C.ring && !C.on && Date.now() - C.ring.t > 50000) { var manque = C.ring.n; C.ring = null; A.toast('Appel manqué de ' + manque + '.'); }
     var ids = members(), inCall = C.on, others = ids.filter(function (u) { return u !== st.uid; }), ongoing = ids.length > 0;
     var ringing = !!(C.ring && !C.busy && !inCall), kind = inCall ? 'call' : C.busy ? 'busy' : ringing ? 'ring' : ongoing ? 'ongoing' : '', inner = '', cls = '';
     if (kind === 'call') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>En appel</b><small>' + (others.length ? who(others) : 'en attente des autres') + '</small></span></span><span class="lv-cb-a">' + btns('call') + '</span>'; cls = 'lv-dock-call'; }
     else if (kind === 'busy') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>Connexion au micro…</b></span></span>'; cls = 'lv-dock-ring'; }
     else if (kind === 'ring') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>' + esc(C.ring.n) + '</b><small>lance un appel vocal</small></span></span><span class="lv-cb-a">' + btns('ring') + '</span>'; cls = 'lv-dock-ring'; }
     else if (kind === 'ongoing') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>Appel en cours</b><small>' + who(ids) + '</small></span></span><span class="lv-cb-a">' + btns('ongoing') + '</span>'; cls = 'lv-dock-ring'; }
+    // sonnerie : vibrations répétées comme un vrai téléphone tant que l'appel sonne (jusqu'à la réponse, « plus tard » ou 50 s)
+    if (SM.notif) { if (ringing && !C.ringOn) { C.ringOn = true; SM.notif.ringStart(C.ring.n, function () { beep(1); }); } else if (!ringing && C.ringOn) { C.ringOn = false; SM.notif.ringStop(); } }
     var visible = panelVisible();
     var cb = $('#lv-callbar');
     if (cb) {

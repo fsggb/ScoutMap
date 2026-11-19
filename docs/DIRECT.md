@@ -51,3 +51,23 @@ Même apparence et mêmes gestes qu'une messagerie de groupe connue, pour que pe
 
 ## Aucune fenêtre modale (v. du 19/11)
 Prénom, invitation, confirmation de fin **et** les écrans de la discussion (infos du message, suppression, aperçu et légende d'une photo, appareil photo, visionneuse) sont des **feuilles à l'intérieur du volet « Partage »** : aucun `dialog` du navigateur, aucune boîte `confirm`. Échap ou « Fermer » les ferme ; quitter l'onglet Discussion ou fermer le volet les ferme aussi (et coupe l'appareil photo). Les photos, vocaux et documents passent par le Worker de ScoutHub (messages `media` / `getm`, 650 Ko au plus, 60 fichiers par partage).
+
+## Position en direct fiable (v. du 19/11)
+- **Une seule localisation filtrée** (`js/position.js`, `SMGeo`) pour le bouton « Ma position » et pour le partage : avant, deux suivis GPS séparés et sans filtre faisaient sauter le repère de plusieurs kilomètres (Wi-Fi/IP d'un ordinateur) et recentrer la carte à chaque point.
+- Le filtre (Kalman pondéré par la précision annoncée) ignore un point très imprécis (> 300 m) tant qu'on en a un bon, ne bouge pas pour un point à l'intérieur de l'incertitude, jette un saut improbable (plus vite que 90 km/h) sauf s'il est confirmé par le point suivant (4 points groupés pour un point « réseau »). Un déplacement réel (marche, voiture) est suivi avec 2 à 50 m de retard.
+- Le bouton « Ma position » ne recentre la carte que si le point approche du bord de l'écran. Position approximative (réseau) : message explicite, cercle de précision visible.
+- Côté réception : une présence plus ancienne ne remplace jamais une plus récente (le déchiffrement est asynchrone), une présence sans point garde le dernier connu (sauf position masquée), une reconnexion ne fait plus clignoter ni disparaître le repère d'une personne, le décalage d'horloge est recalculé à chaque ping. Les battements (toutes les 10 s) viennent d'un Worker, non ralenti quand l'onglet est en arrière-plan.
+- Test : `js/position.js` face à un bruit de ±2 km (PC) et à des parasites (téléphone) ; l'ancienne version échouait (sauts de 3 km, carte déplacée 45 fois en 45 s).
+
+## Reçu et lu = pour TOUTES les personnes
+La liste des participants est gardée sur l'appareil (jusqu'à 90 min d'absence). **✓✓ gris « reçu »** seulement quand chacun a reçu le message ; **✓✓ bleus « lu »** seulement quand chacun l'a lu (discussion affichée). Une personne dont le téléphone est coupé garde le message à ✓ ; celle qui quitte le partage (Réglages) en sort. « Infos » du message liste qui l'a lu, reçu, pas encore reçu.
+
+## Notifications et vibrations (`js/notif.js`)
+- **Message** d'une autre personne : courte vibration si la page est visible mais la discussion fermée ; notification du système avec le nom et le texte si la page est en arrière-plan ; compteur `(n)` dans le titre de l'onglet.
+- **Appel entrant** : vibrations répétées comme un vrai téléphone (3 secousses, pause, on recommence) et bip, jusqu'à « Rejoindre », « Plus tard » ou 50 s (alors « Appel manqué ») ; en arrière-plan, une notification renouvelée à chaque tour. L'appelant renouvelle la sonnerie toutes les 5 s tant que personne n'a rejoint.
+- Réglages du partage : vibrer oui/non, notifications du système (bouton, jamais automatique), test. Un bandeau propose une fois d'activer les notifications.
+- Limites : la vibration n'existe pas sur iPhone ; le navigateur la coupe quand la page est cachée (la notification du système vibre alors elle-même, sur Android) ; sans serveur de notifications push, une page fermée ne peut pas être prévenue.
+
+## Menu d'un message
+Le bouton d'options a sa place dans la bulle (le texte passe à côté, il ne recouvre plus rien) ; sur écran tactile : appui long ; clic droit sur ordinateur. Le menu s'ouvre sous la bulle (au-dessus s'il n'y a pas la place), jamais par-dessus.
+

@@ -7,7 +7,7 @@
 
   // ---------- Service worker (pas dans une page web exportée) ----------
   var swOk = false;
-  if ('serviceWorker' in navigator && !window.SM_VIEWER && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  if ('serviceWorker' in navigator && (!window.SM_VIEWER || window.SM_LIVE_ROOM) && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('sw.js').then(function () { swOk = true; render(); }, function () { /* sans service worker : fonctionnement normal en ligne */ });
   }
 
