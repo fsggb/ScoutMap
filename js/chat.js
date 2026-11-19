@@ -15,7 +15,7 @@
   var MAXTXT = 1500, EDIT_MS = 15 * 60000, MEDIA_MAX = 650000, REC_MAX = 120, MEMBER_MS = 15 * 60000;
   var REACTS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   var EMOJIS = ('😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 😉 😍 🥰 😘 😋 😎 🤩 🥳 😏 😌 😴 🤔 🤗 🙄 😬 😮 😯 😲 😳 🥺 😢 😭 😤 😡 🤯 😱 😰 😓 🤒 🤕 🥶 🥵 😷 👍 👎 👏 🙌 👋 🤝 🙏 💪 ✌️ 🤞 👌 ❤️ 🧡 💛 💚 💙 💜 💔 🔥 ⭐ ✨ 🎉 🎶 ⛺ 🔥 🌲 ⛰️ 🧭 🗺️ 🥾 🎒 🔦 🍫 💧 ☀️ 🌧️ 🌙 ⚠️ ✅ ❌ 📍 📞 📷').split(' ');
-  var C = { items: [], pend: {}, media: {}, mreq: {}, queue: [], busy: 0, reply: null, edit: null, open: false, rd: 0, dv: 0, typingAt: 0, typeKick: 0, typeT: null, kickT: null, lastKick: 0,
+  var C = { newHist: 0, items: [], pend: {}, media: {}, mreq: {}, queue: [], busy: 0, reply: null, edit: null, open: false, rd: 0, dv: 0, typingAt: 0, typeKick: 0, typeT: null, kickT: null, lastKick: 0,
     rec: null, firstUnread: 0, hid: {}, built: false, aud: {}, facing: 'environment', stream: null, menuFor: null, down: 0 };
   var ICON = {
     send: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M1.1 21.76 23.8 12.03 1.1 2.3l.01 7.91 13.62 1.82-13.62 1.82z"/></svg>',
@@ -60,7 +60,12 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignoré */ } }
   function load(list) {
     if (!C.rdLoaded) { C.rd = +lsGet(storeKey('rd'), 0) || 0; try { C.hid = JSON.parse(lsGet(storeKey('hid'), '{}')) || {}; } catch (e) { C.hid = {}; } C.rdLoaded = true; }
-    return Promise.all(list.map(function (m) { return onMsg(m, true); })).then(function () { recount(); render(); readNow(); });
+    C.newHist = 0;
+    return Promise.all(list.map(function (m) { return onMsg(m, true); })).then(function () {
+      recount(); render(); readNow();
+      if (C.newHist && !visibleNow() && SM.notif) SM.notif.message('ScoutMap', C.newHist > 1 ? C.newHist + ' nouveaux messages' : 'Nouveau message');      // reçus pendant une coupure
+      C.newHist = 0;
+    });
   }
   function sortItems() { C.items.sort(function (a, b) { return a.at - b.at || (a.k < b.k ? -1 : 1); }); }
   function onMsg(m, hist) {
@@ -69,11 +74,18 @@
       var mien = d.id && C.items.filter(function (i) { return i.d && i.d.id === d.id; })[0];
       if (mien) { mien.k = m.k; mien.at = m.at || mien.at; mien.etat = ''; delete C.pend[d.id]; sortItems(); if (!hist) { render(); } return; }      // écho : le serveur a bien reçu mon message
       C.items.push({ k: m.k, at: m.at || A.now(), d: d }); sortItems(); if (C.items.length > 400) C.items.shift();
+      if (isMsg(d) && d.u !== st.uid && (m.at || 0) > C.rd && !C.hid[d.id || m.k]) { if (hist) C.newHist++; else notify(d); }
       if ((m.at || 0) > C.dv) { C.dv = m.at; if (!hist) kick(); }
       if (!hist) { recount(); render(); readNow(); }
     }).catch(function () { st.decFail++; });
   }
   function isMsg(d) { return d && !d.ev; }
+  // Vibration (page visible) et notification du système (page en arrière-plan) pour un message reçu
+  function notify(d) {
+    if (visibleNow() || !SM.notif) return;
+    var o = { x: d.x || 't', text: d.m || '', d: d, del: false };
+    SM.notif.message(d.n || 'Message', snippet(o));
+  }
   function recount() {
     var n = 0; C.items.forEach(function (i) { if (isMsg(i.d) && i.d.u !== st.uid && i.at > C.rd && !C.hid[i.d.id || i.k]) n++; });
     st.unread = n; A.badge();
@@ -98,7 +110,7 @@
     var wait = Math.max(0, 800 - (Date.now() - C.lastKick));
     C.kickT = setTimeout(function () { C.kickT = null; C.lastKick = Date.now(); A.beat(true); }, wait);
   }
-  function members() { var all = A.everyone(), t = A.now(); return Object.keys(all).filter(function (u) { return u !== st.uid && t - all[u].t < MEMBER_MS; }); }
+  function members() { return Object.keys(A.roster()).filter(function (u) { return u !== st.uid; }); }       // tout le monde, même hors ligne : « reçu » et « lu » = pour toutes les personnes du partage
   function typingText() {
     var all = A.everyone(), t = A.now(), who = Object.keys(all).filter(function (u) { return u !== st.uid && all[u].ty && t - all[u].ty < 7000; });
     if (!who.length) return '';
@@ -110,7 +122,7 @@
     if (o.it.etat === 'echec') return 'echec';
     if (o.it.etat) return 'attente';
     var ms = members(); if (!ms.length) return 'envoye';
-    var all = A.everyone(), rd = ms.every(function (u) { return (all[u].rd || 0) >= o.at; }), dv = ms.every(function (u) { return (all[u].dv || 0) >= o.at; });
+    var all = A.roster(), rd = ms.every(function (u) { return (all[u].rd || 0) >= o.at; }), dv = ms.every(function (u) { return (all[u].dv || 0) >= o.at; });
     return rd ? 'lu' : dv ? 'recu' : 'envoye';
   }
   function tickHtml(s) { return s === 'attente' ? CLOCK : s === 'echec' ? '<span class="wa-fail">!</span>' : s === 'envoye' ? TICK1 : TICK2; }
@@ -258,7 +270,7 @@
     if (!C.built) return;
     var box = $('#wa-list'); if (!box) return;
     var m = model(), prevH = box.scrollHeight, atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80, prevTop = box.scrollTop;
-    var html = '<div class="wa-lock">🔒 Les messages et fichiers sont chiffrés : seules les personnes qui ont le lien de ce partage peuvent les lire.</div>', lastDay = '', last = null, divided = false;
+    var html = '<div class="wa-lock">🔒 Les messages et fichiers sont chiffrés : seules les personnes qui ont le lien de ce partage peuvent les lire.' + (window.matchMedia && matchMedia('(hover:none)').matches ? '<br>Appui long sur un message : réagir, répondre, copier…' : '') + '</div>', lastDay = '', last = null, divided = false;
     m.list.forEach(function (o) {
       if (C.hid[o.id]) return;
       var dayKey = new Date(o.at).toDateString();
@@ -331,7 +343,19 @@
     $('#wa-rs').addEventListener('click', function () { recStop(true); });
     $('#wa-down').addEventListener('click', function () { scrollEnd(true); readNow(); });
     $('#wa-list').addEventListener('scroll', function () { updateDown(); if (!$('#wa-down').hidden) return; readNow(); });
-    $('#wa-list').addEventListener('click', onListClick);
+    $('#wa-list').addEventListener('click', function (e) { if (C.lp && Date.now() - C.lp < 700) { e.preventDefault(); e.stopPropagation(); return; } onListClick(e); });
+    $('#wa-list').addEventListener('contextmenu', function (e) { var row = e.target.closest('.wa-row'); if (!row || row.classList.contains('deleted')) return; e.preventDefault(); C.lp = Date.now(); showMenu(row.dataset.id, e.clientX, e.clientY); });
+    (function () {      // appui long = menu du message (réagir, répondre, copier…)
+      var tm = null, x0 = 0, y0 = 0, list = $('#wa-list');
+      function cancel() { clearTimeout(tm); tm = null; }
+      list.addEventListener('touchstart', function (e) {
+        var row = e.target.closest('.wa-row'); if (!row || row.classList.contains('deleted') || e.target.closest('a,button,audio,input')) return;
+        var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; cancel();
+        tm = setTimeout(function () { tm = null; C.lp = Date.now(); try { if (navigator.vibrate && SM.notif) SM.notif.tick(); } catch (x) { /* ignoré */ } showMenu(row.dataset.id, x0, y0); }, 480);
+      }, { passive: true });
+      list.addEventListener('touchmove', function (e) { var t = e.touches[0]; if (Math.abs(t.clientX - x0) > 8 || Math.abs(t.clientY - y0) > 8) cancel(); }, { passive: true });
+      ['touchend', 'touchcancel'].forEach(function (n) { list.addEventListener(n, cancel, { passive: true }); });
+    })();
     $('#wa-list').addEventListener('contextmenu', function (e) { var r = e.target.closest('.wa-row'); if (!r || r.classList.contains('deleted')) return; e.preventDefault(); showMenu(r.dataset.id, e.clientX, e.clientY); });
     var lp; $('#wa-list').addEventListener('touchstart', function (e) { var r = e.target.closest('.wa-row'); if (!r || r.classList.contains('deleted')) return; var t = e.touches[0]; lp = setTimeout(function () { showMenu(r.dataset.id, t.clientX, t.clientY); }, 480); }, { passive: true });
     ['touchend', 'touchmove', 'touchcancel'].forEach(function (n) { $('#wa-list').addEventListener(n, function () { clearTimeout(lp); }, { passive: true }); });
@@ -394,6 +418,12 @@
     it.push('<button type="button" data-m="del" class="danger">' + ICON.trash + 'Supprimer</button>');
     menu.innerHTML = it.join(''); menu.hidden = false;
     var w = menu.offsetWidth || 220, h = menu.offsetHeight || 260, left = Math.min(Math.max(8, x - host.left - w / 2), host.width - w - 8), top = Math.min(Math.max(8, y - host.top + 6), host.height - h - 8);
+    // le menu se place sous la bulle (ou au-dessus s'il n'y a pas la place) : il ne recouvre jamais le message
+    var bub = $('#wa-list .wa-row[data-id="' + String(id).replace(/"/g, '') + '"] .wa-b'), br = bub && bub.getBoundingClientRect();
+    if (br && br.height < host.height - h - 24) {
+      var t2 = br.bottom - host.top + 6; if (t2 + h > host.height - 8) t2 = br.top - host.top - h - 6;
+      if (t2 >= 8 && t2 + h <= host.height - 8) { top = t2; left = Math.min(Math.max(8, mine ? br.right - host.left - w : br.left - host.left), host.width - w - 8); }
+    }
     menu.style.left = left + 'px'; menu.style.top = top + 'px';
     menu.onclick = function (ev) {
       var r = ev.target.closest('[data-react]'); if (r) { react(id, r.dataset.react); hidePops(); return; }
@@ -412,10 +442,10 @@
     modal('<h3>Réactions</h3><ul class="wa-ul">' + l + '</ul><button type="button" class="wa-mb" data-close>Fermer</button>');
   }
   function msgInfo(o) {
-    var ms = members(), all = A.everyone(), lu = [], recu = [], non = [];
+    var ms = members(), all = A.roster(), lu = [], recu = [], non = [];
     ms.forEach(function (u) { var n = all[u].n || 'Quelqu’un'; if ((all[u].rd || 0) >= o.at) lu.push(n); else if ((all[u].dv || 0) >= o.at) recu.push(n); else non.push(n); });
     var sec = function (t, c, l) { return '<h4>' + c + ' ' + t + '</h4>' + (l.length ? '<ul class="wa-ul">' + l.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '<p class="wa-none">—</p>'); };
-    modal('<h3>Infos du message</h3><div class="wa-mi">' + (snippet(o) ? '<div class="wa-bq">' + esc(String(snippet(o)).slice(0, 160)) + '</div>' : '') + '</div>' + sec('Lu par', TICK2.replace('wa-tk', 'wa-tk blue'), lu) + sec('Distribué à', TICK2, recu) + sec('Envoyé, pas encore reçu par', TICK1, non) + '<button type="button" class="wa-mb" data-close>Fermer</button>');
+    modal('<h3>Infos du message</h3><div class="wa-mi">' + (snippet(o) ? '<div class="wa-bq">' + esc(String(snippet(o)).slice(0, 160)) + '</div>' : '') + '</div>' + sec('Lu par', TICK2.replace('wa-tk', 'wa-tk blue'), lu) + sec('Reçu par', TICK2, recu) + sec('Pas encore reçu par', TICK1, non) + '<button type="button" class="wa-mb" data-close>Fermer</button>');
   }
   function delDialog(o) {
     var mine = o.u === st.uid, d = modal('<h3>Supprimer le message ?</h3><div class="wa-dels">' + (mine ? '<button type="button" data-d="all">Supprimer pour tous</button>' : '') + '<button type="button" data-d="me">Supprimer pour moi</button><button type="button" data-close>Annuler</button></div>');
