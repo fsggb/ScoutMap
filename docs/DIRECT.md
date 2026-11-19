@@ -1,13 +1,15 @@
 # Partage en direct (itinéraire, azimuts, grand jeu)
 
-Un seul bouton : **Partager** (colonne de boutons à droite de la carte). Un QR code et un lien s'affichent : les personnes invitées le scannent, entrent leur prénom (une seule fois) et apparaissent aussitôt sur la carte.
+Le partage est un **onglet latéral à part entière** (bouton « Partage » dans la barre de gauche ; sur téléphone, feuille en bas de l'écran). Il n'ouvre **aucune fenêtre modale** : le prénom, l'invitation (QR code et lien) et la confirmation de fin s'affichent dans le volet lui-même. Les personnes invitées arrivent sur la même page, avec le volet « Partage » comme seul onglet.
 
-## Le panneau (3 onglets)
-- **Personnes** : qui est connecté (en ligne, parti il y a x min), qui partage sa position. Un interrupteur « Montrer ma position sur la carte » (activé par défaut). Un clic sur une personne centre la carte sur elle ; « Voir tout le monde sur la carte » cadre tout le groupe. Chacun se voit sur la carte, avec son prénom, dès que sa position est connue.
-- **Discussion** : messages de tout le monde, pastille rouge quand un message arrive.
-- **Réglages** : prénom, droits (lecture seule, co-administrateur, chef), lien co-administrateur (pour le chef), quitter ou terminer le partage.
-- Une **pastille verte** sur le bouton « Partage » (même côté que les alertes) indique le nombre de personnes connectées ; une pastille rouge à gauche signale les messages non lus.
-- Le bouton **Inviter** (en haut du panneau) rouvre le QR code à tout moment.
+Présentation façon messagerie : en-tête vert (nom du partage, nombre de personnes en ligne, un bouton d'appel, un bouton « Inviter »), onglets soulignés **Discussion · Personnes · Réglages**, bulles avec coche d'envoi (horloge = en cours, coche = envoyé, point d'alerte = non envoyé avec « Réessayer »), jours et arrivées en pastilles, zone de saisie arrondie avec bouton rond d'envoi.
+
+## Le volet
+- **Discussion** (onglet d'ouverture) : messages de tout le monde, pastille sur l'onglet quand un message arrive. Les liens très longs passent à la ligne dans la bulle, sans déborder.
+- **Personnes** : qui est connecté (pastille verte = en ligne, sinon « parti il y a x min »), qui partage sa position. Un interrupteur « Montrer ma position sur la carte » (activé par défaut). Un clic sur une personne centre la carte sur elle ; « Voir tout le monde sur la carte ».
+- **Réglages** : prénom, droits (lecture seule, co-administrateur, chef), lien co-administrateur (pour le chef), état technique, quitter ou terminer le partage (confirmation dans le volet).
+- Une **pastille verte** sur le bouton « Partage » indique le nombre de personnes connectées ; une pastille rouge signale les messages non lus.
+- Le bouton **Inviter** (en-tête) ouvre la vue d'invitation : QR code, lien à copier, « Envoyer par WhatsApp », et « Autres applications… » quand le navigateur sait partager.
 
 Les avatars ont été supprimés : chaque personne est un rond de couleur avec l'initiale de son prénom.
 
@@ -20,7 +22,7 @@ Les avatars ont été supprimés : chaque personne est un rond de couleur avec l
 - Anciens liens `?salle=` (ancien service Firebase) : ils n'existent plus ; ScoutMap l'indique et demande un nouveau QR code.
 
 ## Appel vocal de groupe
-Dans le panneau Partage, « Lancer un appel vocal » appelle les autres personnes connectées, comme une conférence téléphonique : elles voient une bannière « Rejoindre / Plus tard » (avec une sonnerie et une vibration si le navigateur les permet) et seules celles qui veulent répondre rejoignent. Les personnes dans l'appel s'entendent toutes en même temps (duplex, annulation d'écho du navigateur), chacune peut couper son micro, et l'appel s'arrête quand la dernière raccroche. Audio seul, 8 personnes au plus.
+Dans le volet Partage, le bouton de téléphone de l'en-tête appelle les autres personnes connectées, comme une conférence téléphonique : elles voient une barre « Rejoindre / Plus tard » dans le volet (ou une bannière en haut de l'écran quand le volet est fermé : jamais les deux à la fois) (avec une sonnerie et une vibration si le navigateur les permet) et seules celles qui veulent répondre rejoignent. Les personnes dans l'appel s'entendent toutes en même temps (duplex, annulation d'écho du navigateur), chacune peut couper son micro, et l'appel s'arrête quand la dernière raccroche. Audio seul, 8 personnes au plus.
 - **Technique** (`js/appel.js`) : WebRTC en maillage (chaque appareil parle directement aux autres). Les messages de mise en relation (offres, réponses, candidats) circulent sur le canal chiffré du partage (clé du lien) : le serveur ne lit rien. Le serveur de partage (`/direct/{id}`, Durable Object) relaie ces messages (`t: "sig"`) et remet les identifiants du relais TURN de Cloudflare Realtime (`t: "turn"`), qui ne servent que si deux appareils ne peuvent pas se joindre directement. Sans TURN, STUN seul.
 - **Limites** : sur téléphone, le navigateur coupe souvent le micro quand l'écran se verrouille ou que la page passe en arrière-plan (surtout iPhone) : l'appel est prévu écran allumé (la page demande de garder l'écran allumé quand c'est possible). La sonnerie ne marche que si ScoutMap est ouvert (pas de notification push). Une personne qui rejoint le partage pendant un appel ne le voit pas avant le prochain signe de vie des participants (quelques secondes).
 - **Partage sans carte** : on peut lancer le partage même si la carte est vide (simple avertissement) ; ce que le chef pose ensuite apparaît chez les autres.
