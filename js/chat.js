@@ -425,11 +425,22 @@
       d.close();
     });
   }
+  // Feuilles : superposées DANS le volet « Partage » (jamais une fenêtre modale du navigateur) ; mêmes méthodes qu'une boîte de dialogue (close, addEventListener…)
   function modal(html, cls) {
-    var d = document.createElement('dialog'); d.className = 'wa-dlg ' + (cls || ''); d.innerHTML = html; document.body.appendChild(d);
-    d.addEventListener('click', function (e) { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
-    d.addEventListener('close', function () { d.remove(); if (d.onclose2) d.onclose2(); });
-    d.showModal(); return d;
+    var host = $('.lv-body') || $('#live-panel') || document.body, sh = document.createElement('div'), d = document.createElement('div'), fini = false, tm, onKey;
+    sh.className = 'wa-sheet' + (/wa-dark/.test(cls || '') ? ' dark' : ''); sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-label', 'Discussion');
+    d.className = 'wa-dlg ' + (cls || ''); d.innerHTML = html; sh.appendChild(d); host.appendChild(sh);
+    if (C.sheet && C.sheet !== d) C.sheet.close();
+    C.sheet = d;
+    d.close = function () {
+      if (fini) return; fini = true; clearInterval(tm); document.removeEventListener('keydown', onKey, true);
+      sh.remove(); if (C.sheet === d) C.sheet = null; if (d.onclose2) d.onclose2();
+    };
+    sh.addEventListener('click', function (e) { if (e.target === sh || e.target.closest('[data-close]')) d.close(); });
+    onKey = function (e) { if (e.key === 'Escape') { e.stopPropagation(); d.close(); } };
+    document.addEventListener('keydown', onKey, true);
+    tm = setInterval(function () { if (!sh.getClientRects().length) d.close(); }, 1000);     // volet fermé ou onglet quitté : la feuille (et l'appareil photo) se ferment
+    return d;
   }
 
   // ---------- photos : appareil photo en direct, aperçu avec légende ----------
@@ -538,7 +549,7 @@
     var firstU = $('#wa-list .wa-unread'); if (firstU) firstU.scrollIntoView({ block: 'center' });
     setTimeout(function () { readNow(); recount(); updateDown(); var i = $('#wa-in'); if (i && window.innerWidth > 860) i.focus(); }, 120);
   }
-  function close() { C.open = false; C.firstUnread = 0; }
+  function close() { C.open = false; C.firstUnread = 0; if (C.sheet) C.sheet.close(); }
   function reset() {
     Object.keys(C.media).forEach(function (k) { try { URL.revokeObjectURL(C.media[k].url); } catch (e) { /* ignoré */ } });
     Object.keys(C.aud).forEach(function (k) { try { C.aud[k].pause(); } catch (e) { /* ignoré */ } });
