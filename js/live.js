@@ -15,7 +15,7 @@
   var ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
   var ONLINE = 45000, RECENT = 15 * 60000;   // « en ligne » : signe de vie il y a moins de 45 s ; « parti récemment » : moins de 15 min
   var st = { mode: 'game', room: null, key: null, ck: null, owner: false, admin: false, atok: null, psec: null, uid: null, name: '', share: true, geoErr: '', fix: null,
-    remote: {}, markers: {}, chat: [], offset: 0, unread: 0, panelOpen: false, tab: 'people', watch: null, lastSend: 0, timers: [], ws: null, carte: null, fini: true, essais: 0, lastGame: '', loaded: false, known: null, call: null };
+    remote: {}, markers: {}, chat: [], offset: 0, unread: 0, panelOpen: false, tab: 'people', watch: null, lastSend: 0, timers: [], ws: null, carte: null, fini: true, essais: 0, lastGame: '', loaded: false, known: null, call: null, conn: 'ok', lastIn: Date.now(), nextTry: 0, rt: null, errs: [], out: {}, ping: null, decFail: 0, sync: { sent: 0, recv: 0 }, warned: {} };
   var gLive = L.layerGroup().addTo(map);
   try { st.name = localStorage.getItem('scoutmap.live.name') || ''; st.share = localStorage.getItem('scoutmap.live.share') !== '0'; } catch (e) { /* ignoré */ }
   try { st.uid = localStorage.getItem('scoutmap.live.uid'); if (!st.uid) { st.uid = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(12)), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); localStorage.setItem('scoutmap.live.uid', st.uid); } } catch (e) { st.uid = 'x' + Date.now().toString(36); }
@@ -55,7 +55,8 @@
 
   // ---------- Connexion au serveur Cloudflare (WebSocket, reconnexion automatique) ----------
   // Messages reçus : etat (à la connexion), carte, pos (signe de vie + position), sanspos (départ), msg, fin, revoque, absent.
-  function envoi(o) { if (st.ws && st.ws.readyState === 1) { st.ws.send(JSON.stringify(o)); return true; } return false; }
+  function envoi(o) { if (st.ws && st.ws.readyState === 1) { try { st.ws.send(JSON.stringify(o)); return true; } catch (e) { return false; } } return false; }
+  function logErr(m) { st.errs.push(new Date().toTimeString().slice(0, 8) + ' ' + m); if (st.errs.length > 8) st.errs.shift(); }
   function connect(opts) {
     return new Promise(function (ok, ko) {
       var premier = true, ws;
@@ -63,13 +64,15 @@
       st.ws = ws; st.fini = false;
       ws.onopen = function () { ws.send(JSON.stringify({ t: 'bonjour', uid: st.uid, creer: !!(opts && opts.creer), proprio: st.psec || undefined, adm: st.atok || (opts && opts.adm) || undefined })); };
       ws.onmessage = function (e) {
+        st.lastIn = Date.now();
         var m; try { m = JSON.parse(e.data); } catch (x) { return; }
         if (m.t === 'absent') { if (premier) { premier = false; st.fini = true; ws.close(); ko(new Error('Ce partage est terminé ou n’existe plus.')); } else finish('Le partage est terminé.'); return; }
         if (m.t === 'etat') {
-          st.essais = 0; st.offset = (m.maintenant || Date.now()) - Date.now(); st.owner = !!m.proprio; st.admin = !!m.admin && !m.proprio;
+          st.essais = 0; st.conn = 'ok'; netUI(); st.offset = (m.maintenant || Date.now()) - Date.now(); st.owner = !!m.proprio; st.admin = !!m.admin && !m.proprio;
           if (m.admRefuse && !m.admin) { st.atok = null; toast('Lien administrateur refusé ou révoqué : vous suivez ' + quoi() + ' en lecture seule.'); }
           if (m.carte) st.carte = { d: m.carte, at: m.carteT };
-          decodeAll(m.pos || {}).then(function () { (m.chat || []).forEach(recuMsg); beat(true); });
+          decodeAll(m.pos || {}).then(function () { (m.chat || []).forEach(recuMsg); beat(true); resendPending(); });
+          if (!st.owner || st.admin) st.lastGame = '';      // après une reconnexion, la carte est renvoyée si elle a changé
           if (premier) { premier = false; ok(m); } else if (!st.owner) carteRecue();
           return;
         }
@@ -79,16 +82,58 @@
         if (m.t === 'msg') { recuMsg(m); return; }
         if (m.t === 'sig') { if (SM.appel) SM.appel.sig(m); return; }
         if (m.t === 'turn') { if (SM.appel) SM.appel.turn(m); return; }
+        if (m.t === 'pong') { st.ping = Date.now() - (+m.c || Date.now()); return; }
+        if (m.t === 'erreur') { logErr('serveur : ' + (m.m || m.r || 'refus')); if (m.m) toast('Le serveur a refusé : ' + m.m); return; }
         if (m.t === 'fin') { if (!st.owner) finish('Le partage a été terminé par la personne qui l’avait lancé.'); return; }
         if (m.t === 'revoque') { st.admin = false; st.atok = null; saveSession(); renderSettings(); toast('Votre lien administrateur a été révoqué : vous suivez ' + quoi() + ' en lecture seule.'); }
       };
+      ws.onerror = function () { /* l'événement close suit */ };
       ws.onclose = function () {
         if (premier) { premier = false; ko(new Error('Service de partage injoignable.')); return; }
-        if (st.fini || !st.room || st.ws !== ws) return;
-        var attente = Math.min(30000, 1000 * Math.pow(2, st.essais++));   // coupure (réseau, veille) : reconnexion de plus en plus espacée
-        setTimeout(function () { if (!st.fini && st.room && st.ws === ws) connect().catch(function () { /* nouvel essai à la prochaine coupure */ }); }, attente);
+        if (st.ws !== ws) return;
+        lost('connexion fermée');
       };
     });
+  }
+  // Connexion perdue (veille, changement de réseau, coupure) : on réessaie sans jamais abandonner, de plus en plus lentement jusqu'à 20 s
+  function lost(why) {
+    if (st.fini || !st.room) return;
+    if (st.conn === 'ok') logErr('connexion perdue (' + why + ')');
+    st.conn = 'retry'; retry(false);
+  }
+  function retry(maintenant) {
+    if (st.fini || !st.room) return;
+    if (st.rt) { if (!maintenant) return; clearTimeout(st.rt); st.rt = null; }
+    var attente = maintenant ? 0 : Math.min(20000, 1000 * Math.pow(2, Math.min(st.essais, 5))); st.essais++;
+    st.nextTry = Date.now() + attente; netUI();
+    st.rt = setTimeout(function () {
+      st.rt = null; if (st.fini || !st.room) return;
+      killWs();
+      connect().then(function () { /* 'etat' remet conn = ok */ }, function (e) { logErr('reconnexion : ' + ((e && e.message) || 'échec')); retry(false); });
+    }, attente);
+  }
+  function killWs() { var w = st.ws; st.ws = null; if (w) { w.onclose = null; w.onmessage = null; w.onerror = null; try { w.close(); } catch (e) { /* ignoré */ } } }
+  // Connexion « à moitié morte » (réseau mobile, veille) : le navigateur croit encore être connecté, mais plus rien n'arrive.
+  // Chaque appareil reçoit en écho son propre signe de vie toutes les 10 s : sans rien reçu depuis 35 s, on repart de zéro.
+  function watchdog() {
+    if (!st.room || st.fini || st.rt) return;
+    if (!st.ws || st.ws.readyState > 1) { lost('connexion absente'); return; }
+    if (st.ws.readyState === 1 && Date.now() - st.lastIn > 35000) { logErr('aucune réponse du serveur depuis 35 s'); st.conn = 'retry'; killWs(); retry(true); }
+  }
+  function wake() {      // retour sur la page, retour du réseau : on vérifie tout de suite
+    if (!st.room || st.fini) return;
+    if (!st.ws || st.ws.readyState > 1) { st.conn = 'retry'; retry(true); return; }
+    envoi({ t: 'ping', c: Date.now() }); beat(true);
+    setTimeout(function () { if (st.room && !st.fini && st.ws && Date.now() - st.lastIn > 9000) { logErr('pas de réponse au retour sur la page'); st.conn = 'retry'; killWs(); retry(true); } }, 5000);
+  }
+  window.addEventListener('online', function () { if (st.room) { logErr('réseau revenu'); wake(); } });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') wake(); });
+  function netUI() {
+    var el = $('#lv-net'); if (!el) return;
+    if (st.conn === 'ok' || !st.room) { el.hidden = true; return; }
+    var s2 = Math.max(0, Math.ceil((st.nextTry - Date.now()) / 1000));
+    el.hidden = false; el.innerHTML = '<span><b>Connexion perdue.</b> ' + (s2 > 0 ? 'Nouvelle tentative dans ' + s2 + ' s.' : 'Reconnexion…') + ' Vos messages seront envoyés dès le retour.</span><button type="button" class="btn-ghost sm" id="lv-netgo">Réessayer</button>';
+    var b = $('#lv-netgo'); if (b) b.onclick = function () { st.essais = 0; retry(true); };
   }
   function decodeOne(u, d, at) {
     return dec(d).then(function (p) { p.t = at; st.remote[u] = p; renderPeople(); }).catch(function () { /* illisible : ignorée */ });
@@ -100,11 +145,13 @@
   function recuMsg(m) {
     dec(m.d).then(function (d) {
       if (st.chat.some(function (c) { return c.k === m.k; })) return;
+      var mien = d.id && st.chat.filter(function (c) { return c.d && c.d.id === d.id; })[0];
+      if (mien) { mien.k = m.k; mien.at = m.at || mien.at; mien.etat = ''; delete st.out[d.id]; st.chat.sort(function (a, b) { return a.at - b.at; }); renderChat(); return; }      // écho du serveur : message bien arrivé
       st.chat.push({ k: m.k, at: m.at || now(), d: d }); st.chat.sort(function (a, b) { return a.at - b.at; }); if (st.chat.length > 120) st.chat.shift();
       var fresh = now() - (m.at || now()) < 30000;
       if (d.u !== st.uid && fresh && !(isOpen() && st.tab === 'chat')) { st.unread++; badge(); }
       renderChat();
-    }).catch(function () { /* ignoré */ });
+    }).catch(function () { st.decFail++; });
   }
   // Carte encore vide chez le chef : on n'échoue pas, elle s'affichera dès qu'elle sera publiée
   function attenteCarte(e) { if (e && /Rien n/.test(e.message || '')) { toast('Le partage est lancé, mais rien n’est encore posé sur la carte : elle apparaîtra dès que la personne qui partage aura dessiné.'); return; } throw e; }
@@ -132,11 +179,13 @@
       '<div class="lv-head"><div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
       '<button type="button" class="btn-primary sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button>' +
       '<button type="button" class="ibtn" id="lv-x" aria-label="Réduire"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
+      '<div class="lv-net" id="lv-net" hidden></div>' +
       '<div class="lv-callbar" id="lv-callbar" hidden></div>' +
       '<div class="lv-tabs" role="tablist"><button type="button" role="tab" data-lt="people" class="on">Personnes</button>' +
       '<button type="button" role="tab" data-lt="chat">Discussion <i class="lv-tb" id="lv-tb" hidden></i></button>' +
       '<button type="button" role="tab" data-lt="settings">Réglages</button></div>' +
       '<div class="lv-pane" data-lp="people">' +
+        '<p class="lv-sync" id="lv-sync"></p>' +
         '<label class="lv-pos"><input type="checkbox" id="lv-sharing"><span class="lv-sw"></span><span class="lv-post"><b>Montrer ma position sur la carte</b><small id="lv-geo"></small></span></label>' +
         '<div class="lv-people" id="lv-people"></div>' +
         '<button type="button" class="btn-ghost sm" id="lv-all">Voir tout le monde sur la carte</button></div>' +
@@ -150,6 +199,7 @@
     $('#lv-invite').addEventListener('click', showInvite);
     $('#lv-sharing').addEventListener('change', function () { setShare(this.checked); });
     $('#lv-all').addEventListener('click', showAll);
+    $('#lv-chat').addEventListener('click', function (e) { var b = e.target.closest('[data-again]'); if (b) { st.essais = 0; if (st.conn !== 'ok') retry(true); pushOut(b.dataset.again); } });
     $('#lv-form').addEventListener('submit', function (e) { e.preventDefault(); var i = $('#lv-msg'), m = i.value.trim(); if (m) { sendChat(m); i.value = ''; } });
     $$('.lv-tabs [data-lt]').forEach(function (t) { t.addEventListener('click', function () { setTab(t.dataset.lt); }); });
     $('#lv-people').addEventListener('click', function (e) {
@@ -256,13 +306,20 @@
     importKey(s.key).then(function (k) { st.ck = k; return connect(); }).then(function () {
       if (s.owner && !st.owner) throw new Error('fin');
       active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().catch(attenteCarte).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
-    }).then(function () { startGeo(); saveSession(); toast('Partage en direct retrouvé.'); }).catch(function () { st.fini = true; if (st.ws) st.ws.close(); st.room = null; st.key = null; st.owner = false; st.admin = false; clearSession(); });
+    }).then(function () { startGeo(); saveSession(); toast('Partage en direct retrouvé.'); }).catch(function (e) {
+      var fatal = e && /terminé|n’existe plus|^fin$/.test(e.message || '');
+      st.fini = true; killWs(); st.room = null; st.key = null; st.owner = false; st.admin = false;
+      if (fatal) clearSession(); else if ((s.essaisReprise = (s.essaisReprise || 0) + 1) < 8) setTimeout(resume, 6000);      // réseau absent au démarrage : on garde le partage et on réessaie
+    });
   }
   function active() {
     if (btn) btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
     $('#lv-idle').hidden = true; $('#lv-live').hidden = false; 
     st.known = null; setTab('people'); renderSettings(); togglePanel(true);
     st.timers.push(setInterval(renderPeople, 5000));
+    st.timers.push(setInterval(watchdog, 5000));
+    st.timers.push(setInterval(function () { if (st.conn !== 'ok') netUI(); }, 1000));
+    st.timers.push(setInterval(function () { envoi({ t: 'ping', c: Date.now() }); }, 30000));
     st.timers.push(setInterval(function () { beat(); }, 10000));
     if (canEdit()) st.timers.push(setInterval(function () { publishGame(); }, 4000));
   }
@@ -270,9 +327,12 @@
   // ---------- La carte partagée (envoyée par le chef, reçue en lecture seule par les autres) ----------
   function snapshot() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: st.mode === 'route' ? S.route : { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
   function publishGame() {
-    if (!canEdit() || !st.room || !hasContent()) return Promise.resolve();
+    if (!canEdit() || !st.room) return Promise.resolve();
+    // le chef peut changer de type de travail (itinéraire, azimuts, jeu) après avoir lancé le partage : on envoie toujours celui qu'il a sous les yeux
+    if ((S.mode === 'game' || S.mode === 'az' || S.mode === 'route') && S.mode !== st.mode) { st.mode = S.mode; st.lastGame = ''; renderSettings(); }
+    if (!hasContent()) return Promise.resolve();
     var js = JSON.stringify(snapshot()); if (js === st.lastGame) return Promise.resolve(); st.lastGame = js;
-    return enc(snapshot()).then(function (e) { if (!envoi({ t: 'carte', d: e })) st.lastGame = ''; }).catch(function () { st.lastGame = ''; });
+    return enc(snapshot()).then(function (e) { if (envoi({ t: 'carte', d: e })) st.sync.sent = Date.now(); else st.lastGame = ''; }).catch(function () { st.lastGame = ''; logErr('envoi de la carte impossible'); });
   }
   function loadGame(first, mine) {
     return Promise.resolve().then(function () {
@@ -282,7 +342,7 @@
       if (mine) { var js = JSON.stringify(data); if (st.lastGame && js === st.lastGame) return; }
       if (data.name) $('#lv-title').textContent = data.name;
       if (data.rail === 'az' || data.rail === 'game' || data.rail === 'route') { st.mode = data.rail; renderSettings(); }
-      SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true; if (st.admin) { st.lastGame = JSON.stringify(snapshot()); }
+      SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true; st.sync.recv = Date.now(); if (st.admin) { st.lastGame = JSON.stringify(snapshot()); }
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
 
@@ -295,14 +355,25 @@
     var bas = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     box.innerHTML = st.chat.length ? st.chat.map(function (c) {
       var d = c.d, mine = d.u === st.uid, col = d.c || colorOf(d.u || '');
-      return '<div class="lv-msg' + (mine ? ' mine' : '') + '"><span class="lv-who" style="color:' + esc(col) + '">' + (mine ? 'Moi' : esc(d.n || '?')) + '</span> <time>' + hhmm(c.at) + '</time><div>' + linkify(d.m) + '</div></div>';
+      var etat = c.etat === 'envoi' ? '<small class="lv-st">envoi…</small>' : c.etat === 'attente' ? '<small class="lv-st">en attente de connexion…</small>' : c.etat === 'echec' ? '<small class="lv-st err">non envoyé · <button type="button" class="lv-again" data-again="' + esc(d.id) + '">Réessayer</button></small>' : '';
+      return '<div class="lv-msg' + (mine ? ' mine' : '') + (c.etat ? ' wait' : '') + '"><span class="lv-who" style="color:' + esc(col) + '">' + (mine ? 'Moi' : esc(d.n || '?')) + '</span> <time>' + hhmm(c.at) + '</time><div>' + linkify(d.m) + '</div>' + etat + '</div>';
     }).join('') : '<p class="lv-none">Aucun message pour l’instant. Écrivez le premier !</p>';
     if (bas) box.scrollTop = box.scrollHeight;
   }
   function sendChat(m) {
     if (!st.room) return;
-    enc({ u: st.uid, n: st.name, c: colorOf(st.uid), m: m.slice(0, 400) }).then(function (e) { if (!envoi({ t: 'msg', d: e })) toast('Message non envoyé : connexion en cours de rétablissement.'); }).catch(function () { toast('Message non envoyé.'); });
+    var id = rand(10), d = { u: st.uid, n: st.name, c: colorOf(st.uid), m: m.slice(0, 400), id: id };
+    var it = { k: 'l' + id, at: now(), d: d, etat: 'envoi' }; st.chat.push(it); renderChat();
+    enc(d).then(function (e) { st.out[id] = { e: e, t: Date.now() }; pushOut(id); }).catch(function () { it.etat = 'echec'; logErr('chiffrement du message impossible'); renderChat(); });
   }
+  function pushOut(id) {
+    var o = st.out[id]; if (!o) return;
+    var it = st.chat.filter(function (c) { return c.d && c.d.id === id; })[0];
+    if (!envoi({ t: 'msg', d: o.e })) { if (it) { it.etat = 'attente'; renderChat(); } return; }
+    if (it) { it.etat = 'envoi'; }
+    setTimeout(function () { var x = st.chat.filter(function (c) { return c.d && c.d.id === id; })[0]; if (x && x.etat && st.out[id]) { x.etat = 'echec'; logErr('message sans accusé de réception'); renderChat(); } }, 9000);
+  }
+  function resendPending() { Object.keys(st.out).forEach(function (id) { if (Date.now() - st.out[id].t < 10 * 60000) pushOut(id); else delete st.out[id]; }); }
   // ---------- Ma position (affichée tout de suite sur la carte, indépendamment du serveur) ----------
   function geoText() {
     if (!st.share) return 'Masquée : les autres ne voient pas où vous êtes.';
@@ -319,7 +390,7 @@
     st.watch = navigator.geolocation.watchPosition(function (pos) {
       var c = pos.coords, first = !st.fix; st.geoErr = '';
       st.fix = { lat: +c.latitude.toFixed(6), lon: +c.longitude.toFixed(6), acc: Math.round(c.accuracy || 0) };
-      renderPeople(); if (first || Date.now() - st.lastSend > 2500) beat(true);
+      renderPeople(); if (first || Date.now() - st.lastSend > 4000) beat(true);
     }, function (e) {
       st.geoErr = e && e.code === 1 ? 'denied' : e && e.code === 3 ? 'timeout' : 'absent';
       if (e && e.code === 1 && st.watch !== null) { navigator.geolocation.clearWatch(st.watch); st.watch = null; }
@@ -337,7 +408,7 @@
     if (!st.room || !st.ck || !st.name) return;
     if (!force && Date.now() - st.lastSend < 8000) return;
     st.lastSend = Date.now();
-    var o = { n: st.name, c: colorOf(st.uid) };
+    var o = { n: st.name, c: colorOf(st.uid), v: SM.version || '' };
     if (st.share && st.fix) { o.lat = st.fix.lat; o.lon = st.fix.lon; o.acc = st.fix.acc; }
     enc(o).then(function (e) { envoi({ t: 'pos', d: e }); }).catch(function () { /* hors réseau : prochain signe de vie */ });
   }
@@ -351,7 +422,7 @@
   }
   function renderPeople() {
     if (!panel || !st.room) return;
-    var all = everyone(), t = now(), ids = Object.keys(all).filter(function (u) { return u === st.uid || t - all[u].t < RECENT; });
+    var bounds = map.getBounds(), all = everyone(), t = now(), ids = Object.keys(all).filter(function (u) { return u === st.uid || t - all[u].t < RECENT; });
     function on(u) { return u === st.uid || t - all[u].t < ONLINE; }
     ids.sort(function (a, b) { return a === st.uid ? -1 : b === st.uid ? 1 : (on(b) - on(a)) || (all[a].n || '').localeCompare(all[b].n || ''); });
     var nOn = ids.filter(on).length;
@@ -360,13 +431,18 @@
     var sh = $('#lv-sharing'); if (sh) sh.checked = st.share;
     var g = $('#lv-geo'); if (g) g.textContent = geoText();
     $('#lv-people').innerHTML = ids.map(function (u) {
-      var p = all[u], online = on(u), me = u === st.uid, state = me ? (st.geoErr && st.share ? '<button type="button" class="lv-retry" data-retry>Réessayer</button>' : '') : online ? (p.lat != null ? 'en ligne · position partagée' : 'en ligne · position non partagée') : 'parti ' + ago(p.t);
+      var p = all[u], online = on(u), me = u === st.uid, dist = !me && p.lat != null && st.fix ? fmtDist(distM(st.fix.lat, st.fix.lon, p.lat, p.lon)) : '', hors = !me && p.lat != null && !bounds.contains([p.lat, p.lon]);
+      var ver = !me && online && p.v !== SM.version ? ' · ⚠ ' + (p.v ? 'autre version du site' : 'ancienne version : à recharger') : '';
+      var state = me ? (st.geoErr && st.share ? '<button type="button" class="lv-retry" data-retry>Réessayer</button>' : '') : online ? (p.lat != null ? 'en ligne' + (dist ? ' · à ' + dist : ' · position partagée') + (hors ? ' · hors de l’écran' : '') : 'en ligne · position non partagée') + ver : 'parti ' + ago(p.t);
       return '<button type="button" class="lv-p' + (online ? '' : ' old') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c || colorOf(u)) + '">' + initial(p.n) + '</i><span class="lv-pn"><b>' + esc(p.n || '?') + (me ? ' (moi)' : '') + '</b><small>' + (me ? (p.lat != null ? 'sur la carte' : 'pas sur la carte') : state) + '</small></span>' + (me ? state : '') + (p.lat != null ? '<svg class="ic lv-loc"><use href="#i-target"/></svg>' : '') + '</button>';
     }).join('');
     if (SM.appel) SM.appel.maj();
+    syncLine();
+    if ($('#lv-diag') && $('#lv-diag').open) { var pre = $('#lv-diagtxt'); if (pre) pre.textContent = diagText(); }
     // annonces discrètes : « Marie a rejoint »
     if (st.known === null) { st.known = {}; ids.forEach(function (u) { st.known[u] = 1; }); }
     else ids.forEach(function (u) { if (!st.known[u]) { st.known[u] = 1; if (u !== st.uid && on(u) && all[u].n) toast(all[u].n + ' a rejoint le partage.'); } });
+    ids.forEach(function (u) { var p = all[u]; if (u !== st.uid && on(u) && p.lat != null && !st.warned[u] && !bounds.contains([p.lat, p.lon])) { st.warned[u] = 1; toast((p.n || 'Une personne') + ' est ' + (st.fix ? 'à ' + fmtDist(distM(st.fix.lat, st.fix.lon, p.lat, p.lon)) : 'hors de l’écran') + ' : touchez son nom dans la liste pour la voir.'); } });
     // marqueurs sur la carte
     Object.keys(st.markers).forEach(function (u) { if (ids.indexOf(u) < 0 || all[u].lat == null) { gLive.removeLayer(st.markers[u]); delete st.markers[u]; } });
     ids.forEach(function (u) {
@@ -376,6 +452,29 @@
       if (st.markers[u]) { st.markers[u].setLatLng([p.lat, p.lon]); st.markers[u].setIcon(icon); }
       else st.markers[u] = L.marker([p.lat, p.lon], { icon: icon, zIndexOffset: u === st.uid ? 4000 : 3500, title: p.n || '' }).addTo(gLive);
     });
+  }
+  function distM(a, b, c, d) { var R = 6371000, r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return R * Math.sqrt(x * x + y * y); }
+  function fmtDist(m) { return m < 950 ? Math.round(m / 10) * 10 + ' m' : (m < 10000 ? (m / 1000).toFixed(1).replace('.', ',') : Math.round(m / 1000)) + ' km'; }
+  // État de la carte partagée : on voit tout de suite si elle arrive (ou part) bien
+  function syncLine() {
+    var el = $('#lv-sync'); if (!el) return;
+    var t = st.owner || st.admin ? st.sync.sent : st.sync.recv, s2 = t ? Math.max(0, Math.round((Date.now() - t) / 1000)) : 0;
+    var ago2 = s2 < 5 ? 'à l’instant' : s2 < 90 ? 'il y a ' + s2 + ' s' : 'il y a ' + Math.round(s2 / 60) + ' min';
+    el.textContent = st.owner || st.admin ? (t ? 'Carte partagée : dernière mise à jour envoyée ' + ago2 + '.' : 'Rien à envoyer pour l’instant : ce que vous poserez sur la carte sera partagé.') : (t ? 'Carte reçue ' + ago2 + '.' : 'En attente de la carte de la personne qui partage…');
+  }
+  function diagText() {
+    var t = Date.now(), all = everyone(), nOn = Object.keys(all).filter(function (u) { return u === st.uid || now() - all[u].t < ONLINE; }).length;
+    var c = SM.appel && SM.appel.etat ? SM.appel.etat() : null;
+    return ['Version du site : ' + (SM.version || '?'), 'Navigateur : ' + (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 120),
+      'Connexion : ' + (st.conn === 'ok' ? 'établie' : 'perdue (essai ' + st.essais + ')') + ' · prise : ' + (st.ws ? ['en cours', 'ouverte', 'fermeture', 'fermée'][st.ws.readyState] : 'aucune'),
+      'Dernier message du serveur : il y a ' + Math.round((t - st.lastIn) / 1000) + ' s · aller-retour : ' + (st.ping != null ? st.ping + ' ms' : 'inconnu'),
+      'Rôle : ' + (st.owner ? 'chef' : st.admin ? 'co-administrateur' : 'lecture seule') + ' · type : ' + st.mode + ' · décalage d’horloge : ' + Math.round(st.offset / 1000) + ' s',
+      'Personnes vues : ' + Object.keys(all).length + ' (en ligne : ' + nOn + ') · messages illisibles : ' + st.decFail,
+      'Ma position : ' + (!st.share ? 'masquée' : st.geoErr ? 'erreur ' + st.geoErr : st.fix ? 'ok ±' + st.fix.acc + ' m' : 'en recherche'),
+      'Carte : envoyée ' + (st.sync.sent ? Math.round((t - st.sync.sent) / 1000) + ' s' : 'jamais') + ' · reçue ' + (st.sync.recv ? Math.round((t - st.sync.recv) / 1000) + ' s' : 'jamais'),
+      'Messages en attente d’envoi : ' + Object.keys(st.out).length,
+      'Appel : ' + (c ? JSON.stringify(c).slice(0, 220) : 'indisponible'),
+      'Erreurs récentes : ' + (st.errs.length ? '\n  ' + st.errs.join('\n  ') : 'aucune')].join('\n');
   }
   function showAll() {
     var pts = []; Object.keys(st.markers).forEach(function (u) { pts.push(st.markers[u].getLatLng()); });
@@ -393,10 +492,13 @@
       '<label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="btn-ghost sm" id="lv-nms">Enregistrer</button></span></label>' +
       '<p class="lv-role">' + esc(droits) + '</p>' +
       (st.owner ? '<div class="lv-adm"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="dlg-actions"><button class="btn-ghost sm" id="lv-acopy" type="button">Copier le lien</button><button class="btn-ghost sm" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
+      '<details class="lv-diag" id="lv-diag"><summary>État technique (en cas de problème)</summary><pre id="lv-diagtxt"></pre><button type="button" class="btn-ghost sm" id="lv-diagcopy">Copier pour l’envoyer</button></details>' +
       '<button type="button" class="btn-ghost danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button>';
     function saveNm() { var n = $('#lv-nm').value.trim(); if (!n) return; saveName(n); beat(true); renderPeople(); toast('Prénom enregistré.'); }
     $('#lv-nms').addEventListener('click', saveNm); $('#lv-nm').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNm(); });
     $('#lv-end').addEventListener('click', endOrLeave);
+    var dg = $('#lv-diag'); function fillDiag() { var pre = $('#lv-diagtxt'); if (pre) pre.textContent = diagText(); }
+    if (dg) { dg.addEventListener('toggle', fillDiag); $('#lv-diagcopy').addEventListener('click', function () { fillDiag(); copy($('#lv-diagtxt').textContent, 'État technique copié.'); }); }
     var ac = $('#lv-acopy');
     if (ac) {
       ac.addEventListener('click', function () {
@@ -430,7 +532,7 @@
   }
   function finish(msg) {
     if (SM.appel) SM.appel.fin();
-    stopGeo(); st.fini = true; if (st.ws) { try { st.ws.close(); } catch (e) { /* ignoré */ } st.ws = null; } st.carte = null; st.loaded = false;
+    stopGeo(); st.fini = true; if (st.rt) { clearTimeout(st.rt); st.rt = null; } killWs(); st.conn = 'ok'; st.out = {}; st.carte = null; st.loaded = false; st.warned = {}; netUI();
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.remote = {}; st.chat = []; st.unread = 0; st.known = null;
     if (btn) btn.hidden = true; if (floating && panel) panel.hidden = true; st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active');

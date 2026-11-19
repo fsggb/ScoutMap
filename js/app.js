@@ -215,6 +215,23 @@
       SCAN25.tried++; return null;
     }));
   }
+  // Nouvelle version du site publiée ? On compare l'identifiant de version avec celui de la page d'accueil du serveur ; le bandeau propose de recharger.
+  (function () {
+    if (SITE_V === 'locale') return;
+    var shown = false;
+    function check() {
+      if (shown || document.visibilityState === 'hidden') return;
+      fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
+        var m = /js\/app\.js\?v=([0-9a-f]{6,})/.exec(t); if (!m || m[1] === SITE_V || shown) return; shown = true;
+        var b = document.createElement('div'); b.id = 'upd-banner'; b.setAttribute('role', 'status');
+        b.innerHTML = '<span>Une nouvelle version de ScoutMap est disponible.</span><button type="button">Mettre à jour</button><button type="button" class="x" aria-label="Plus tard">×</button>';
+        b.querySelector('button').addEventListener('click', forceUpdate); b.querySelector('.x').addEventListener('click', function () { b.remove(); });
+        document.body.appendChild(b);
+      }).catch(function () { /* hors ligne : on réessaiera */ });
+    }
+    setTimeout(check, 8000); setInterval(check, 10 * 60 * 1000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') setTimeout(check, 1500); });
+  })();
   // Adresse du serveur ScoutHub : lue dans config.js de ScoutHub (même site), chargée à la demande.
   var HUB_P = null;
   function hubApi() {
@@ -3213,7 +3230,7 @@
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
-    showSub: showSub, subOpen: function () { return SUB; },
+    showSub: showSub, subOpen: function () { return SUB; }, version: SITE_V,
     S: S, RT: RT, G: G, map: map, esc: esc, ic: ic, sp: sp, toast: toast, ll: ll, pin: pin, tile: tile, LAYERS: LAYERS, SCALES: SCALES,
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
