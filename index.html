@@ -82,6 +82,15 @@
   <symbol id="i-g-text" viewBox="0 0 24 24"><path d="M5 7V4h14v3M12 4v16M9 20h6"/></symbol>
   <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c3 .1 5 2.3 5 5.3"/></symbol>
   <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M6 3.5h3.2l1.5 4-2 1.3a11.5 11.5 0 0 0 6.5 6.5l1.3-2 4 1.5V18a2.5 2.5 0 0 1-2.7 2.5C10.5 20 4 13.5 3.5 6.2A2.5 2.5 0 0 1 6 3.5z"/></symbol>
+  <symbol id="i-hang" viewBox="0 0 24 24"><path transform="rotate(135 12 12)" d="M6 3.5h3.2l1.5 4-2 1.3a11.5 11.5 0 0 0 6.5 6.5l1.3-2 4 1.5V18a2.5 2.5 0 0 1-2.7 2.5C10.5 20 4 13.5 3.5 6.2A2.5 2.5 0 0 1 6 3.5z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+  <symbol id="i-mic-off" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M3.5 3.5l17 17"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M3.5 12 20.5 4l-4.5 16-4-6.5z"/><path d="M11.8 13.5 20.5 4"/></symbol>
+  <symbol id="i-user-add" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M19 8v6M16 11h6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-bubble" viewBox="0 0 24 24"><path d="M4 20l1.3-4A8 8 0 1 1 8.4 18.7z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="17" cy="6" r="2.5"/><circle cx="17" cy="18" r="2.5"/><path d="M8.2 10.8l6.6-3.6M8.2 13.2l6.6 3.6"/></symbol>
   <symbol id="i-front" viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2" style="opacity:.5"/><rect x="9" y="9" width="12" height="12" rx="2" fill="currentColor"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2" fill="currentColor"/><rect x="9" y="9" width="12" height="12" rx="2" fill="#fff"/></symbol>
   <symbol id="i-fwd" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M12 8V2M9 5l3-3 3 3"/></symbol>
@@ -306,8 +315,7 @@
           <button type="button" class="btn-primary block" id="az-print"><svg class="ic"><use href="#i-printer"/></svg>Imprimer…</button>
     </section>
 
-    <section class="pane" data-pane="share" hidden>
-      <h2 class="pane-title">Partage en direct</h2>
+    <section class="pane" data-pane="share" aria-label="Partage en direct" hidden>
       <div id="live-host"></div>
     </section>
     <section class="pane" data-pane="notif" hidden>

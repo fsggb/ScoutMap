@@ -834,7 +834,7 @@
     b.addEventListener('click', function () {
       var r = b.dataset.rail;
       if (r === 'home') { showHome(true); return; }
-      if (r === 'notif' || r === 'settings' || r === 'share') { showSub(SUB === r ? null : r); return; }
+      if (r === 'notif' || r === 'settings' || r === 'share') { if (SUB === r && !S.panelOpen) { S.panelOpen = true; applyPanel(); persist(); return; } showSub(SUB === r ? null : r); return; }
       // bouton de l'application en cours : revient aux outils (ou rouvre le panneau)
       if (SUB) { showSub(null); return; }
       if (!S.panelOpen) { S.panelOpen = true; applyPanel(); persist(); return; }
@@ -3117,6 +3117,7 @@
       document.body.classList.add('viewer'); showHome(false);
       if (!window.SM_LIVE_ROOM) { try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); } }
       S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
+      if (window.SM_LIVE_ROOM) { document.body.classList.add('live-guest'); showSub('share'); S.panelOpen = window.innerWidth > 860; applyPanel(); }   // invité : le volet latéral « Partage » (seul onglet) à la place de la page en lecture seule
       // la page seule s'ouvre cadrée sur le jeu (la mise en page est terminée après un court délai)
       if (!window.SM_LIVE_ROOM) setTimeout(function () { map.invalidateSize(); var b0 = layerBounds(S.rail === 'route' ? 'route' : S.rail); if (b0 && b0.isValid && b0.isValid()) fit(b0, { padding: [50, 50], maxZoom: 18 }); }, 500);
       $$('#base-grid button').forEach(function (b) { if (['otm', 'ortho', 'scan25'].indexOf(b.dataset.base) < 0) b.hidden = true; });
