@@ -164,6 +164,8 @@
   // ---------- Panneau : Personnes / Discussion / Réglages ----------
   var btn, panel, floating = false;
   function modeNow() { return S.mode === 'az' ? 'les azimuts' : S.mode === 'route' ? 'l’itinéraire' : S.mode === 'game' ? 'le grand jeu' : ''; }
+  // Logo du bouton « Envoyer par WhatsApp » : dessin original (bulle de discussion avec combiné), pastille verte cerclée d'or aux couleurs FSGGB
+  var WA_LOGO = '<svg class="lv-logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="#008069" stroke="#c6a24e" stroke-width="2.2"/><path d="M16 6.6a9.4 9.4 0 0 0-8.1 14.2l-1.4 4.8 5-1.3A9.4 9.4 0 1 0 16 6.6z" fill="#fff"/><path transform="translate(10.3 9.3) scale(.48)" d="M6 3.5h3.2l1.5 4-2 1.3a11.5 11.5 0 0 0 6.5 6.5l1.3-2 4 1.5V18a2.5 2.5 0 0 1-2.7 2.5C10.5 20 4 13.5 3.5 6.2A2.5 2.5 0 0 1 6 3.5z" fill="#008069"/></svg>';
   function ico(n) { return '<svg class="ic" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function build() {
     if (panel) return;
@@ -548,7 +550,7 @@
       '<div class="lv-vc"><p class="lv-lead">Faites scanner ce code avec l’appareil photo d’un téléphone, ou envoyez le lien. La personne saisit son prénom et apparaît aussitôt sur la carte. Elle voit ' + quoi() + ' en lecture seule.</p>' +
       '<div class="lv-qr">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
       '<div class="lv-linkrow"><input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du partage en direct"><button type="button" class="lv-btn" id="lv-copy">' + ico('copy') + 'Copier</button></div>' +
-      '<div class="lv-acts"><a class="lv-btn" id="lv-wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(texte) + '">' + ico('bubble') + 'Envoyer par WhatsApp</a>' +
+      '<div class="lv-acts"><a class="lv-btn" id="lv-wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(texte) + '">' + WA_LOGO + 'Envoyer par WhatsApp</a>' +
       (navigator.share ? '<button type="button" class="lv-btn" id="lv-share">' + ico('share') + 'Autres applications…</button>' : '') + '</div></div>';
     v.hidden = false;
     $('#lv-vback').addEventListener('click', closeInvite);
