@@ -151,39 +151,42 @@
   function ensureDock() {
     if (dock) return dock;
     dock = document.createElement('div'); dock.id = 'lv-dock'; dock.hidden = true; dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', 'Appel vocal'); dock.setAttribute('aria-live', 'polite');
-    dock.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-ac]'); if (!b) return; var a = b.dataset.ac;
-      if (a === 'join') join(); else if (a === 'later') { if (C.ring) C.dismissed[C.ring.u] = Date.now(); C.ring = null; maj(); }
-      else if (a === 'mute') mute(); else if (a === 'hang') hangup();
-    });
+    dock.addEventListener('click', function (e) { var b = e.target.closest('[data-ac]'); if (b) act(b.dataset.ac); });
     document.body.appendChild(dock); return dock;
   }
   function who(ids) { return names(ids).map(function (n, i) { var u = ids[i], mu = (u === st.uid ? C.muted : C.roster[u] && C.roster[u].mu), pe = C.on && u !== st.uid ? C.peers[u] : null; return esc(n) + (mu ? ' (micro coupé)' : '') + (pe && !pe.ok ? ' (connexion…)' : ''); }).join(', '); }
+  function panelVisible() { var a = SM.liveApi; return !!(a && a.isOpen && a.isOpen()); }
+  function btns(k) {
+    var I = function (n) { return '<svg class="ic" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; };
+    if (k === 'call') return '<button type="button" class="lv-cbb" data-ac="mute" aria-pressed="' + C.muted + '">' + I(C.muted ? 'mic-off' : 'mic') + (C.muted ? 'Micro coupé' : 'Micro') + '</button><button type="button" class="lv-cbb red" data-ac="hang">' + I('hang') + 'Raccrocher</button>';
+    if (k === 'ring') return '<button type="button" class="lv-cbb green" data-ac="join">Rejoindre</button><button type="button" class="lv-cbb" data-ac="later">Plus tard</button>';
+    return '<button type="button" class="lv-cbb green" data-ac="join">Rejoindre</button>';
+  }
+  function act(a) {
+    if (a === 'start') start(); else if (a === 'join') join(); else if (a === 'mute') mute(); else if (a === 'hang') hangup();
+    else if (a === 'later') { if (C.ring) C.dismissed[C.ring.u] = Date.now(); C.ring = null; maj(); }
+  }
+  // Une seule barre d'appel : dans le volet « Partage » quand il est ouvert, sinon en bannière flottante. Le bouton d'appel de l'en-tête ne sert qu'à lancer un appel.
   function maj() {
     if (!st.room) { var d0 = dock; if (d0) d0.hidden = true; var cb0 = $('#lv-callbar'); if (cb0) cb0.hidden = true; return; }
     var ids = members(), inCall = C.on, others = ids.filter(function (u) { return u !== st.uid; }), ongoing = ids.length > 0;
-    // barre dans le panneau Partage
+    var ringing = !!(C.ring && !C.busy && !inCall), kind = inCall ? 'call' : C.busy ? 'busy' : ringing ? 'ring' : ongoing ? 'ongoing' : '', inner = '', cls = '';
+    if (kind === 'call') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>En appel</b><small>' + (others.length ? who(others) : 'en attente des autres') + '</small></span></span><span class="lv-cb-a">' + btns('call') + '</span>'; cls = 'lv-dock-call'; }
+    else if (kind === 'busy') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>Connexion au micro…</b></span></span>'; cls = 'lv-dock-ring'; }
+    else if (kind === 'ring') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>' + esc(C.ring.n) + '</b><small>lance un appel vocal</small></span></span><span class="lv-cb-a">' + btns('ring') + '</span>'; cls = 'lv-dock-ring'; }
+    else if (kind === 'ongoing') { inner = '<span class="lv-cb-t">' + PHONE + '<span><b>Appel en cours</b><small>' + who(ids) + '</small></span></span><span class="lv-cb-a">' + btns('ongoing') + '</span>'; cls = 'lv-dock-ring'; }
+    var visible = panelVisible();
     var cb = $('#lv-callbar');
     if (cb) {
-      cb.hidden = false;
-      cb.innerHTML = inCall
-        ? '<span class="lv-cb-t">' + PHONE + '<b>En appel</b> · ' + who(ids) + '</span><span class="lv-cb-a"><button type="button" class="btn-ghost sm" data-ac="mute">' + (C.muted ? 'Réactiver le micro' : 'Couper le micro') + '</button><button type="button" class="btn-danger sm" data-ac="hang">Raccrocher</button></span>'
-        : C.busy ? '<span class="lv-cb-t">' + PHONE + 'Connexion au micro…</span>'
-        : ongoing ? '<span class="lv-cb-t">' + PHONE + '<b>Appel en cours</b> · ' + who(ids) + '</span><span class="lv-cb-a"><button type="button" class="btn-primary sm" data-ac="join">Rejoindre</button></span>'
-        : '<button type="button" class="btn-ghost sm lv-cb-start" data-ac="start">' + PHONE + 'Lancer un appel vocal</button>';
-      cb.onclick = function (e) { var b = e.target.closest('[data-ac]'); if (!b) return; var a = b.dataset.ac; if (a === 'start') start(); else if (a === 'join') join(); else if (a === 'mute') mute(); else if (a === 'hang') hangup(); };
+      cb.hidden = !kind || !visible; cb.className = 'lv-callbar ' + (kind === 'call' ? 'on' : ''); if (kind && visible) cb.innerHTML = inner; else cb.innerHTML = '';
+      cb.onclick = function (e) { var b = e.target.closest('[data-ac]'); if (b) act(b.dataset.ac); };
     }
-    // bannière flottante : sonnerie, ou commandes de l'appel en cours (visibles même panneau fermé)
+    var cbtn = $('#lv-callbtn'); if (cbtn) cbtn.hidden = !!kind;           // pas de second bouton quand la barre d'appel est là
+    // bannière flottante : seulement quand le volet « Partage » n'est pas visible (appel en cours ou sonnerie)
     var dk = ensureDock();
-    if (inCall) {
-      dk.hidden = false; dk.className = 'lv-dock-call';
-      dk.innerHTML = '<span class="lv-dk-t">' + PHONE + '<b>Appel</b> · ' + (others.length ? who(others) : 'en attente des autres') + '</span><span class="lv-dk-a"><button type="button" data-ac="mute" aria-pressed="' + C.muted + '">' + MIC + (C.muted ? 'Micro coupé' : 'Micro') + '</button><button type="button" class="red" data-ac="hang">Raccrocher</button></span>';
-    } else if (C.ring && !C.busy) {
-      dk.hidden = false; dk.className = 'lv-dock-ring';
-      dk.innerHTML = '<span class="lv-dk-t">' + PHONE + '<b>' + esc(C.ring.n) + '</b> lance un appel vocal</span><span class="lv-dk-a"><button type="button" class="green" data-ac="join">Rejoindre</button><button type="button" data-ac="later">Plus tard</button></span>';
-    } else dk.hidden = true;
-    if (dk.hidden) dk.innerHTML = '';
-    // personnes dans l'appel, repérées dans la liste du panneau
+    if (kind && kind !== 'busy' && !visible && (kind === 'call' || kind === 'ring')) { dk.hidden = false; dk.className = cls; dk.innerHTML = inner; }
+    else { dk.hidden = true; dk.innerHTML = ''; }
+    // personnes dans l'appel, repérées dans la liste du volet
     document.querySelectorAll('#lv-people .lv-p').forEach(function (b) { var u = b.dataset.u; b.classList.toggle('lv-incall', members().indexOf(u) >= 0); });
   }
   setInterval(function () { if (st.room) maj(); }, 10000);          // retire les participants disparus sans avoir raccroché

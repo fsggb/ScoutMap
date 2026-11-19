@@ -1,7 +1,7 @@
 /* ScoutMap : partage en direct d'un itinéraire, d'azimuts ou d'un grand jeu.
-   Un onglet « Partage » dans le panneau latéral : bouton « Partager » (QR code / lien pour inviter), puis trois onglets — Personnes (qui est connecté,
-   qui est où), Discussion, Réglages. Chaque personne connectée apparaît sur la carte avec son prénom. Les personnes invitées (page en lecture seule,
-   sans panneau latéral) retrouvent la même interface dans un panneau flottant.
+   Un onglet « Partage » à part entière dans le volet latéral (aucune fenêtre modale : prénom, invitation, confirmation s'affichent dans le volet) :
+   bouton « Partager » (QR code / lien pour inviter), puis trois onglets façon messagerie — Discussion, Personnes (qui est connecté, qui est où), Réglages.
+   Chaque personne connectée apparaît sur la carte avec son prénom. Les personnes invitées retrouvent le même volet (seul onglet de leur page).
    Les échanges passent par le serveur Cloudflare de ScoutHub (une connexion WebSocket par partage), chiffrés (AES-GCM) dans le navigateur
    avec une clé qui n'est que dans le lien : le serveur ne voit rien de lisible. Seul le chef qui a lancé le partage (ou un co-administrateur)
    modifie la carte ; les autres la reçoivent en lecture seule. */
@@ -15,7 +15,7 @@
   var ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
   var ONLINE = 45000, RECENT = 15 * 60000;   // « en ligne » : signe de vie il y a moins de 45 s ; « parti récemment » : moins de 15 min
   var st = { mode: 'game', room: null, key: null, ck: null, owner: false, admin: false, atok: null, psec: null, uid: null, name: '', share: true, geoErr: '', fix: null,
-    remote: {}, markers: {}, chat: [], offset: 0, unread: 0, panelOpen: false, tab: 'people', watch: null, lastSend: 0, timers: [], ws: null, carte: null, fini: true, essais: 0, lastGame: '', loaded: false, known: null, call: null, conn: 'ok', lastIn: Date.now(), nextTry: 0, rt: null, errs: [], out: {}, ping: null, decFail: 0, sync: { sent: 0, recv: 0 }, warned: {} };
+    remote: {}, markers: {}, chat: [], offset: 0, unread: 0, panelOpen: false, tab: 'chat', watch: null, lastSend: 0, timers: [], ws: null, carte: null, fini: true, essais: 0, lastGame: '', loaded: false, known: null, call: null, conn: 'ok', lastIn: Date.now(), nextTry: 0, rt: null, errs: [], out: {}, ping: null, decFail: 0, sync: { sent: 0, recv: 0 }, warned: {} };
   var gLive = L.layerGroup().addTo(map);
   try { st.name = localStorage.getItem('scoutmap.live.name') || ''; st.share = localStorage.getItem('scoutmap.live.share') !== '0'; } catch (e) { /* ignoré */ }
   try { st.uid = localStorage.getItem('scoutmap.live.uid'); if (!st.uid) { st.uid = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(12)), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); localStorage.setItem('scoutmap.live.uid', st.uid); } } catch (e) { st.uid = 'x' + Date.now().toString(36); }
@@ -153,66 +153,79 @@
   }
 
   // ---------- Panneau : Personnes / Discussion / Réglages ----------
-  var btn, panel, dlg, floating = !!window.SM_VIEWER;
+  var btn, panel, floating = false;
   function modeNow() { return S.mode === 'az' ? 'les azimuts' : S.mode === 'route' ? 'l’itinéraire' : S.mode === 'game' ? 'le grand jeu' : ''; }
+  // Logo du bouton « Envoyer par WhatsApp » : dessin original (bulle de discussion avec combiné), pastille verte cerclée d'or aux couleurs FSGGB
+  var WA_LOGO = '<svg class="lv-logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="#008069" stroke="#c6a24e" stroke-width="2.2"/><path d="M16 6.6a9.4 9.4 0 0 0-8.1 14.2l-1.4 4.8 5-1.3A9.4 9.4 0 1 0 16 6.6z" fill="#fff"/><path transform="translate(10.3 9.3) scale(.48)" d="M6 3.5h3.2l1.5 4-2 1.3a11.5 11.5 0 0 0 6.5 6.5l1.3-2 4 1.5V18a2.5 2.5 0 0 1-2.7 2.5C10.5 20 4 13.5 3.5 6.2A2.5 2.5 0 0 1 6 3.5z" fill="#008069"/></svg>';
+  function ico(n) { return '<svg class="ic" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function build() {
     if (panel) return;
-    if (floating) {
-      btn = document.createElement('button'); btn.id = 'live-btn'; btn.type = 'button'; btn.hidden = true; btn.title = 'Partage en direct : personnes connectées et discussion'; btn.setAttribute('aria-label', 'Partage en direct');
-      btn.innerHTML = '<svg class="ic"><use href="#i-people"/></svg><i class="lv-badge" hidden></i>';
-      var z = $('.zoomctl'); if (z) z.appendChild(btn); else document.body.appendChild(btn);
-      btn.addEventListener('click', function () { togglePanel(); });
-    }
-    panel = document.createElement('div'); panel.id = 'live-panel'; panel.hidden = floating;
+    panel = document.createElement('div'); panel.id = 'live-panel';
     panel.innerHTML =
       '<div class="lv-idle" id="lv-idle"></div>' +
-      '<div id="lv-live" hidden>' +
-      '<div class="lv-head"><div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
-      '<button type="button" class="btn-primary sm" id="lv-invite"><svg class="ic"><use href="#i-people"/></svg>Inviter</button>' +
-      '<button type="button" class="ibtn" id="lv-x" aria-label="Réduire"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
+      '<div class="lv-live" id="lv-live" hidden>' +
+      '<header class="lv-top"><div class="lv-row"><span class="lv-av" aria-hidden="true">' + ico('people') + '</span>' +
+      '<div class="lv-ttl"><b id="lv-title">Partage en direct</b><small id="lv-count"></small></div>' +
+      '<button type="button" class="lv-ib" id="lv-callbtn" title="Lancer un appel vocal" aria-label="Lancer un appel vocal">' + ico('phone') + '</button>' +
+      '<button type="button" class="lv-ib" id="lv-invite" title="Inviter des personnes" aria-label="Inviter des personnes">' + ico('user-add') + '</button>' +
+      '<button type="button" class="lv-ib lv-x" id="lv-x" title="Fermer le volet" aria-label="Fermer le volet">' + ico('x') + '</button></div>' +
+      '<div class="lv-tabs" role="tablist">' +
+      '<button type="button" role="tab" data-lt="chat" class="on" aria-selected="true">Discussion<i class="lv-tb" id="lv-tb" hidden></i></button>' +
+      '<button type="button" role="tab" data-lt="people" aria-selected="false">Personnes</button>' +
+      '<button type="button" role="tab" data-lt="settings" aria-selected="false">Réglages</button></div></header>' +
       '<div class="lv-net" id="lv-net" hidden></div>' +
       '<div class="lv-callbar" id="lv-callbar" hidden></div>' +
-      '<div class="lv-tabs" role="tablist"><button type="button" role="tab" data-lt="people" class="on">Personnes</button>' +
-      '<button type="button" role="tab" data-lt="chat">Discussion <i class="lv-tb" id="lv-tb" hidden></i></button>' +
-      '<button type="button" role="tab" data-lt="settings">Réglages</button></div>' +
-      '<div class="lv-pane" data-lp="people">' +
-        '<p class="lv-sync" id="lv-sync"></p>' +
-        '<label class="lv-pos"><input type="checkbox" id="lv-sharing"><span class="lv-sw"></span><span class="lv-post"><b>Montrer ma position sur la carte</b><small id="lv-geo"></small></span></label>' +
-        '<div class="lv-people" id="lv-people"></div>' +
-        '<button type="button" class="btn-ghost sm" id="lv-all">Voir tout le monde sur la carte</button></div>' +
-      '<div class="lv-pane lv-pane-chat" data-lp="chat" hidden><div id="wa-host"></div></div>' +
-      '<div class="lv-pane" data-lp="settings" hidden><div id="lv-set"></div></div></div>';
-    var host = !floating && $('#live-host');
-    if (host) host.appendChild(panel); else ($('.stage') || document.body).appendChild(panel);
-    dlg = document.createElement('dialog'); dlg.id = 'dlg-live'; dlg.className = 'dlg-live'; document.body.appendChild(dlg);
-    $('#lv-x').addEventListener('click', function () { togglePanel(false); });
+      '<div class="lv-body">' +
+      '<section class="lv-pane lv-pane-chat" data-lp="chat"><div id="wa-host"></div></section>' +
+      '<section class="lv-pane lv-scroll" data-lp="people" hidden>' +
+      '<p class="lv-sync" id="lv-sync"></p>' +
+      '<label class="lv-pos"><input type="checkbox" id="lv-sharing"><span class="lv-sw"></span><span class="lv-post"><b>Montrer ma position sur la carte</b><small id="lv-geo"></small></span></label>' +
+      '<div class="lv-people" id="lv-people"></div>' +
+      '<button type="button" class="lv-btn" id="lv-all">' + ico('target') + 'Voir tout le monde sur la carte</button></section>' +
+      '<section class="lv-pane lv-scroll" data-lp="settings" hidden><div id="lv-set"></div></section>' +
+      '<section class="lv-view" id="lv-invview" hidden></section></div></div>';
+    var host = $('#live-host'); if (host) host.appendChild(panel); else ($('.stage') || document.body).appendChild(panel);
+    $('#lv-x').addEventListener('click', function () { var c = $('#panel-close'); if (c) c.click(); else togglePanel(false); setTimeout(function () { if (SM.appel) SM.appel.maj(); }, 60); });
     $('#lv-invite').addEventListener('click', showInvite);
+    $('#lv-callbtn').addEventListener('click', function () { if (SM.appel) SM.appel.start(); });
     $('#lv-sharing').addEventListener('change', function () { setShare(this.checked); });
     $('#lv-all').addEventListener('click', showAll);
     $$('.lv-tabs [data-lt]').forEach(function (t) { t.addEventListener('click', function () { setTab(t.dataset.lt); }); });
-    $('#lv-people').addEventListener('click', function (e) {
+    function personne(e) {
       if (e.target.closest('[data-retry]')) { startGeo(true); return; }
       var r = e.target.closest('[data-u]'); if (!r) return;
       var p = everyone()[r.dataset.u]; if (!p) return;
       if (p.lat != null) { map.setView([p.lat, p.lon], Math.max(map.getZoom(), 15), { animate: true }); if (window.innerWidth <= 860) togglePanel(false); }
       else toast(r.dataset.u === st.uid ? (st.geoErr ? geoText() : 'Votre position n’est pas partagée.') : (p.n || 'Cette personne') + ' ne partage pas sa position.');
-    });
+    }
+    $('#lv-people').addEventListener('click', personne);
+    $('#lv-people').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-u]')) { e.preventDefault(); personne(e); } });
     var rb = $('#rail-share'); if (rb) rb.addEventListener('click', function () { setTimeout(onOpen, 0); });
+    ['#panel-close', '#rail-toggle'].forEach(function (q) { var b = $(q); if (b) b.addEventListener('click', function () { setTimeout(function () { if (SM.appel) SM.appel.maj(); }, 60); }); });
     renderIdle();
   }
   // Écran d'accueil de l'onglet « Partage » tant qu'aucun partage n'est en cours
   function renderIdle() {
     var el = $('#lv-idle'); if (!el) return;
     var q = modeNow();
-    el.innerHTML = q
-      ? '<p><b>Partagez ' + q + ' avec d’autres personnes.</b></p><ul><li>Elles scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion est incluse.</li></ul><button type="button" class="btn-primary" id="lv-startbtn"><svg class="ic"><use href="#i-people"/></svg>Partager maintenant</button><p class="lv-note">Tout est chiffré : seules les personnes qui ont le lien peuvent lire.</p>'
-      : '<p><b>Partagez la carte en direct avec d’autres personnes.</b></p><ul><li>Elles scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion et des appels vocaux sont inclus.</li></ul><button type="button" class="btn-primary" id="lv-startbtn"><svg class="ic"><use href="#i-people"/></svg>Partager maintenant</button><p class="lv-note">La carte est vide pour l’instant : ce que vous poserez (itinéraire, azimuts, grand jeu) apparaîtra chez les autres. Tout est chiffré.</p>';
+    el.hidden = false;
+    if (window.SM_LIVE_ROOM) {      // page d'un invité qui n'a pas (encore) rejoint
+      el.innerHTML = '<div class="lv-wel"><span class="lv-bigav">' + ico('people') + '</span><h3>Partage en direct</h3><p class="lv-lead">Vous n’avez pas rejoint ce partage.</p><button type="button" class="lv-big" id="lv-rejoin">Rejoindre</button></div>';
+      var rj = $('#lv-rejoin'); if (rj) rj.addEventListener('click', function () { location.reload(); });
+      return;
+    }
+    el.innerHTML = '<div class="lv-wel"><span class="lv-bigav">' + ico('people') + '</span>' +
+      '<h3>Partager ' + (q || 'la carte') + ' en direct</h3>' +
+      '<ul><li>Les personnes invitées scannent un QR code ou ouvrent un lien : rien à installer.</li><li>Tout le monde se voit sur la carte, avec son prénom.</li><li>Une discussion et des appels vocaux sont inclus.</li></ul>' +
+      '<button type="button" class="lv-big" id="lv-startbtn">' + ico('people') + 'Partager maintenant</button>' +
+      '<p class="lv-note">' + (q ? '' : 'La carte est vide pour l’instant : ce que vous poserez (itinéraire, azimuts, grand jeu) apparaîtra chez les autres. ') + 'Tout est chiffré : seules les personnes qui ont le lien peuvent lire.</p></div>';
     var b = $('#lv-startbtn'); if (b) b.addEventListener('click', start);
   }
-  function isOpen() { return floating ? st.panelOpen : (SM.subOpen && SM.subOpen() === 'share'); }
-  function onOpen() { if (!st.room) { renderIdle(); return; } if (st.tab === 'chat' && SM.chat) SM.chat.open(); renderPeople(); }
+  function isOpen() { return !!(SM.subOpen && SM.subOpen() === 'share' && S.panelOpen !== false); }
+  function onOpen() { if (SM.appel) SM.appel.maj(); if (!st.room) return; if (st.tab === 'chat' && SM.chat) SM.chat.open(); renderPeople(); }
   function setTab(k) {
-    st.tab = k; $$('.lv-tabs [data-lt]').forEach(function (t) { t.classList.toggle('on', t.dataset.lt === k); });
+    st.tab = k; closeInvite();
+    $$('.lv-tabs [data-lt]').forEach(function (t) { var on = t.dataset.lt === k; t.classList.toggle('on', on); t.setAttribute('aria-selected', String(on)); });
     $$('.lv-pane').forEach(function (p) { p.hidden = p.dataset.lp !== k; });
     if (k === 'chat' && SM.chat) SM.chat.open();
     if (k !== 'chat' && SM.chat) SM.chat.close();
@@ -220,19 +233,16 @@
     if (k === 'people') renderPeople();
   }
   function togglePanel(on) {
-    if (floating) {
-      st.panelOpen = on === undefined ? !st.panelOpen : on; panel.hidden = !st.panelOpen; document.body.classList.toggle('lv-open', st.panelOpen);
-    } else {
-      var open = SM.subOpen && SM.subOpen() === 'share', want = on === undefined ? !open : on;
-      if (want && !open) SM.showSub('share'); else if (!want && open) SM.showSub(null);
-    }
-    if (isOpen()) onOpen();
+    var open = isOpen(), want = on === undefined ? !open : on;
+    if (want && !open) SM.showSub('share');
+    else if (!want && open) { var pc = $('#panel-close'); if (window.innerWidth <= 860 && pc) pc.click(); else SM.showSub(null); }
+    if (isOpen()) onOpen(); else if (SM.appel) SM.appel.maj();
   }
   function badge() {
-    var n = st.unread > 9 ? '9+' : st.unread, b = btn && $('.lv-badge', btn), r = $('#share-badge'), t = $('#lv-tb');
-    [b, r, t].forEach(function (e) { if (e) { e.hidden = !st.unread; e.textContent = n; } });
+    var n = st.unread > 9 ? '9+' : st.unread, r = $('#share-badge'), t = $('#lv-tb');
+    [r, t].forEach(function (e) { if (e) { e.hidden = !st.unread; e.textContent = n; } });
   }
-  function dlgOpen(html) { dlg.innerHTML = html + '<button class="dlg-x" type="button" data-x aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>'; $('[data-x]', dlg).addEventListener('click', function () { dlg.close(); }); if (!dlg.open) dlg.showModal(); return dlg; }
+  function closeInvite() { var v = $('#lv-invview'); if (v) v.hidden = true; }
 
   // ---------- Création et accès ----------
   function hasContent() { return st.mode === 'az' ? S.az.pts.length > 0 : st.mode === 'route' ? S.route.wps.length > 1 : S.game.shapes.length > 0; }
@@ -240,16 +250,19 @@
   function saveSession() { try { localStorage.setItem('scoutmap.live.session', JSON.stringify({ mode: st.mode, room: st.room, key: st.key, owner: st.owner, admin: st.admin, atok: st.atok, psec: st.psec, t: Date.now() })); } catch (e) { /* ignoré */ } }
   function clearSession() { try { localStorage.removeItem('scoutmap.live.session'); } catch (e) { /* ignoré */ } }
   function saveName(n) { st.name = n; try { localStorage.setItem('scoutmap.live.name', n); } catch (e) { /* ignoré */ } }
-  // Prénom : demandé une seule fois, ensuite modifiable dans Réglages
+  // Prénom : demandé une seule fois (dans le volet, pas dans une fenêtre), ensuite modifiable dans Réglages
   function getName(title, okLabel, cb) {
     if (st.name) { cb(st.name); return; }
-    var d = dlgOpen('<h2>' + esc(title) + '</h2><p class="dlg-sub">Entrez votre prénom : il s’affichera à côté de votre position et de vos messages.</p>' +
-      '<label class="pdf-name">Prénom <input id="lv-name" type="text" maxlength="24" autocomplete="given-name"></label>' +
-      '<div class="dlg-actions"><button class="btn-ghost" id="lv-cancel" type="button">Annuler</button><button class="btn-primary" id="lv-ok" type="button">' + esc(okLabel) + '</button></div>');
-    var i = $('#lv-name', d); setTimeout(function () { i.focus(); }, 50);
-    function go() { var n = i.value.trim(); if (!n) { i.focus(); return; } saveName(n); d.close(); cb(n); }
-    $('#lv-ok', d).addEventListener('click', go); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    $('#lv-cancel', d).addEventListener('click', function () { d.close(); if (cb.cancel) cb.cancel(); });
+    build(); togglePanel(true);
+    var el = $('#lv-idle'); $('#lv-live').hidden = true; el.hidden = false;
+    el.innerHTML = '<div class="lv-wel"><span class="lv-bigav">' + ico('people') + '</span><h3>' + esc(title) + '</h3>' +
+      '<p class="lv-lead">Entrez votre prénom : il s’affichera à côté de votre position et de vos messages.</p>' +
+      '<label class="lv-fld lv-wide">Prénom<input id="lv-name" type="text" maxlength="24" autocomplete="given-name"></label>' +
+      '<button type="button" class="lv-big" id="lv-ok">' + esc(okLabel) + '</button><button type="button" class="lv-textbtn" id="lv-cancel">Annuler</button></div>';
+    var i = $('#lv-name'); setTimeout(function () { i.focus(); }, 80);
+    function go() { var n = i.value.trim(); if (!n) { i.focus(); return; } saveName(n); cb(n); }
+    $('#lv-ok').addEventListener('click', go); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    $('#lv-cancel').addEventListener('click', function () { renderIdle(); if (cb.cancel) cb.cancel(); });
   }
   // La personne qui lance le partage
   function start() {
@@ -266,9 +279,9 @@
         if (!m.proprio) throw new Error('création refusée');
         st.owner = true; return publishGame();
       }).then(function () {
-        active(); startGeo(); showInvite(); saveSession();
+        active(true); startGeo(); showInvite(); saveSession();
         if (vide) setTimeout(function () { toast('Attention : la carte est vide pour l’instant. Le partage est lancé ; ce que vous poserez sur la carte apparaîtra chez les autres.'); }, 900);
-      }).catch(function (e) { st.fini = true; if (st.ws) st.ws.close(); st.room = null; toast('Impossible de lancer le partage : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
+      }).catch(function (e) { st.fini = true; if (st.ws) st.ws.close(); st.room = null; renderIdle(); toast('Impossible de lancer le partage : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
     });
   }
   // Une personne qui arrive par le QR code ou le lien
@@ -280,9 +293,9 @@
       toast('Connexion au partage…');
       importKey(key).then(function (k) { st.ck = k; return connect({ adm: atok }); }).then(function (m) {
         if (m.admin && !m.proprio) st.atok = atok;
-        active(); return st.owner ? null : loadGame().catch(attenteCarte);
+        active(window.innerWidth > 860); return st.owner ? null : loadGame().catch(attenteCarte);
       }).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); if (!window.SM_VIEWER) SM.setMode(st.mode); toast('Vous êtes co-administrateur : vous pouvez modifier la carte.'); } startGeo(); saveSession(); })
-        .catch(function (e) { if (e && e.name === 'OperationError') e = new Error('Lien incomplet : scannez de nouveau le QR code.'); st.fini = true; if (st.ws) st.ws.close(); st.room = null; toast(e && e.message ? e.message : 'Connexion impossible.'); });
+        .catch(function (e) { if (e && e.name === 'OperationError') e = new Error('Lien incomplet : scannez de nouveau le QR code.'); st.fini = true; if (st.ws) st.ws.close(); st.room = null; renderIdle(); toast(e && e.message ? e.message : 'Connexion impossible.'); });
     };
     go.cancel = function () { st.room = null; st.key = null; };
     getName('Rejoindre le partage', 'Rejoindre', go);
@@ -294,17 +307,17 @@
     build(); st.room = s.room; st.key = s.key; st.psec = s.psec || null; st.atok = s.atok || null; st.mode = s.mode || 'game';
     importKey(s.key).then(function (k) { st.ck = k; return connect(); }).then(function () {
       if (s.owner && !st.owner) throw new Error('fin');
-      active(); if (st.owner) { st.lastGame = ''; if (hasContent() && !window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().catch(attenteCarte).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
+      active(window.innerWidth > 860); if (st.owner) { st.lastGame = ''; if (!window.SM_VIEWER) { SM.showHome(false); SM.setMode(st.mode); } } return st.owner ? null : loadGame().catch(attenteCarte).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); SM.setMode(st.mode); } });
     }).then(function () { startGeo(); saveSession(); toast('Partage en direct retrouvé.'); }).catch(function (e) {
       var fatal = e && /terminé|n’existe plus|^fin$/.test(e.message || '');
       st.fini = true; killWs(); st.room = null; st.key = null; st.owner = false; st.admin = false;
       if (fatal) clearSession(); else if ((s.essaisReprise = (s.essaisReprise || 0) + 1) < 8) setTimeout(resume, 6000);      // réseau absent au démarrage : on garde le partage et on réessaie
     });
   }
-  function active() {
-    if (btn) btn.hidden = false; document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
-    $('#lv-idle').hidden = true; $('#lv-live').hidden = false; 
-    st.known = null; setTab('people'); renderSettings(); togglePanel(true);
+  function active(show) {
+    document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
+    $('#lv-idle').hidden = true; $('#lv-live').hidden = false;
+    st.known = null; setTab('chat'); renderSettings(); if (show) togglePanel(true); else if (window.innerWidth <= 860 && isOpen()) togglePanel(false); else onOpen();
     st.timers.push(setInterval(renderPeople, 5000));
     st.timers.push(setInterval(watchdog, 5000));
     st.timers.push(setInterval(function () { if (st.conn !== 'ok') netUI(); }, 1000));
@@ -388,7 +401,7 @@
     function on(u) { return u === st.uid || t - all[u].t < ONLINE; }
     ids.sort(function (a, b) { return a === st.uid ? -1 : b === st.uid ? 1 : (on(b) - on(a)) || (all[a].n || '').localeCompare(all[b].n || ''); });
     var nOn = ids.filter(on).length;
-    $('#lv-count').textContent = nOn + (nOn > 1 ? ' personnes connectées' : ' personne connectée');
+    $('#lv-count').textContent = nOn + ' en ligne'; if (SM.chat && SM.chat.refresh) SM.chat.refresh();
     var rc = $('#share-count'); if (rc) { rc.hidden = false; rc.textContent = String(nOn); rc.title = nOn + (nOn > 1 ? ' personnes connectées' : ' personne connectée'); }
     var sh = $('#lv-sharing'); if (sh) sh.checked = st.share;
     var g = $('#lv-geo'); if (g) g.textContent = geoText();
@@ -396,7 +409,7 @@
       var p = all[u], online = on(u), me = u === st.uid, dist = !me && p.lat != null && st.fix ? fmtDist(distM(st.fix.lat, st.fix.lon, p.lat, p.lon)) : '', hors = !me && p.lat != null && !bounds.contains([p.lat, p.lon]);
       var ver = !me && online && p.v !== SM.version ? ' · ⚠ ' + (p.v ? 'autre version du site' : 'ancienne version : à recharger') : '';
       var state = me ? (st.geoErr && st.share ? '<button type="button" class="lv-retry" data-retry>Réessayer</button>' : '') : online ? (p.lat != null ? 'en ligne' + (dist ? ' · à ' + dist : ' · position partagée') + (hors ? ' · hors de l’écran' : '') : 'en ligne · position non partagée') + ver : 'parti ' + ago(p.t);
-      return '<button type="button" class="lv-p' + (online ? '' : ' old') + '" data-u="' + esc(u) + '"><i style="background:' + esc(p.c || colorOf(u)) + '">' + initial(p.n) + '</i><span class="lv-pn"><b>' + esc(p.n || '?') + (me ? ' (moi)' : '') + '</b><small>' + (me ? (p.lat != null ? 'sur la carte' : 'pas sur la carte') : state) + '</small></span>' + (me ? state : '') + (p.lat != null ? '<svg class="ic lv-loc"><use href="#i-target"/></svg>' : '') + '</button>';
+      return '<div class="lv-p' + (online ? '' : ' old') + '" role="button" tabindex="0" data-u="' + esc(u) + '"><i class="' + (online ? 'on' : '') + '" style="background:' + esc(p.c || colorOf(u)) + '">' + initial(p.n) + '</i><span class="lv-pn"><b>' + esc(p.n || '?') + (me ? ' (moi)' : '') + '</b><small>' + (me ? (p.lat != null ? 'sur la carte' : 'pas sur la carte') : state) + '</small></span>' + (me ? state : '') + (p.lat != null ? '<svg class="ic lv-loc"><use href="#i-target"/></svg>' : '') + '</div>';
     }).join('');
     if (SM.appel) SM.appel.maj();
     syncLine();
@@ -451,14 +464,17 @@
     var el = $('#lv-set'); if (!el || !st.room) return;
     var droits = st.owner ? 'Vous dirigez le partage : vos modifications de la carte sont envoyées aux autres en quelques secondes.' : st.admin ? 'Vous êtes co-administrateur : vous pouvez modifier la carte comme la personne qui a lancé le partage.' : 'Vous suivez ' + quoi() + ' en lecture seule.';
     el.innerHTML =
-      '<label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="btn-ghost sm" id="lv-nms">Enregistrer</button></span></label>' +
+      '<div class="lv-card"><label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="lv-btn" id="lv-nms">Enregistrer</button></span></label></div>' +
       '<p class="lv-role">' + esc(droits) + '</p>' +
-      (st.owner ? '<div class="lv-adm"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="dlg-actions"><button class="btn-ghost sm" id="lv-acopy" type="button">Copier le lien</button><button class="btn-ghost sm" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
-      '<details class="lv-diag" id="lv-diag"><summary>État technique (en cas de problème)</summary><pre id="lv-diagtxt"></pre><button type="button" class="btn-ghost sm" id="lv-diagcopy">Copier pour l’envoyer</button></details>' +
-      '<button type="button" class="btn-ghost danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button>';
+      (st.owner ? '<div class="lv-card"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="lv-acts"><button class="lv-btn" id="lv-acopy" type="button">' + ico('copy') + 'Copier le lien</button><button class="lv-btn" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
+      '<details class="lv-diag" id="lv-diag"><summary>État technique (en cas de problème)</summary><pre id="lv-diagtxt"></pre><button type="button" class="lv-btn" id="lv-diagcopy">' + ico('copy') + 'Copier pour l’envoyer</button></details>' +
+      '<div class="lv-end" id="lv-endbox"><button type="button" class="lv-btn danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button></div>';
     function saveNm() { var n = $('#lv-nm').value.trim(); if (!n) return; saveName(n); beat(true); renderPeople(); toast('Prénom enregistré.'); }
     $('#lv-nms').addEventListener('click', saveNm); $('#lv-nm').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNm(); });
-    $('#lv-end').addEventListener('click', endOrLeave);
+    $('#lv-end').addEventListener('click', function () {      // confirmation dans le volet (pas de fenêtre)
+      $('#lv-endbox').innerHTML = '<p>' + (st.owner ? 'Terminer le partage ? Tout le monde sera déconnecté et les positions effacées.' : 'Quitter le partage ?') + '</p><div class="lv-acts"><button type="button" class="lv-btn danger" id="lv-end2">' + (st.owner ? 'Oui, terminer' : 'Oui, quitter') + '</button><button type="button" class="lv-btn" id="lv-end0">Annuler</button></div>';
+      $('#lv-end2').addEventListener('click', function () { endOrLeave(true); }); $('#lv-end0').addEventListener('click', renderSettings);
+    });
     var dg = $('#lv-diag'); function fillDiag() { var pre = $('#lv-diagtxt'); if (pre) pre.textContent = diagText(); }
     if (dg) { dg.addEventListener('toggle', fillDiag); $('#lv-diagcopy').addEventListener('click', function () { fillDiag(); copy($('#lv-diagtxt').textContent, 'État technique copié.'); }); }
     var ac = $('#lv-acopy');
@@ -472,23 +488,28 @@
     }
   }
 
-  // ---------- Inviter (QR code) ----------
+  // ---------- Inviter (QR code) : vue dans le volet, pas une fenêtre ----------
   function showInvite() {
     if (!st.room) return;
+    build(); togglePanel(true);
     var url = linkOf(), qr = qrcode(0, 'M'); qr.addData(url); qr.make();
-    var d = dlgOpen('<h2>Inviter des personnes</h2><p class="dlg-sub">Faites scanner ce code avec l’appareil photo d’un téléphone, ou envoyez le lien. La personne saisit son prénom et apparaît aussitôt sur la carte. Elle voit ' + quoi() + ' en lecture seule.</p>' +
+    var texte = 'Suis ' + quoi() + ' en direct sur ScoutMap : ' + url, v = $('#lv-invview');
+    v.innerHTML = '<div class="lv-vh"><button type="button" class="lv-ib dark" id="lv-vback" aria-label="Retour" title="Retour">' + ico('chev-left') + '</button><b>Inviter des personnes</b></div>' +
+      '<div class="lv-vc"><p class="lv-lead">Faites scanner ce code avec l’appareil photo d’un téléphone, ou envoyez le lien. La personne saisit son prénom et apparaît aussitôt sur la carte. Elle voit ' + quoi() + ' en lecture seule.</p>' +
       '<div class="lv-qr">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
-      '<input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du partage en direct">' +
-      '<div class="dlg-actions"><button class="btn-ghost" id="lv-copy" type="button">Copier le lien</button>' + (navigator.share ? '<button class="btn-ghost" id="lv-share" type="button">Envoyer…</button>' : '') + '<button class="btn-primary" id="lv-done" type="button">Terminé</button></div>');
-    $('#lv-copy', d).addEventListener('click', function () { copy(url, 'Lien copié.'); });
-    var sh = $('#lv-share', d); if (sh) sh.addEventListener('click', function () { navigator.share({ title: Quoi() + ' en direct', text: 'Suis ' + quoi() + ' en direct sur ScoutMap', url: url }).catch(function () { /* annulé */ }); });
-    $('#lv-done', d).addEventListener('click', function () { d.close(); });
+      '<div class="lv-linkrow"><input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du partage en direct"><button type="button" class="lv-btn" id="lv-copy">' + ico('copy') + 'Copier</button></div>' +
+      '<div class="lv-acts"><a class="lv-btn" id="lv-wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(texte) + '">' + WA_LOGO + 'Envoyer par WhatsApp</a>' +
+      (navigator.share ? '<button type="button" class="lv-btn" id="lv-share">' + ico('share') + 'Autres applications…</button>' : '') + '</div></div>';
+    v.hidden = false;
+    $('#lv-vback').addEventListener('click', closeInvite);
+    $('#lv-copy').addEventListener('click', function () { copy(url, 'Lien copié.'); });
+    $('#lv-link').addEventListener('focus', function () { this.select(); });
+    var sh = $('#lv-share'); if (sh) sh.addEventListener('click', function () { navigator.share({ title: Quoi() + ' en direct', text: 'Suis ' + quoi() + ' en direct sur ScoutMap', url: url }).catch(function () { /* annulé */ }); });
   }
 
   // ---------- Fin ----------
-  function endOrLeave() {
-    if (!st.room) return;
-    if (!confirm(st.owner ? 'Terminer le partage ? Tout le monde sera déconnecté et les positions effacées.' : 'Quitter le partage ?')) return;
+  function endOrLeave(ok) {
+    if (!st.room || !ok) return;
     stopGeo(); envoi({ t: 'sanspos' }); if (st.owner) envoi({ t: 'fin' });
     var moi = st.owner; setTimeout(function () { finish(moi ? 'Partage terminé.' : 'Vous avez quitté le partage.'); }, moi ? 300 : 0);
   }
@@ -497,7 +518,7 @@
     stopGeo(); st.fini = true; if (st.rt) { clearTimeout(st.rt); st.rt = null; } killWs(); st.conn = 'ok'; if (SM.chat) SM.chat.reset(); st.carte = null; st.loaded = false; st.warned = {}; netUI();
     st.timers.forEach(clearInterval); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.remote = {}; st.unread = 0; st.known = null;
-    if (btn) btn.hidden = true; if (floating && panel) panel.hidden = true; st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active');
+    st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active'); closeInvite();
     if ($('#lv-live')) { $('#lv-live').hidden = true; $('#lv-idle').hidden = false; renderIdle(); } var rc = $('#share-count'); if (rc) rc.hidden = true; badge();
     st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.psec = null; st.lastGame = '';
     clearSession();
@@ -508,7 +529,7 @@
   SM.live = { start: start, join: join, active: function () { return !!st.room; } };
   // Interface interne pour appel.js (appels vocaux) : état du partage, chiffrement, envoi, annonces
   SM.liveApi = { st: st, enc: enc, dec: dec, envoi: envoi, toast: toast, esc: esc, colorOf: colorOf, everyone: everyone, initial: initial, isOpen: isOpen, togglePanel: togglePanel,
-    beat: beat, badge: badge, dlgOpen: dlgOpen, now: now, rand: rand, logErr: logErr, copy: copy, setTab: setTab, hhmm: hhmm, liveName: liveName, retry: function () { st.essais = 0; if (st.conn !== 'ok') retry(true); },
+    beat: beat, badge: badge, now: now, rand: rand, logErr: logErr, copy: copy, setTab: setTab, hhmm: hhmm, liveName: liveName, retry: function () { st.essais = 0; if (st.conn !== 'ok') retry(true); },
     center: function (lat, lon) { map.setView([lat, lon], Math.max(map.getZoom(), 16), { animate: true }); if (window.innerWidth <= 860) togglePanel(false); }, fix: function () { return st.fix; } };
   var P; try { P = new URLSearchParams(location.search); } catch (e) { P = null; }
   var room = P && P.get('direct'), km = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);

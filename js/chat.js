@@ -116,7 +116,7 @@
   function tickHtml(s) { return s === 'attente' ? CLOCK : s === 'echec' ? '<span class="wa-fail">!</span>' : s === 'envoye' ? TICK1 : TICK2; }
   function refresh() {
     if (!C.built) return;
-    var h = $('#wa-sub'); if (h) { var tt = typingText(); h.textContent = tt || subtitle(); h.classList.toggle('typing', !!tt); }
+    var h = $('#lv-count'); if (h) { var tt = typingText(); h.textContent = tt || subtitle(); h.classList.toggle('typing', !!tt); }
     var by = {}; model().list.forEach(function (o) { by[o.id] = o; });
     $$('#wa-list .wa-row.out').forEach(function (r) { var o = by[r.dataset.id]; if (!o) return; var s = statusOf(o), t = $('.wa-st', r); if (t) { t.className = 'wa-st s-' + s; t.innerHTML = tickHtml(s); } });
   }
@@ -301,7 +301,6 @@
     if (C.built) return; var host = $('#wa-host'); if (!host) return; C.built = true;
     host.innerHTML =
       '<div class="wa" id="wa">' +
-      '<div class="wa-head"><span class="wa-av">' + ICON.group + '</span><div class="wa-ht"><b id="wa-title">Discussion</b><small id="wa-sub"></small></div><button type="button" class="wa-hb" id="wa-call" title="Appel vocal" aria-label="Appel vocal">' + ICON.phone + '</button></div>' +
       '<div class="wa-list" id="wa-list" aria-live="polite"></div>' +
       '<button type="button" class="wa-down" id="wa-down" hidden aria-label="Aller aux derniers messages"></button>' +
       '<div class="wa-bar" id="wa-bar" hidden></div>' +
@@ -324,7 +323,6 @@
     $('#wa-emo').addEventListener('click', function (e) { e.stopPropagation(); toggle('#wa-emop', fillEmoji); });
     $('#wa-att').addEventListener('click', function (e) { e.stopPropagation(); toggle('#wa-attm'); });
     $('#wa-cam').addEventListener('click', function () { openCamera(); });
-    $('#wa-call').addEventListener('click', function () { if (SM.appel && SM.appel.start) SM.appel.start(); else A.toast('Les appels vocaux ne sont pas disponibles ici.'); });
     $('#wa-attm').addEventListener('click', function (e) { var b = e.target.closest('[data-att]'); if (!b) return; hidePops(); var k = b.dataset.att; if (k === 'doc') $('#wa-fdoc').click(); else if (k === 'img') $('#wa-fimg').click(); else if (k === 'cam') openCamera(); else if (k === 'loc') sendLoc(); });
     $('#wa-fimg').addEventListener('change', function () { var fs = Array.prototype.slice.call(this.files || []); this.value = ''; if (fs.length) preview(fs); });
     $('#wa-fcam').addEventListener('change', function () { var fs = Array.prototype.slice.call(this.files || []); this.value = ''; if (fs.length) preview(fs); });
@@ -535,7 +533,7 @@
   // ---------- ouverture, fermeture, remise à zéro ----------
   function open() {
     build(); if (!C.built) return;
-    C.open = true; var t = $('#wa-title'); if (t) t.textContent = A.liveName() || 'Discussion';
+    C.open = true;
     C.firstUnread = C.rd; render(); refresh(); scrollEnd(true);
     var firstU = $('#wa-list .wa-unread'); if (firstU) firstU.scrollIntoView({ block: 'center' });
     setTimeout(function () { readNow(); recount(); updateDown(); var i = $('#wa-in'); if (i && window.innerWidth > 860) i.focus(); }, 120);
