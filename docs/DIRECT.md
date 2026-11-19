@@ -48,3 +48,6 @@ Même apparence et mêmes gestes qu'une messagerie de groupe connue, pour que pe
 - Bouton téléphone de l'en-tête : lance l'appel vocal de groupe.
 - Fichiers : photos réduites (1280 px, JPEG) et sons sont **chiffrés dans le navigateur** (clé du lien) puis déposés sur le serveur du partage (messages `media`, lecture `getm`, 60 fichiers au plus, supprimés avec le partage). Un serveur qui n'a pas la mise à jour répond sans accusé : le message passe en « non envoyé · Réessayer » avec une explication.
 - Modifications, suppressions et réactions sont des messages chiffrés comme les autres (champs `ev`, `tg`) ; l'historique du serveur garde 250 messages.
+
+## Aucune fenêtre modale (v. du 19/11)
+Prénom, invitation, confirmation de fin **et** les écrans de la discussion (infos du message, suppression, aperçu et légende d'une photo, appareil photo, visionneuse) sont des **feuilles à l'intérieur du volet « Partage »** : aucun `dialog` du navigateur, aucune boîte `confirm`. Échap ou « Fermer » les ferme ; quitter l'onglet Discussion ou fermer le volet les ferme aussi (et coupe l'appareil photo). Les photos, vocaux et documents passent par le Worker de ScoutHub (messages `media` / `getm`, 650 Ko au plus, 60 fichiers par partage).
