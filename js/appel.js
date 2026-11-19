@@ -57,6 +57,7 @@
     closePeer(u);
     var pc = new RTCPeerConnection({ iceServers: C.ice || [{ urls: ['stun:stun.cloudflare.com:3478'] }] }), p = { pc: pc, pending: [], audio: null, nom: nom };
     C.peers[u] = p;
+    setTimeout(function () { if (C.peers[u] === p && !p.ok) { A.toast('Connexion audio impossible avec ' + (nom || 'un participant') + ' : le réseau bloque peut-être les appels. Essayez en Wi-Fi ou en 4G, puis relancez l’appel.'); closePeer(u); maj(); } }, 25000);
     if (C.mic) C.mic.getTracks().forEach(function (t) { pc.addTrack(t, C.mic); });
     pc.onicecandidate = function (e) { if (window.SM_DEBUG) console.log('appel ice local', e.candidate ? e.candidate.candidate.split(' ').slice(4, 8).join(' ') : 'fin'); if (e.candidate) sig({ k: 'ice', to: u, c: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
     pc.ontrack = function (e) {
@@ -65,7 +66,7 @@
     };
     pc.onconnectionstatechange = function () {
       if (pc.connectionState === 'connected') { p.ok = true; maj(); }
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { if (C.peers[u] === p) { closePeer(u); if (p.ok) A.toast('Connexion perdue avec ' + (nom || 'un participant') + '.'); maj(); } }
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { if (C.peers[u] === p) { closePeer(u); A.toast(p.ok ? 'Connexion perdue avec ' + (nom || 'un participant') + '.' : 'Connexion audio impossible avec ' + (nom || 'un participant') + ' (réseau).'); maj(); } }
       if (pc.connectionState === 'disconnected') setTimeout(function () { if (C.peers[u] === p && pc.connectionState === 'disconnected') { closePeer(u); maj(); } }, 9000);
     };
     return p;
@@ -157,7 +158,7 @@
     });
     document.body.appendChild(dock); return dock;
   }
-  function who(ids) { return names(ids).map(function (n, i) { var u = ids[i], mu = (u === st.uid ? C.muted : C.roster[u] && C.roster[u].mu); return esc(n) + (mu ? ' (micro coupé)' : ''); }).join(', '); }
+  function who(ids) { return names(ids).map(function (n, i) { var u = ids[i], mu = (u === st.uid ? C.muted : C.roster[u] && C.roster[u].mu), pe = C.on && u !== st.uid ? C.peers[u] : null; return esc(n) + (mu ? ' (micro coupé)' : '') + (pe && !pe.ok ? ' (connexion…)' : ''); }).join(', '); }
   function maj() {
     if (!st.room) { var d0 = dock; if (d0) d0.hidden = true; var cb0 = $('#lv-callbar'); if (cb0) cb0.hidden = true; return; }
     var ids = members(), inCall = C.on, others = ids.filter(function (u) { return u !== st.uid; }), ongoing = ids.length > 0;
