@@ -78,13 +78,13 @@
         }
         if (m.t === 'carte') { st.carte = { d: m.d, at: m.at }; if (!st.owner) carteRecue(); return; }
         if (m.t === 'pos') { decodeOne(m.u, m.d, m.at); return; }
-        if (m.t === 'sanspos') { delete st.remote[m.u]; renderPeople(); return; }
+        if (m.t === 'sanspos') { var gone = st.remote[m.u]; if (gone) gone.t = Math.min(gone.t, now() - ONLINE - 1); renderPeople(); return; }
         if (m.t === 'msg') { if (SM.chat) SM.chat.onMsg(m); return; }
         if (m.t === 'media') { if (SM.chat) SM.chat.onMedia(m); return; }
         if (m.t === 'ok') { if (SM.chat) SM.chat.onOk(m); return; }
         if (m.t === 'sig') { if (SM.appel) SM.appel.sig(m); return; }
         if (m.t === 'turn') { if (SM.appel) SM.appel.turn(m); return; }
-        if (m.t === 'pong') { st.ping = Date.now() - (+m.c || Date.now()); return; }
+        if (m.t === 'pong') { var rtt = Date.now() - (+m.c || Date.now()); st.ping = rtt; if (m.maintenant && rtt >= 0 && rtt < 4000) st.offset = m.maintenant - (Date.now() - rtt / 2); return; }
         if (m.t === 'erreur') { logErr('serveur : ' + (m.m || m.r || 'refus')); if (m.m) toast('Le serveur a refusé : ' + m.m); return; }
         if (m.t === 'fin') { if (!st.owner) finish('Le partage a été terminé par la personne qui l’avait lancé.'); return; }
         if (m.t === 'revoque') { st.admin = false; st.atok = null; saveSession(); renderSettings(); toast('Votre lien administrateur a été révoqué : vous suivez ' + quoi() + ' en lecture seule.'); }
@@ -137,12 +137,35 @@
     el.hidden = false; el.innerHTML = '<span><b>Connexion perdue.</b> ' + (s2 > 0 ? 'Nouvelle tentative dans ' + s2 + ' s.' : 'Reconnexion…') + ' Vos messages seront envoyés dès le retour.</span><button type="button" class="btn-ghost sm" id="lv-netgo">Réessayer</button>';
     var b = $('#lv-netgo'); if (b) b.onclick = function () { st.essais = 0; retry(true); };
   }
+  // Participants connus : gardés sur l'appareil (jusqu'à 90 min d'absence) pour que « reçu » et « lu » concernent TOUTES les personnes du partage, même celles dont la connexion est coupée un moment
+  var ROSTER_MS = 90 * 60000, rosterT = null;
+  function rosterInit() { if (st.rosterFor === st.room) return; st.rosterFor = st.room; try { st.roster = JSON.parse(localStorage.getItem('scoutmap.live.roster.' + st.room) || '{}') || {}; } catch (e) { st.roster = {}; } }
+  function rosterSave() { if (rosterT) return; rosterT = setTimeout(function () { rosterT = null; try { if (st.room) localStorage.setItem('scoutmap.live.roster.' + st.room, JSON.stringify(st.roster)); } catch (e) { /* ignoré */ } }, 1500); }
+  function roster() {
+    rosterInit(); var out = {}, t = now();
+    Object.keys(st.roster).forEach(function (u) { var r = st.roster[u]; if (u !== st.uid && t - (r.seen || 0) < ROSTER_MS) out[u] = r; });
+    return out;
+  }
+  // Une présence reçue : ignorée si plus ancienne que celle déjà connue (le déchiffrement est asynchrone : l'ordre d'arrivée n'est pas garanti)
+  function apply(u, p, at) {
+    if (u === st.uid || !p || typeof p !== 'object') return;
+    rosterInit();
+    if (p.bye) { delete st.remote[u]; delete st.roster[u]; rosterSave(); return; }
+    var prev = st.remote[u];
+    if (prev && prev.t > at) { var r0 = st.roster[u]; if (r0) { r0.rd = Math.max(r0.rd || 0, p.rd || 0); r0.dv = Math.max(r0.dv || 0, p.dv || 0); } return; }
+    if (!isFinite(p.lat) || !isFinite(p.lon) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) { delete p.lat; delete p.lon; delete p.acc; }
+    if (p.lat == null && p.sh !== 0 && prev && prev.lat != null) { p.lat = prev.lat; p.lon = prev.lon; p.acc = prev.acc; }       // pas encore de nouveau point : on garde le dernier (sauf si la personne a masqué sa position)
+    p.t = at; st.remote[u] = p;
+    var r = st.roster[u] || (st.roster[u] = { first: at });
+    r.n = p.n || r.n; r.c = p.c || r.c; r.seen = Math.max(r.seen || 0, at); r.rd = Math.max(r.rd || 0, p.rd || 0); r.dv = Math.max(r.dv || 0, p.dv || 0);
+    rosterSave();
+  }
   function decodeOne(u, d, at) {
-    return dec(d).then(function (p) { p.t = at; st.remote[u] = p; renderPeople(); if (SM.chat) SM.chat.refresh(); }).catch(function () { /* illisible : ignorée */ });
+    return dec(d).then(function (p) { apply(u, p, at); renderPeople(); if (SM.chat) SM.chat.refresh(); }).catch(function () { /* illisible : ignorée */ });
   }
   function decodeAll(raw) {
-    var ids = Object.keys(raw), next = {};
-    return Promise.all(ids.map(function (u) { return dec(raw[u].d).then(function (p) { p.t = raw[u].at; next[u] = p; }).catch(function () { /* ignorée */ }); })).then(function () { st.remote = next; renderPeople(); });
+    var ids = Object.keys(raw);
+    return Promise.all(ids.map(function (u) { return dec(raw[u].d).then(function (p) { apply(u, p, raw[u].at); }).catch(function () { /* ignorée */ }); })).then(function () { renderPeople(); });
   }
   // Carte encore vide chez le chef : on n'échoue pas, elle s'affichera dès qu'elle sera publiée
   function attenteCarte(e) { if (e && /Rien n/.test(e.message || '')) { toast('Le partage est lancé, mais rien n’est encore posé sur la carte : elle apparaîtra dès que la personne qui partage aura dessiné.'); return; } throw e; }
@@ -174,6 +197,7 @@
       '<button type="button" role="tab" data-lt="people" aria-selected="false">Personnes</button>' +
       '<button type="button" role="tab" data-lt="settings" aria-selected="false">Réglages</button></div></header>' +
       '<div class="lv-net" id="lv-net" hidden></div>' +
+      '<div class="lv-notifbar" id="lv-notifbar" hidden></div>' +
       '<div class="lv-callbar" id="lv-callbar" hidden></div>' +
       '<div class="lv-body">' +
       '<section class="lv-pane lv-pane-chat" data-lp="chat"><div id="wa-host"></div></section>' +
@@ -241,7 +265,34 @@
   function badge() {
     var n = st.unread > 9 ? '9+' : st.unread, r = $('#share-badge'), t = $('#lv-tb');
     [r, t].forEach(function (e) { if (e) { e.hidden = !st.unread; e.textContent = n; } });
+    var base = document.title.replace(/^\(\d+\+?\)\s/, '');
+    if (st.unread && document.visibilityState === 'hidden') document.title = '(' + n + ') ' + base; else if (document.title !== base) document.title = base;
   }
+  // Notifications : invitation (une fois) et carte de réglages
+  function notifBar() {
+    var el = $('#lv-notifbar'), N = SM.notif; if (!el) return;
+    var g = N ? N.get() : null;
+    if (!g || g.perm !== 'default' || g.asked || !st.room) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span>' + ico('bell') + 'Être prévenu (notification et vibration) quand un message ou un appel arrive ?</span><span class="lv-cb-a"><button type="button" class="lv-cbb green" id="lv-nbon">Activer</button><button type="button" class="lv-cbb" id="lv-nbno">Plus tard</button></span>';
+    $('#lv-nbon').addEventListener('click', function () { N.request().then(function (r) { notifBar(); if ($('#lv-set')) renderSettings(); toast(r === 'granted' ? 'Notifications activées.' : r === 'denied' ? 'Notifications refusées : vous pourrez les autoriser dans les réglages du navigateur.' : 'Notifications non disponibles ici.'); }); });
+    $('#lv-nbno').addEventListener('click', function () { N.dismissAsk(); notifBar(); });
+  }
+  function notifCard() {
+    var N = SM.notif; if (!N) return '';
+    var g = N.get(), note = g.perm === 'unsupported' ? 'Les notifications ne sont pas disponibles dans ce navigateur.' : g.perm === 'denied' ? 'Refusées dans le navigateur : autorisez-les dans les réglages du site (icône à gauche de l’adresse).' : 'Quand ScoutMap est en arrière-plan, le système vous prévient (et fait vibrer sur Android).';
+    return '<div class="lv-card"><b>Notifications et vibrations</b>' +
+      '<label class="lv-pos"><input type="checkbox" id="lv-nvib"' + (g.vib ? ' checked' : '') + '><span class="lv-sw"></span><span class="lv-post"><b>Vibrer</b><small>' + (g.canVibrate ? 'Pour les messages, et plusieurs fois pour un appel, comme un téléphone.' : 'Non disponible sur cet appareil (iPhone) ou ce navigateur.') + '</small></span></label>' +
+      '<label class="lv-pos"><input type="checkbox" id="lv-nsys"' + (g.sys ? ' checked' : '') + (g.perm === 'unsupported' || g.perm === 'denied' ? ' disabled' : '') + '><span class="lv-sw"></span><span class="lv-post"><b>Notifications du système</b><small>' + note + '</small></span></label>' +
+      '<button type="button" class="lv-btn" id="lv-ntest">' + ico('bell') + 'Tester</button></div>';
+  }
+  function bindNotifCard() {
+    var N = SM.notif; if (!N || !$('#lv-nvib')) return;
+    $('#lv-nvib').addEventListener('change', function () { N.setVib(this.checked); });
+    $('#lv-nsys').addEventListener('change', function () { var box = this; N.setSys(box.checked).then(function (r) { if (r === 'denied') toast('Notifications refusées : autorisez-les dans les réglages du navigateur.'); renderSettings(); notifBar(); }); });
+    $('#lv-ntest').addEventListener('click', function () { N.test(); toast(N.get().vib && N.get().canVibrate ? 'Vibration testée.' : 'Test envoyé.'); });
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { var b = document.title.replace(/^\(\d+\+?\)\s/, ''); if (b !== document.title) document.title = b; } });
   function closeInvite() { var v = $('#lv-invview'); if (v) v.hidden = true; }
 
   // ---------- Création et accès ----------
@@ -314,15 +365,23 @@
       if (fatal) clearSession(); else if ((s.essaisReprise = (s.essaisReprise || 0) + 1) < 8) setTimeout(resume, 6000);      // réseau absent au démarrage : on garde le partage et on réessaie
     });
   }
+  // Minuterie fiable : un Worker n'est pas ralenti quand l'onglet passe en arrière-plan (sinon les autres nous voient « partis »)
+  function ticker(fn, ms) {
+    try {
+      var url = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1)},' + ms + ')'], { type: 'text/javascript' })), w = new Worker(url);
+      w.onmessage = function () { fn(); };
+      return function () { w.terminate(); URL.revokeObjectURL(url); };
+    } catch (e) { var id = setInterval(fn, ms); return function () { clearInterval(id); }; }
+  }
   function active(show) {
     document.body.classList.add('lv-active'); $('#lv-title').textContent = liveName();
     $('#lv-idle').hidden = true; $('#lv-live').hidden = false;
-    st.known = null; setTab('chat'); renderSettings(); if (show) togglePanel(true); else if (window.innerWidth <= 860 && isOpen()) togglePanel(false); else onOpen();
+    st.known = null; setTab('chat'); renderSettings(); notifBar(); if (show) togglePanel(true); else if (window.innerWidth <= 860 && isOpen()) togglePanel(false); else onOpen();
     st.timers.push(setInterval(renderPeople, 5000));
-    st.timers.push(setInterval(watchdog, 5000));
+    st.timers.push(ticker(watchdog, 5000));
     st.timers.push(setInterval(function () { if (st.conn !== 'ok') netUI(); }, 1000));
-    st.timers.push(setInterval(function () { envoi({ t: 'ping', c: Date.now() }); }, 30000));
-    st.timers.push(setInterval(function () { beat(); }, 10000));
+    st.timers.push(ticker(function () { envoi({ t: 'ping', c: Date.now() }); }, 15000));
+    st.timers.push(ticker(function () { beat(); }, 10000));
     if (canEdit()) st.timers.push(setInterval(function () { publishGame(); }, 4000));
   }
 
@@ -354,24 +413,23 @@
     if (st.geoErr === 'denied') return 'Autorisation refusée : autorisez la localisation dans les réglages du navigateur.';
     if (st.geoErr === 'absent') return 'La localisation n’est pas disponible sur cet appareil.';
     if (st.geoErr === 'timeout') return 'Position introuvable pour l’instant (essayez à l’extérieur).';
-    return st.fix ? 'Partagée (précision ±' + st.fix.acc + ' m).' : 'Recherche de votre position…';
+    return st.fix ? (st.fix.coarse ? 'Position approximative (±' + st.fix.acc + ' m) : sur ordinateur, elle vient du réseau.' : 'Partagée (précision ±' + st.fix.acc + ' m).') : 'Recherche de votre position…';
   }
   function startGeo(force) {
     if (!st.share) return;
-    if (!navigator.geolocation) { st.geoErr = 'absent'; renderPeople(); return; }
-    if (st.watch !== null) { if (!force) return; navigator.geolocation.clearWatch(st.watch); st.watch = null; }
+    if (!window.SMGeo || !navigator.geolocation) { st.geoErr = 'absent'; renderPeople(); return; }
+    if (st.unGeo) { if (!force) return; st.unGeo(); st.unGeo = null; }
     st.geoErr = '';
-    st.watch = navigator.geolocation.watchPosition(function (pos) {
-      var c = pos.coords, first = !st.fix; st.geoErr = '';
-      st.fix = { lat: +c.latitude.toFixed(6), lon: +c.longitude.toFixed(6), acc: Math.round(c.accuracy || 0) };
+    st.unGeo = SMGeo.subscribe(function (f) {
+      var first = !st.fix; st.geoErr = ''; st.fix = { lat: f.lat, lon: f.lon, acc: f.acc, coarse: !!f.coarse };
       renderPeople(); if (first || Date.now() - st.lastSend > 4000) beat(true);
-    }, function (e) {
-      st.geoErr = e && e.code === 1 ? 'denied' : e && e.code === 3 ? 'timeout' : 'absent';
-      if (e && e.code === 1 && st.watch !== null) { navigator.geolocation.clearWatch(st.watch); st.watch = null; }
+    }, function (code) {
+      if (code === 'timeout' && st.fix) return;                       // un point en retard n'efface pas la position qu'on a déjà
+      st.geoErr = code; if (code === 'denied' || code === 'absent') { if (st.unGeo) { st.unGeo(); st.unGeo = null; } }
       renderPeople(); beat(true);
-    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 25000 });
+    });
   }
-  function stopGeo() { if (st.watch !== null) { navigator.geolocation.clearWatch(st.watch); st.watch = null; } st.fix = null; st.geoErr = ''; }
+  function stopGeo() { if (st.unGeo) { st.unGeo(); st.unGeo = null; } st.fix = null; st.geoErr = ''; }
   function setShare(on) {
     st.share = !!on; try { localStorage.setItem('scoutmap.live.share', on ? '1' : '0'); } catch (e) { /* ignoré */ }
     if (on) startGeo(true); else stopGeo();
@@ -383,6 +441,7 @@
     if (!force && Date.now() - st.lastSend < 8000) return;
     st.lastSend = Date.now();
     var o = { n: st.name, c: colorOf(st.uid), v: SM.version || '' };
+    o.sh = st.share ? 1 : 0;
     if (st.share && st.fix) { o.lat = st.fix.lat; o.lon = st.fix.lon; o.acc = st.fix.acc; }
     if (SM.chat) SM.chat.presence(o);
     enc(o).then(function (e) { envoi({ t: 'pos', d: e }); }).catch(function () { /* hors réseau : prochain signe de vie */ });
@@ -395,7 +454,9 @@
     if (st.share && st.fix) { out[st.uid].lat = st.fix.lat; out[st.uid].lon = st.fix.lon; out[st.uid].acc = st.fix.acc; }
     return out;
   }
-  function renderPeople() {
+  var rpT = null;
+  function renderPeople() { if (rpT) return; rpT = setTimeout(function () { rpT = null; renderPeopleNow(); }, 100); }       // plusieurs demandes rapprochées = un seul rendu
+  function renderPeopleNow() {
     if (!panel || !st.room) return;
     var bounds = map.getBounds(), all = everyone(), t = now(), ids = Object.keys(all).filter(function (u) { return u === st.uid || t - all[u].t < RECENT; });
     function on(u) { return u === st.uid || t - all[u].t < ONLINE; }
@@ -423,9 +484,11 @@
     ids.forEach(function (u) {
       var p = all[u]; if (p.lat == null) return;
       var html = '<div class="lv-pin' + (on(u) ? '' : ' old') + (u === st.uid ? ' me' : '') + '" style="background:' + esc(p.c || colorOf(u)) + '">' + initial(p.n) + '</div><span class="lv-tag">' + esc(u === st.uid ? (p.n || '') + ' (moi)' : (p.n || '?')) + '</span>';
+      var mk = st.markers[u];
+      if (mk && mk._lvHtml === html) { var cur = mk.getLatLng(); if (cur.lat !== p.lat || cur.lng !== p.lon) mk.setLatLng([p.lat, p.lon]); return; }       // rien n'a changé : on ne touche pas au marqueur
       var icon = L.divIcon({ className: 'lv-wrap', html: html, iconSize: [0, 0] });
-      if (st.markers[u]) { st.markers[u].setLatLng([p.lat, p.lon]); st.markers[u].setIcon(icon); }
-      else st.markers[u] = L.marker([p.lat, p.lon], { icon: icon, zIndexOffset: u === st.uid ? 4000 : 3500, title: p.n || '' }).addTo(gLive);
+      if (mk) { mk.setLatLng([p.lat, p.lon]); mk.setIcon(icon); mk._lvHtml = html; }
+      else st.markers[u] = L.marker([p.lat, p.lon], { icon: icon, zIndexOffset: u === st.uid ? 4000 : 3500, title: p.n || '' }).addTo(gLive), st.markers[u]._lvHtml = html;
     });
   }
   function distM(a, b, c, d) { var R = 6371000, r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return R * Math.sqrt(x * x + y * y); }
@@ -466,9 +529,11 @@
     el.innerHTML =
       '<div class="lv-card"><label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="lv-btn" id="lv-nms">Enregistrer</button></span></label></div>' +
       '<p class="lv-role">' + esc(droits) + '</p>' +
+      notifCard() +
       (st.owner ? '<div class="lv-card"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="lv-acts"><button class="lv-btn" id="lv-acopy" type="button">' + ico('copy') + 'Copier le lien</button><button class="lv-btn" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
       '<details class="lv-diag" id="lv-diag"><summary>État technique (en cas de problème)</summary><pre id="lv-diagtxt"></pre><button type="button" class="lv-btn" id="lv-diagcopy">' + ico('copy') + 'Copier pour l’envoyer</button></details>' +
       '<div class="lv-end" id="lv-endbox"><button type="button" class="lv-btn danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button></div>';
+    bindNotifCard();
     function saveNm() { var n = $('#lv-nm').value.trim(); if (!n) return; saveName(n); beat(true); renderPeople(); toast('Prénom enregistré.'); }
     $('#lv-nms').addEventListener('click', saveNm); $('#lv-nm').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNm(); });
     $('#lv-end').addEventListener('click', function () {      // confirmation dans le volet (pas de fenêtre)
@@ -510,16 +575,18 @@
   // ---------- Fin ----------
   function endOrLeave(ok) {
     if (!st.room || !ok) return;
-    stopGeo(); envoi({ t: 'sanspos' }); if (st.owner) envoi({ t: 'fin' });
-    var moi = st.owner; setTimeout(function () { finish(moi ? 'Partage terminé.' : 'Vous avez quitté le partage.'); }, moi ? 300 : 0);
+    stopGeo();
+    var moi = st.owner, fin = function () { setTimeout(function () { finish(moi ? 'Partage terminé.' : 'Vous avez quitté le partage.'); }, moi ? 300 : 0); };
+    enc({ n: st.name, c: colorOf(st.uid), bye: 1 }).then(function (e) { envoi({ t: 'pos', d: e }); }).catch(function () { /* ignoré */ }).then(function () { envoi({ t: 'sanspos' }); if (moi) envoi({ t: 'fin' }); fin(); });
   }
   function finish(msg) {
     if (SM.appel) SM.appel.fin();
     stopGeo(); st.fini = true; if (st.rt) { clearTimeout(st.rt); st.rt = null; } killWs(); st.conn = 'ok'; if (SM.chat) SM.chat.reset(); st.carte = null; st.loaded = false; st.warned = {}; netUI();
-    st.timers.forEach(clearInterval); st.timers = [];
+    st.timers.forEach(function (t) { if (typeof t === 'function') t(); else clearInterval(t); }); st.timers = [];
     gLive.clearLayers(); st.markers = {}; st.remote = {}; st.unread = 0; st.known = null;
     st.panelOpen = false; document.body.classList.remove('lv-open', 'lv-active'); closeInvite();
     if ($('#lv-live')) { $('#lv-live').hidden = true; $('#lv-idle').hidden = false; renderIdle(); } var rc = $('#share-count'); if (rc) rc.hidden = true; badge();
+    try { localStorage.removeItem('scoutmap.live.roster.' + st.room); } catch (e) { /* ignoré */ } st.roster = {}; st.rosterFor = null;
     st.room = null; st.key = null; st.owner = false; st.admin = false; st.atok = null; st.psec = null; st.lastGame = '';
     clearSession();
     toast(msg);
@@ -529,7 +596,7 @@
   SM.live = { start: start, join: join, active: function () { return !!st.room; } };
   // Interface interne pour appel.js (appels vocaux) : état du partage, chiffrement, envoi, annonces
   SM.liveApi = { st: st, enc: enc, dec: dec, envoi: envoi, toast: toast, esc: esc, colorOf: colorOf, everyone: everyone, initial: initial, isOpen: isOpen, togglePanel: togglePanel,
-    beat: beat, badge: badge, now: now, rand: rand, logErr: logErr, copy: copy, setTab: setTab, hhmm: hhmm, liveName: liveName, retry: function () { st.essais = 0; if (st.conn !== 'ok') retry(true); },
+    beat: beat, badge: badge, now: now, roster: roster, apply: apply, rand: rand, logErr: logErr, copy: copy, setTab: setTab, hhmm: hhmm, liveName: liveName, retry: function () { st.essais = 0; if (st.conn !== 'ok') retry(true); },
     center: function (lat, lon) { map.setView([lat, lon], Math.max(map.getZoom(), 16), { animate: true }); if (window.innerWidth <= 860) togglePanel(false); }, fix: function () { return st.fix; } };
   var P; try { P = new URLSearchParams(location.search); } catch (e) { P = null; }
   var room = P && P.get('direct'), km = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);

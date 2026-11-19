@@ -64,3 +64,14 @@ self.addEventListener('fetch', function (e) {
     })());
   }
 });
+
+// Notifications du partage en direct : un clic ramène sur la page déjà ouverte (ou en ouvre une)
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil((async function () {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) { if ('focus' in c) { try { return await c.focus(); } catch (er) { /* essai suivant */ } } }
+    const url = (e.notification.data && e.notification.data.url) || self.registration.scope;
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  })());
+});

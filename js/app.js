@@ -3150,29 +3150,30 @@
       btn.title = watchId === null ? 'Ma position : afficher et suivre mes déplacements' : follow ? 'Arrêter le suivi de ma position' : 'Recentrer la carte sur ma position';
       btn.setAttribute('aria-pressed', watchId !== null ? 'true' : 'false');
     }
-    function stop() { if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null; follow = false; gLoc.clearLayers(); circ = dot = null; paint(); }
+    function stop() { if (watchId !== null) { try { watchId(); } catch (e) { /* déjà arrêté */ } } watchId = null; follow = false; gLoc.clearLayers(); circ = dot = null; paint(); }
+    // La position vient du service filtré SMGeo (js/position.js), commun avec le partage en direct : plus de saut de plusieurs kilomètres, plus de recentrage intempestif
     function onFix(pos) {
-      var c = [pos.coords.latitude, pos.coords.longitude], acc = pos.coords.accuracy || 0;
+      var c = [pos.lat, pos.lon], acc = pos.acc || 0;
       if (!dot) {
         circ = L.circle(c, { radius: acc, color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.1, interactive: false }).addTo(gLoc);
         dot = L.marker(c, { interactive: false, zIndexOffset: 4000, icon: L.divIcon({ className: 'pin-wrap', html: '<div class="loc-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(gLoc);
       } else { circ.setLatLng(c); circ.setRadius(acc); dot.setLatLng(c); }
-      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(25000, c[0])), { animate: true }); toast('Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.'); }
-      else if (follow) map.panTo(c, { animate: true, duration: 0.6 });
-      lastHeading = pos.coords.heading;
+      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(Math.max(25000, acc * 12), c[0])), { animate: true }); toast(pos.coarse ? 'Position approximative (≈ ' + Math.round(acc) + ' m) : sur ordinateur, elle vient du réseau. Sur téléphone, en extérieur, elle sera bien plus précise.' : 'Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.'); }
+      else if (follow && !map.getBounds().pad(-0.3).contains(c)) map.panTo(c, { animate: true, duration: 0.6 });      // la carte ne bouge que si le point approche du bord
     }
-    function onErr(e) {
-      if (e && e.code === 1) { toast('Position refusée : autorisez la localisation dans votre navigateur.'); stop(); }
+    function onErr(code) {
+      if (code === 'denied') { toast('Position refusée : autorisez la localisation dans votre navigateur.'); stop(); }
+      else if (code === 'absent') { toast('La localisation n’est pas disponible sur cet appareil.'); stop(); }
       else if (watchId !== null && firstFix) toast('Je cherche encore votre position… (en extérieur, c’est plus rapide)');
     }
     btn.addEventListener('click', function () {
-      if (!navigator.geolocation) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
+      if (!navigator.geolocation || !window.SMGeo) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
       if (watchId !== null) {
         if (follow) { stop(); toast('Suivi de votre position arrêté.'); return; }
         follow = true; paint(); if (dot) map.panTo(dot.getLatLng(), { animate: true }); return;
       }
       toast('Recherche de votre position…'); firstFix = true; follow = true;
-      watchId = navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+      watchId = SMGeo.subscribe(onFix, onErr);
       paint();
     });
     // un déplacement manuel de la carte (souris ou doigt) libère la carte, mais le point continue de bouger
