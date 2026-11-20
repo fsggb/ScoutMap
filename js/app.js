@@ -225,14 +225,25 @@
       if (shown || document.visibilityState === 'hidden') return;
       fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
         var m = /js\/app\.js\?v=([0-9a-f]{6,})/.exec(t); if (!m || m[1] === SITE_V || shown) return; shown = true;
-        var b = document.createElement('div'); b.id = 'upd-banner'; b.setAttribute('role', 'status');
-        b.innerHTML = '<span>Une nouvelle version de ScoutMap est disponible.</span><button type="button">Mettre à jour</button><button type="button" class="x" aria-label="Plus tard">×</button>';
-        b.querySelector('button').addEventListener('click', forceUpdate); b.querySelector('.x').addEventListener('click', function () { b.remove(); });
-        document.body.appendChild(b);
+        setNote('update', 'Une nouvelle version de ScoutMap est disponible.', 'info', forceUpdate); toast('Nouvelle version disponible : voir les alertes.');
       }).catch(function () { /* hors ligne : on réessaiera */ });
     }
     setTimeout(check, 8000); setInterval(check, 10 * 60 * 1000);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') setTimeout(check, 1500); });
+  })();
+  // Bouton « Retour » du navigateur / du téléphone : il referme ce qui est ouvert (aperçu d'impression, fenêtre, volet) puis revient à l'accueil,
+  // au lieu de quitter la page.
+  (function () {
+    if (VIEWER) return;
+    try { history.pushState({ sm: 1 }, '', location.href); } catch (e) { return; }
+    window.addEventListener('popstate', function () {
+      var handled = false, dlg = document.querySelector('dialog[open]');
+      if (document.body.classList.contains('doc-open')) { var bk = document.getElementById('doc-back'); if (bk) bk.click(); handled = true; }
+      else if (dlg) { try { dlg.close(); } catch (e) { /* ignoré */ } handled = true; }
+      else if (typeof SUB !== 'undefined' && SUB) { showSub(null); handled = true; }
+      else if ($('#home').hidden && S.mode) { showHome(true); handled = true; }
+      if (handled) { try { history.pushState({ sm: 1 }, '', location.href); } catch (e) { /* ignoré */ } }
+    });
   })();
   // Adresse du serveur ScoutHub : lue dans config.js de ScoutHub (même site), chargée à la demande.
   var HUB_P = null;
@@ -718,8 +729,14 @@
   // ---------- Utilitaires UI ----------
   var toastT;
   function toast(msg) {
-    var t = $('#toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 3400);
+    var t = $('#toast'); clearTimeout(toastT); clearTimeout(t._fly);
+    t.classList.remove('fly'); t.style.removeProperty('--fx'); t.style.removeProperty('--fy'); t.textContent = msg; t.hidden = false;
+    try { var ks = Object.keys(NOTES).filter(function (k) { return k.indexOf('t:') === 0; }); if (ks.length >= 8) delete NOTES[ks[0]]; setNote('t:' + Date.now(), msg, 'info', null, true); } catch (e) { /* ignoré */ }
+    toastT = setTimeout(function () {
+      var bell = $('#rail-notif'), r = t.getBoundingClientRect(), br = bell && bell.getBoundingClientRect();
+      if (br && br.width) { t.style.setProperty('--fx', Math.round(br.left + br.width / 2 - (r.left + r.width / 2)) + 'px'); t.style.setProperty('--fy', Math.round(br.top + br.height / 2 - (r.top + r.height / 2)) + 'px'); t.classList.add('fly'); t._fly = setTimeout(function () { t.hidden = true; t.classList.remove('fly'); }, 650); }
+      else t.hidden = true;
+    }, 3400);
   }
   function pin(label, cls, wrap) {
     return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
@@ -797,14 +814,15 @@
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
   var NOTES = {};
-  function setNote(key, text, kind) { if (text) NOTES[key] = { text: text, kind: kind || 'warn' }; else delete NOTES[key]; renderNotes(); }
+  function setNote(key, text, kind, act, quiet) { if (text) NOTES[key] = { text: text, kind: kind || 'warn', act: act || null, quiet: !!quiet }; else delete NOTES[key]; renderNotes(); }
   function renderNotes() {
-    var ks = Object.keys(NOTES), ul = $('#notes-list'), b = $('#notif-badge');
-    if (b) { b.hidden = !ks.length; b.textContent = String(ks.length); }
+    var ks = Object.keys(NOTES), ul = $('#notes-list'), b = $('#notif-badge'), nq = ks.filter(function (k) { return !NOTES[k].quiet; }).length;
+    if (b) { b.hidden = !nq; b.textContent = String(nq); }
     if (!ul) return;
-    ul.innerHTML = ks.map(function (k) { var n = NOTES[k]; return '<li class="note-' + n.kind + '">' + ic('alert') + '<span>' + esc(n.text) + '</span></li>'; }).join('');
+    ul.innerHTML = ks.map(function (k) { var n = NOTES[k]; return '<li class="note-' + n.kind + '">' + ic('alert') + '<span>' + esc(n.text) + '</span>' + (n.act ? '<button type="button" class="btn-ghost sm" data-nk="' + esc(k) + '">Mettre à jour</button>' : '') + '</li>'; }).reverse().join('');
     $('#notes-empty').hidden = !!ks.length;
   }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#notes-list [data-nk]'); if (b && NOTES[b.dataset.nk] && NOTES[b.dataset.nk].act) NOTES[b.dataset.nk].act(); });
   function setMode(m) {
     if (m === S.mode) { showHome(false); return; }
     if (SIM.open) simClose(true);

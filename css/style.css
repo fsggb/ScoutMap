@@ -1561,3 +1561,9 @@ body.lv-open .glegend{display:none!important}
 #lib-body .lib-row.on{border-color:var(--gold)}
 #lib-body .lib-cur{font-size:11px;font-weight:700;color:var(--navy);background:var(--gold-l);border-radius:999px;padding:2px 8px;flex:none}
 #lib-body .lib-cur:empty{display:none}
+
+/* alertes : pastille claire qui se réduit dans le bouton Alertes */
+.toast{background:#fff;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--gold);box-shadow:0 8px 28px rgba(0,7,97,.18);transition:transform .6s cubic-bezier(.5,0,.8,.4),opacity .6s ease;transform-origin:center}
+.toast.fly{transform:translate(calc(-50% + var(--fx,0px)),var(--fy,0px)) scale(.08);opacity:0}
+@media (max-width:860px){.toast.fly{transform:translate(calc(-50% + var(--fx,0px)),var(--fy,0px)) scale(.08)}}
+.notes li{align-items:center}.notes .note-info{background:#eef0fb;color:var(--navy)}

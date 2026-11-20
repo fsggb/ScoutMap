@@ -37,13 +37,13 @@
   function sheetCapable(p) { return p.type === 'route' || p.type === 'az'; }
 
   // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
-  var PRM = { paper: 'A4', tscale: 25000, line: true, roadmap: true, maps: true, onesheet: false, calq: false, title: '' };
+  var PRM = { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false, calq: false, title: '' };
   var BT = 0, ABORT = { abort: true };
   var FRAMES = { A4: [210, 297], A3: [297, 420] };
   function config() {
     return { type: 'combo', title: multiPick() ? '' : PRM.title, paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet, calq: PRM.calq,
       overview: true, profile: true, notes: true,
-      tiles: { scale: PRM.tscale, corridor: 6, margin: 8, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
+      tiles: { scale: PRM.tscale, corridor: 6, margin: 5, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
   // ----- Vignettes de la première fenêtre (dessinées à partir des vraies données)
   function lonlat(items) { return geomLines(items, true).filter(function (l) { return l && l.length; }); }
