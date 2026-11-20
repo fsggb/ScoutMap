@@ -93,3 +93,8 @@ test('Service worker : les tuiles SCAN 25 du serveur ScoutHub sont reconnues pou
   assert.ok(isTile('https://data.geopf.fr/wmts?SERVICE=WMTS&LAYER=X'));
   assert.ok(!isTile('https://fsggb.github.io/ScoutMap/js/app.js'));
 });
+
+test('Assemblage : le fichier de l\'application correspond bien aux parties de src/app/', () => {
+  const { assemble } = require('../scripts/build.js');
+  assert.equal(fs.readFileSync(path.join(__dirname, '..', 'js', 'app' + '.js'), 'utf8'), assemble(), 'lancez « npm run build »');
+});

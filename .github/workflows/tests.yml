@@ -18,4 +18,4 @@ jobs:
         with:
           node-version: 20
       - name: Lancer les tests
-        run: node --test tests/unit.test.js
+        run: npm test

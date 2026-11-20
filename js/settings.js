@@ -69,7 +69,7 @@
   var logDone = false;
   function loadLog() {
     if (logDone) return; logDone = true;
-    $('#set-version', page).textContent = 'ScoutMap ' + (SM.version || '') + (SM.build && SM.build !== 'locale' ? ' (publication ' + SM.build + ')' : '');
+    $('#set-version', page).textContent = 'ScoutMap ' + (SM.appVersion || '') + (SM.build && SM.build !== 'locale' ? ' (publication ' + SM.build + ')' : '');
     fetch('CHANGELOG.md', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error(); return r.text(); }).then(function (t) {
       var h = SM.esc(t).replace(/^# .*$/m, '').replace(/^## (.*)$/gm, '<h4>$1</h4>').replace(/^### (.*)$/gm, '<h5>$1</h5>').replace(/^- (.*)$/gm, '<li>$1</li>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
       h = h.replace(/(<li>[\s\S]*?<\/li>)(?=\s*(?:<h[45]>|$))/g, '<ul>$1</ul>').replace(/\n{2,}/g, '\n');

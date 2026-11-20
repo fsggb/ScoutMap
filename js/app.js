@@ -1,6 +1,8 @@
+/* FICHIER ASSEMBLÉ par scripts/build.js à partir de src/app/ : ne pas le modifier ici (les changements seraient perdus). */
 /* ScoutMap : application cartographique FSGGB (Géoplateforme IGN). */
 (function () {
   'use strict';
+  /* ==== src/app/00-etat.js : ouverture de l'application, état (S), palettes, tracés neufs (valeurs par défaut), historique ==== */
   var G = Geo;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -125,6 +127,7 @@
 
   var RT = { route: null, elevCache: {}, routeCtl: null, tool: 'pan' };
 
+  /* ==== src/app/01-fonds-scan25.js : fonds de carte et couches (LAYERS), SCAN 25 (serveur ScoutHub), vérification de nouvelle version ==== */
   // ---------- Fonds et couches ----------
   var ATTR = '© <a href="https://geoservices.ign.fr/" target="_blank" rel="noopener">IGN</a> – Géoplateforme';
   var OSMA = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
@@ -378,6 +381,7 @@
   }
   var tiles = {}, curOff = 1;
 
+  /* ==== src/app/02-carte-dates.js : création de la carte Leaflet, netteté, dates de mise à jour des données IGN ==== */
   // ---------- Carte ----------
   var map = L.map('map', { zoomControl: false, zoomSnap: 0, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 19, minZoom: 4,
     doubleClickZoom: false, attributionControl: false }).setView(S.view.c, S.view.z);
@@ -447,6 +451,7 @@
   }
   setInterval(function () { if (document.visibilityState === 'visible') loadDates(); }, 20 * 60 * 1000);
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && Date.now() - datesT > 5 * 60 * 1000) loadDates(); });
+  /* ==== src/app/03-sentiers-eau.js : sentiers balisés (GR, PR) et points d'eau ==== */
   // ---------- Sentiers GR / GRP / PR, dessinés en rose : PR et circuits = BD TOPO (IGN) ; GR et GR de Pays = OpenStreetMap (via Waymarked Trails) ----------
   // GR : trait plein ; GR de Pays : tirets longs ; PR : pointillés. Le nom du GR est écrit de temps en temps sur le tracé.
   // Si le service est indisponible, on bascule sur les tuiles de secours (Waymarked Trails).
@@ -684,6 +689,7 @@
 
   map.on('moveend', function () { var c = map.getCenter(); S.view = { c: [c.lat, c.lng], z: map.getZoom() }; persist(); });
 
+  /* ==== src/app/04-interface.js : échelle, notifications, sélection, outils, panneau, barre latérale, accueil ==== */
   // ---------- Échelle ----------
   var MPP0 = 156543.03392, PXM = 0.00026458333;
   var SCALES = [25000, 50000];                       // échelles prédéfinies de l'itinéraire et des azimuts
@@ -971,6 +977,7 @@
   }
   $('#hint-btn').addEventListener('click', function () { if (S.rail === 'game' && window.SM && SM.game) { SM.game.hintAction(); return; } setTool(RT.tool === 'pan' ? S.rail : 'pan'); });
 
+  /* ==== src/app/05-calques.js : modèle des calques (tracé ouvert + tracés stockés), empreinte d'un tracé ==== */
   // ---------- Calques : modèle ----------
   function inGroup(t) { return S.mode === 'game' || S.mode === 'meas' ? t === S.mode : (t === 'route' || t === 'az'); }
   // empreinte d'un tracé (ses points) : sert à reconnaître deux copies du même itinéraire
@@ -1081,6 +1088,7 @@
     });
   }
 
+  /* ==== src/app/06-profil-lieux.js : altitudes, profil, noms de lieux ==== */
   // ---------- Altimétrie & profil ----------
   function lineKey(line) {
     return line.length + ':' + line[0].join(',') + ':' + line[Math.floor(line.length / 2)].join(',') + ':' + line[line.length - 1].join(',');
@@ -1288,6 +1296,7 @@
     })).then(function () { if (d === S.route) { renderWpList(); renderSteps(); renderRouteMarkers(); } persist(); });
   }
 
+  /* ==== src/app/07-itineraire.js : itinéraire : points, ordre de passage, liste des étapes ==== */
   // ---------- Itinéraire : fonctions par calque ----------
   var STEP_FR = {
     depart: 'Départ', arrive: 'Arrivée', turn: 'Tourner', 'new name': 'Continuer', continue: 'Continuer', merge: 'Rejoindre',
@@ -1678,6 +1687,7 @@
       });
     }, 250);
   }
+  /* ==== src/app/08-calcul-itineraire.js : calcul de l'itinéraire par tronçons (Géoplateforme), secours, alertes ==== */
   // ----- Calcul par tronçons (un appel par couple de repères) : aucun nombre maximal d'étapes, et un seul tronçon à recalculer quand on déplace un point.
   // ----- Secours : un point tombé au milieu d'un champ (ou loin de tout chemin) est ramené sur le village ou hameau à moins de 100 m, sinon sur le chemin le plus proche.
   function nearestRoadPoint(lat, lon, radius) {
@@ -2015,6 +2025,7 @@
     if (p) html += '<div><span>Dénivelé</span><b>+' + Math.round(p.asc) + ' / −' + Math.round(p.desc) + ' m</b></div><div title="Estimation indicative selon la pente (formule de Tobler) et votre allure de marche"><span>Marche (indicatif)</span><b>' + G.fmtDur(walkSecs(p, r.dist)) + '</b></div><div title="Pente maximale mesurée sur des tronçons d’environ 40 m"><span>Pente max</span><b>+' + Math.round(p.up || 0) + ' % / −' + Math.round(p.down || 0) + ' %</b></div>';
     el.innerHTML = html; el.hidden = false;
   }
+  /* ==== src/app/09-azimuts-mesures-traces.js : nature du parcours, azimuts, mesures, traces importées ==== */
   // ---------- Nature du parcours : part de route, de chemin et de sentier (BD TOPO de l'IGN, interrogée par tronçons de carte) ----------
   var NATGRP = [['Route', '#5b6b8c'], ['Route empierrée', '#b08d57'], ['Chemin', '#c6a24e'], ['Sentier', '#2f7d32'], ['Escalier', '#8a5a2b'], ['Autre voie', '#9a9db4'], ['Ligne droite (hors voie)', '#c0262d']];
   function natGroup(n) {
@@ -2246,6 +2257,7 @@
     });
   })();
 
+  /* ==== src/app/10-bibliotheque.js : panneau des calques, bibliothèque des tracés (sélection, impression groupée) ==== */
   // ---------- Panneau des calques ----------
   function layerMeta(l) {
     if (l.empty) return 'Vide';
@@ -2488,6 +2500,7 @@
   });
   $('#pop-tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-tab]'); if (b) popTab(b.dataset.tab); });
   $('#ov-none').addEventListener('click', function () { OVERS.forEach(function (k) { S.ov[k] = false; }); applyLayers(); persist(); });
+  /* ==== src/app/11-projets-fichiers.js : travaux enregistrés dans le navigateur, ouverture et enregistrement de fichiers, page web ==== */
   // ---------- Travaux enregistrés dans le navigateur, fichiers .json / .html, ouverture ----------
   var PKEY = 'scoutmap.projects', APP_URL = 'https://fsggb.github.io/ScoutMap/';
   function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
@@ -2688,6 +2701,7 @@
   }
   $('#proj-name').addEventListener('input', function () { S.name = this.value; persist(); });
 
+  /* ==== src/app/12-fenetres-export.js : liens #projet=, fenêtres Fonds et Échelle, export GPX, clic sur la carte ==== */
   // ---------- Fonds, couches, netteté (fenêtres flottantes) ----------
   // Les vignettes des fonds ne sont chargées qu'à la première ouverture du panneau.
   function loadThumbs() { $$('#base-grid img[data-src]').forEach(function (i) { if (i.dataset.src) { i.src = i.dataset.src; i.dataset.src = ''; var b = i.closest('button'); if (b && b.dataset.base === 'scan25' && SCAN25.cfg && SCAN25.cfg.hub) s25Thumb(i); } }); }
@@ -2886,6 +2900,7 @@
     if (a === 'direct') toast('Point ajouté en ligne droite depuis le précédent (pointillés). Clic droit sur un point pour changer ce choix.');
   }
 
+  /* ==== src/app/13-menus-recherche.js : menus contextuels (clic droit) et recherche de lieux ==== */
   // ---------- Menus contextuels (clic droit) ----------
   var ctxEl = document.createElement('div'); ctxEl.className = 'dropdown ctx'; ctxEl.id = 'ctxmenu'; ctxEl.hidden = true; ctxEl.setAttribute('role', 'menu'); document.body.appendChild(ctxEl);
   function hideCtx() { ctxEl.hidden = true; }
@@ -3085,6 +3100,7 @@
   document.addEventListener('mousedown', function (e) { if (!e.target.closest('.searchcard')) closeSuggest(); });
 
 
+  /* ==== src/app/14-simulation-video.js : simulation du parcours et export vidéo ==== */
   // ---------- Simulation du parcours : un curseur parcourt le tracé en suivant le relief ----------
   var SIM = { open: false, prof: null, t: [], tot: 1, pos: 0, playing: false, dur: 6, follow: true, raf: 0, last: 0, marker: null, trail: null, rec: false, label: 'Parcours' };
   function simPrepare(p) {
@@ -3298,6 +3314,7 @@
   $('#vid-discard').addEventListener('click', function () { closeVideo(); toast('Vidéo non enregistrée.'); });
   $('#dlg-video-done').addEventListener('close', function () { $('#vid-preview').pause && $('#vid-preview').pause(); });
 
+  /* ==== src/app/15-commandes-demarrage.js : annuler / rétablir, menus du haut, raccourcis clavier, démarrage ==== */
   // ---------- Annuler / rétablir ----------
   function hRestore(json) {
     var o = JSON.parse(json);
@@ -3464,6 +3481,7 @@
     showHome(true);
   })();
 
+  /* ==== src/app/16-position-boussole.js : ma position, direction (boussole) et carte orientée ==== */
   // ---------- Ma position (utile sur téléphone) ----------
   (function locate() {
     var gLoc = L.layerGroup().addTo(map);
@@ -3594,6 +3612,7 @@
     map.on('dragstart', function () { if (watchId !== null && follow) { follow = false; paint(); } });
   })();
 
+  /* ==== src/app/17-liens-api.js : liens d'action (?lieu=, ?itineraire=…), API interne window.SM (utilisée par les autres fichiers js/), fermeture de l'application ==== */
   // ---------- Liens d'action : la carte se prépare depuis l'adresse (utilisé par ChatGDB et par n'importe quel lien) ----------
   // ?lieu=Lyon | ?centre=45.76,4.83&zoom=12 | ?fond=ortho | ?couches=contour,hiking
   // ?itineraire=Lyon|Villeurbanne|45.7,4.9&boucle=1&titre=Sortie
@@ -3643,7 +3662,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, version: '2.0.0', build: SITE_V,
+    traceSig: traceSig, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
