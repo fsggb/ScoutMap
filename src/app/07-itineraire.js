@@ -115,7 +115,7 @@
       if (L.latLng(w.lat, w.lon).distanceTo(L.latLng(res.lat, res.lon)) < 8) return ensureAnchor(w);
       w.orig = o; w.moved = true; w.lat = res.lat; w.lon = res.lon; w.place = undefined;
       renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
-      toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.');
+      toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.', { kind: 'info', level: 'discret' });
       if (res.offtrail) ensureAnchor(w);
     }).catch(function () {});
   }

@@ -70,15 +70,37 @@
     msg = String(msg == null ? '' : msg); if (!msg) return;
     opt = opt || {};
     var kind = opt.kind || ntfKind(msg), host = ntfHost();
+    /* Trois niveaux : « important » (ce qui change le tracé ou demande une vérification : point sans chemin, tunnel, vol d'oiseau,
+       distance dépassée…) reste affiché jusqu'à ce qu'on le ferme ; « discret » (simple information : point posé sur l'église…)
+       passe vite ; le niveau normal entre les deux. */
+    var level = opt.level || (opt.sticky ? 'normal' : kind === 'bad' ? 'important' : 'normal');
+    if (level === 'important' && kind === 'info') kind = 'warn';
     // le même message déjà affiché : on relance simplement son minuteur
     var same = Array.prototype.filter.call(host.children, function (c) { return c._msg === msg && !c._gone; })[0];
     if (same) { clearTimeout(same._t); if (!same._sticky) same._t = setTimeout(function () { ntfStow(same); }, 4200); return; }
-    NHIST.unshift({ text: msg, kind: kind, t: Date.now() }); if (NHIST.length > 40) NHIST.length = 40;
+    NHIST.unshift({ text: msg, kind: kind, t: Date.now(), level: level }); if (NHIST.length > 40) NHIST.length = 40;
     NUNREAD++; renderNotes();
-    var card = document.createElement('div'); card.className = 'ntf ntf-' + kind; card.setAttribute('role', kind === 'bad' ? 'alert' : 'status'); card._msg = msg; card._sticky = !!opt.sticky;
-    card.innerHTML = '<span class="ntf-ic">' + ic(kind === 'ok' ? 'check' : kind === 'info' ? 'bell' : 'alert') + '</span><span class="ntf-t"></span>' +
+    var card = document.createElement('div'); card.className = 'ntf ntf-' + kind + ' ntf-' + level; card.setAttribute('role', level === 'important' ? 'alert' : 'status'); card._msg = msg; card._sticky = !!opt.sticky || level === 'important';
+    card.innerHTML = '<span class="ntf-ic">' + ic(kind === 'ok' ? 'check' : kind === 'info' ? 'bell' : 'alert') + '</span><span class="ntf-t">' + (level === 'important' ? '<b class="ntf-lv">À vérifier</b>' : '') + '<span></span></span>' +
       (opt.action ? '<button type="button" class="ntf-a"></button>' : '') + '<button type="button" class="ntf-x" aria-label="Ranger dans les notifications">' + ic('x') + '</button>';
-    card.querySelector('.ntf-t').textContent = msg;
+    card.querySelector('.ntf-t > span').textContent = msg;
+    // glisser la carte vers la droite (ou la gauche) la fait disparaître, comme sur un téléphone ; elle reste dans la liste
+    (function swipe() {
+      var x0 = null, y0 = 0, dx = 0, pid = null;
+      card.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) return; x0 = e.clientX; y0 = e.clientY; dx = 0; pid = e.pointerId; card.style.transition = 'none'; clearTimeout(card._t); });
+      card.addEventListener('pointermove', function (e) {
+        if (x0 === null || e.pointerId !== pid) return; dx = e.clientX - x0;
+        if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(e.clientY - y0)) { try { card.setPointerCapture(pid); } catch (er) { /* ignoré */ } e.preventDefault(); }
+        card.style.transform = 'translateX(' + dx + 'px)'; card.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 260));
+      });
+      function end() {
+        if (x0 === null) return; x0 = null; card.style.transition = '';
+        if (Math.abs(dx) > 70) { card._gone = true; clearTimeout(card._t); card.style.transform = 'translateX(' + (dx > 0 ? 420 : -420) + 'px)'; card.style.opacity = '0'; setTimeout(function () { if (card.parentNode) card.parentNode.removeChild(card); }, 220); return; }
+        card.style.transform = ''; card.style.opacity = '';
+        if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, 2500);
+      }
+      card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+    })();
     if (opt.action) { var ab = card.querySelector('.ntf-a'); ab.textContent = opt.action.label; ab.addEventListener('click', function () { ntfStow(card); opt.action.fn(); }); }
     card.querySelector('.ntf-x').addEventListener('click', function () { ntfStow(card); });
     card.addEventListener('mouseenter', function () { clearTimeout(card._t); });
@@ -88,7 +110,7 @@
     // trois cartes au plus à l'écran : la plus ancienne se range
     var live = Array.prototype.filter.call(host.children, function (c) { return !c._gone; });
     if (live.length > 3) ntfStow(live[0]);
-    if (!opt.sticky) card._t = setTimeout(function () { ntfStow(card); }, Math.min(9000, 3200 + msg.length * 25));
+    if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, level === 'discret' ? 2200 : Math.min(9000, 3200 + msg.length * 25));
     return card;
   }
   function pin(label, cls, wrap) {
@@ -167,7 +189,14 @@
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
   var NOTES = NOTES || {};
-  function setNote(key, text, kind, action) { if (text) NOTES[key] = { text: text, kind: kind || 'warn', action: action || null }; else delete NOTES[key]; renderNotes(); }
+  // Une alerte sur le tracé (tunnel, route nationale, vol d'oiseau…) qui apparaît ou change est aussi montrée tout de suite, en notification importante.
+  var NOTE_LOUD = { nat: 1, off: 1, tunnel: 1 };
+  function setNote(key, text, kind, action) {
+    var prev = NOTES[key] && NOTES[key].text;
+    if (text) NOTES[key] = { text: text, kind: kind || 'warn', action: action || null }; else delete NOTES[key];
+    renderNotes();
+    if (text && !prev && NOTE_LOUD[key]) toast(text, { kind: kind || 'warn', level: 'important' });
+  }
   function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function renderNotes() {
     var ks = Object.keys(NOTES || {}), ul = $('#notes-list'), b = $('#notif-badge');
@@ -227,7 +256,8 @@
       if (RT.tool === 'pan' && TYPES.indexOf(S.rail) >= 0) setTool(S.rail); else togglePanel();
     });
   });
-  $('#rail-toggle').addEventListener('click', togglePanel);
+  // bouton Panneau : depuis Notifications, Tracés ou Partage, il ramène d'abord aux outils du travail en cours ; sinon il ouvre ou ferme le panneau
+  $('#rail-toggle').addEventListener('click', function () { if (SUB && S.panelOpen) { showSub(null); return; } togglePanel(); });
   $('#panel-close').addEventListener('click', function () { S.panelOpen = false; applyPanel(); persist(); });
 
   // ---------- Accueil : choix du type de travail ----------
