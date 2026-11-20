@@ -3,7 +3,7 @@
   'use strict';
   var SM = window.SM, S = SM.S, map = SM.map, esc = SM.esc, toast = SM.toast;
   function $(s, r) { return (r || document).querySelector(s); }
-  var TILES = 'sm-tiles-v1', KEY = 'scoutmap.offline', MAXTILES = 6000;
+  var TILES = 'sm-tiles-v1', KEY = 'scoutmap.offline', MAXTILES = 16000;
 
   // ---------- Service worker (pas dans une page web exportée) ----------
   var swOk = false;
@@ -34,9 +34,36 @@
   // ---------- Zones enregistrées ----------
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
   function save(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) { /* ignoré */ } }
-  var ZL = [['plan', 'Plan IGN'], ['ortho', 'Photographies aériennes']];
-  var PREC = [[15, 'Standard', 'jusqu’au 1 : 10 000'], [16, 'Détaillé', 'jusqu’au 1 : 5 000'], [17, 'Très détaillé', 'jusqu’au 1 : 2 500, plus lourd']];
-  var st = { prec: 16, layers: { plan: true, ortho: false }, busy: false, stop: false };
+  // Fonds enregistrables : le SCAN 25 d'abord (carte IGN au 1 : 25 000, la référence sur le terrain), coché par défaut.
+  function zl() { return (SM.LAYERS.scan25 && !SM.LAYERS.scan25.hidden ? [['scan25', 'SCAN 25 (carte IGN)']] : []).concat([['plan', 'Plan IGN'], ['ortho', 'Photographies aériennes']]); }
+  /* Zone enregistrée : par défaut, ce qu'il faudrait pour imprimer une feuille A0 au 1 : 25 000 avec la netteté maximale
+     (tuiles du niveau 16, la meilleure définition du SCAN 25), centrée sur le milieu de l'écran. Un cadre sur la carte montre la zone :
+     on déplace la carte pour recadrer. « Écran » garde l'ancien fonctionnement (ce qui est affiché). */
+  var FMT = [['A0', 841, 1189], ['A1', 594, 841], ['A2', 420, 594], ['A3', 297, 420], ['A4', 210, 297], ['ecran', 0, 0]];
+  var st = { prec: 16, fmt: 'A0', land: false, layers: { scan25: true, plan: false, ortho: false }, busy: false, stop: false };
+  try { var sv = JSON.parse(localStorage.getItem('scoutmap.offline.cfg') || 'null'); if (sv) { if (FMT.some(function (f) { return f[0] === sv.fmt; })) st.fmt = sv.fmt; st.land = !!sv.land; } } catch (e) { /* ignoré */ }
+  function saveCfg() { try { localStorage.setItem('scoutmap.offline.cfg', JSON.stringify({ fmt: st.fmt, land: st.land })); } catch (e) { /* ignoré */ } }
+  // emprise au sol (en mètres) de la feuille au 1 : 25 000, centrée sur le milieu de la carte
+  function frameBounds() {
+    var f = FMT.filter(function (x) { return x[0] === st.fmt; })[0];
+    if (!f || !f[1]) { var bd = map.getBounds(); return [bd.getSouth(), bd.getWest(), bd.getNorth(), bd.getEast()]; }
+    var w = (st.land ? f[2] : f[1]) * 25, h = (st.land ? f[1] : f[2]) * 25, c = map.getCenter();
+    var dLat = h / 2 / 111320, dLon = w / 2 / (111320 * Math.cos(c.lat * Math.PI / 180));
+    return [c.lat - dLat, c.lng - dLon, c.lat + dLat, c.lng + dLon];
+  }
+  var frame = null;
+  function drawFrame() {
+    var pop = $('#off-pop'), on = pop && !pop.hidden && st.fmt !== 'ecran';
+    if (!on) { if (frame) { map.removeLayer(frame); frame = null; } return; }
+    var b = frameBounds(), ll = [[b[0], b[1]], [b[2], b[3]]];
+    if (!frame) frame = L.rectangle(ll, { color: '#c6a24e', weight: 3, dashArray: '10 6', fill: true, fillColor: '#c6a24e', fillOpacity: 0.06, interactive: false }).addTo(map);
+    else frame.setBounds(ll);
+  }
+  function fitFrame() {   // à l'ouverture : la carte se règle pour montrer tout le cadre
+    if (st.fmt === 'ecran') return;
+    var b = frameBounds(), lb = L.latLngBounds([[b[0], b[1]], [b[2], b[3]]]);
+    if (!map.getBounds().contains(lb)) map.fitBounds(lb, { padding: [30, 30], animate: false });
+  }
 
   function offAt(z, lat) { return SM.scaleAt(z, lat) >= 200000 ? 0 : 1; }       // même règle que l'affichage : tuiles du niveau z + 1
   function tx(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
@@ -54,20 +81,21 @@
     var seen = {}; return out.filter(function (t) { var u = SM.srcUrl(t.k, t.z, t.x, t.y); if (seen[u]) return false; seen[u] = 1; return true; });
   }
   function current() {
-    var bd = map.getBounds(), z = map.getZoom();
-    return { b: [bd.getSouth(), bd.getWest(), bd.getNorth(), bd.getEast()], zmin: Math.max(8, Math.floor(z) - 3), zmax: st.prec, layers: ZL.filter(function (l) { return st.layers[l[0]]; }).map(function (l) { return l[0]; }) };
+    var z = map.getZoom(), ecran = st.fmt === 'ecran';
+    return { b: frameBounds(), zmin: ecran ? Math.max(8, Math.floor(z) - 3) : 10, zmax: st.prec, fmt: st.fmt, layers: zl().filter(function (l) { return st.layers[l[0]]; }).map(function (l) { return l[0]; }) };
   }
   function countTiles(z0) {   // dénombrement par calcul (sans lister les tuiles) : rapide même pour une zone immense
     var n = 0, b = z0.b, lat = (b[0] + b[2]) / 2;
     z0.layers.forEach(function (k) {
       var d = SM.LAYERS[k]; if (!d) return;
-      for (var z = z0.zmin; z <= z0.zmax; z++) { var tz = Math.min(d.n, z + offAt(z, lat)); n += (tx(b[3], tz) - tx(b[1], tz) + 1) * (ty(b[0], tz) - ty(b[2], tz) + 1); }
+      var seen = {};   // plusieurs niveaux d'affichage peuvent demander les mêmes tuiles : comptées une fois
+      for (var z = z0.zmin; z <= z0.zmax; z++) { var tz = Math.min(d.n, z + offAt(z, lat)); if (seen[tz]) continue; seen[tz] = 1; n += (tx(b[3], tz) - tx(b[1], tz) + 1) * (ty(b[0], tz) - ty(b[2], tz) + 1); }
     });
     return n;
   }
   function estimate() {
     var c = current(), n = countTiles(c);
-    var avg = { plan: 22, ortho: 28 }, per = c.layers.map(function (k) { return avg[k] || 25; }), mean = per.length ? per.reduce(function (a, b) { return a + b; }, 0) / per.length : 25;
+    var avg = { scan25: 26, plan: 22, ortho: 28 }, per = c.layers.map(function (k) { return avg[k] || 25; }), mean = per.length ? per.reduce(function (a, b) { return a + b; }, 0) / per.length : 25;
     return { n: n, mb: Math.round(n * mean / 1024) };
   }
   function tileUrl(t) { return SM.srcUrl(t.k, t.z, t.x, t.y); }
@@ -75,7 +103,7 @@
   function download() {
     if (st.busy || !('caches' in window)) { if (!('caches' in window)) toast('Cet appareil ne permet pas l’enregistrement hors connexion.'); return; }
     var z = current(); if (!z.layers.length) { toast('Choisissez au moins un fond de carte.'); return; }
-    if (countTiles(z) > MAXTILES) { toast('Zone trop grande (plus de ' + MAXTILES + ' tuiles) : zoomez sur la zone utile ou choisissez moins de précision.'); return; }
+    if (countTiles(z) > MAXTILES) { toast('Zone trop grande (plus de ' + MAXTILES + ' tuiles) : choisissez un format plus petit ou un seul fond.'); return; }
     var list = tilesOf(z);
     if (!z.layers.length) { toast('Choisissez au moins un fond de carte.'); return; }
     if (list.length > MAXTILES) { toast('Zone trop grande (' + list.length + ' tuiles, maximum ' + MAXTILES + ') : zoomez sur la zone utile ou choisissez moins de précision.'); return; }
@@ -122,11 +150,12 @@
     var l = load(), e = estimate(), canInstall = !standalone;
     var h = '';
     h += '<div class="off-card"><b>Application</b>' + (standalone ? '<p>ScoutMap est installée sur cet appareil.</p>' : '<p>Installez ScoutMap comme une application : une icône sur l’écran d’accueil, plein écran, et un démarrage même sans réseau.</p><button type="button" class="btn-primary sm" id="off-install">Installer l’application</button><p class="off-help" id="off-help" hidden></p>') + '</div>';
-    h += '<div class="off-card"><b>Enregistrer cette zone pour l’utiliser sans réseau</b><p>Cadrez la zone voulue sur la carte (elle sera enregistrée telle qu’affichée), puis choisissez les fonds et la précision.</p>';
-    h += '<div class="off-layers">' + ZL.map(function (x) { return '<label class="off-ck"><input type="checkbox" data-ol="' + x[0] + '"' + (st.layers[x[0]] ? ' checked' : '') + '><span class="gcal-box"></span>' + esc(x[1]) + '</label>'; }).join('') + '</div>';
-    h += '<div class="off-prec" role="radiogroup" aria-label="Précision">' + PREC.map(function (p) { return '<button type="button" role="radio" aria-checked="' + (st.prec === p[0]) + '" class="off-p' + (st.prec === p[0] ? ' on' : '') + '" data-op="' + p[0] + '"><b>' + p[1] + '</b><small>' + p[2] + '</small></button>'; }).join('') + '</div>';
+    h += '<div class="off-card"><b>Enregistrer une carte pour l’utiliser sans réseau</b><p>' + (st.fmt === 'ecran' ? 'La zone enregistrée est celle affichée à l’écran.' : 'Le cadre doré sur la carte montre la zone : une feuille ' + st.fmt + ' au 1 : 25 000, avec la meilleure netteté. Déplacez la carte pour recadrer.') + '</p>';
+    h += '<div class="off-layers">' + zl().map(function (x) { return '<label class="off-ck"><input type="checkbox" data-ol="' + x[0] + '"' + (st.layers[x[0]] ? ' checked' : '') + '><span class="gcal-box"></span>' + esc(x[1]) + '</label>'; }).join('') + '</div>';
+    h += '<div class="off-prec" role="radiogroup" aria-label="Taille de la zone">' + FMT.map(function (f) { return '<button type="button" role="radio" aria-checked="' + (st.fmt === f[0]) + '" class="off-p' + (st.fmt === f[0] ? ' on' : '') + '" data-ofmt="' + f[0] + '"><b>' + (f[1] ? f[0] : 'Écran') + '</b><small>' + (f[1] ? Math.round(f[1] * 25 / 100) / 10 + ' × ' + Math.round(f[2] * 25 / 100) / 10 + ' km' : 'ce qui est affiché') + '</small></button>'; }).join('') + '</div>';
+    if (st.fmt !== 'ecran') h += '<div class="off-orient"><label class="off-ck"><input type="checkbox" id="off-land"' + (st.land ? ' checked' : '') + '><span class="gcal-box"></span>Paysage (cadre couché)</label></div>';
     h += '<input id="off-name" class="off-name" type="text" maxlength="50" placeholder="Nom de la zone (ex. Camp de Pâques)" aria-label="Nom de la zone">';
-    h += '<p class="off-est' + (e.n > MAXTILES ? ' bad' : '') + '">' + (e.n > MAXTILES ? 'Zone trop grande : ' + e.n + ' tuiles (maximum ' + MAXTILES + '). Zoomez sur la zone utile.' : '≈ ' + e.n + ' tuiles, environ ' + e.mb + ' Mo') + '</p>';
+    h += '<p class="off-est' + (e.n > MAXTILES ? ' bad' : '') + '">' + (e.n > MAXTILES ? 'Zone trop grande : ' + e.n + ' tuiles (maximum ' + MAXTILES + '). Choisissez un format plus petit ou un seul fond.' : '≈ ' + e.n + ' tuiles, environ ' + e.mb + ' Mo') + '</p>';
     h += '<div class="off-bar" id="off-bar" hidden><i></i></div><p class="off-prog" id="off-prog"></p>';
     h += st.busy ? '<button type="button" class="btn-ghost sm" id="off-cancel">Annuler</button>' : '<button type="button" class="btn-primary sm" id="off-dl"' + (e.n > MAXTILES || !e.n ? ' disabled' : '') + '>Enregistrer cette zone</button>';
     h += '</div>';
@@ -144,11 +173,18 @@
       if (t.closest('#off-install')) install();
       else if (t.closest('#off-dl')) download();
       else if (t.closest('#off-cancel')) { st.stop = true; }
-      else if (t.closest('[data-op]')) { st.prec = +t.closest('[data-op]').dataset.op; render(); }
+      else if (t.closest('[data-ofmt]')) { st.fmt = t.closest('[data-ofmt]').dataset.ofmt; saveCfg(); fitFrame(); drawFrame(); SM.offRender(); }
       else if (t.closest('[data-odel]')) { if (confirm('Supprimer cette zone enregistrée ?')) remove(+t.closest('[data-odel]').dataset.odel); }
       else if (t.closest('[data-oshow]')) show(+t.closest('[data-oshow]').dataset.oshow);
     });
-    box.addEventListener('change', function (ev) { var c = ev.target.closest('[data-ol]'); if (c) { st.layers[c.dataset.ol] = c.checked; render(); } });
+    box.addEventListener('change', function (ev) {
+      var c = ev.target.closest('[data-ol]'); if (c) { st.layers[c.dataset.ol] = c.checked; SM.offRender(); }
+      if (ev.target.id === 'off-land') { st.land = ev.target.checked; saveCfg(); fitFrame(); drawFrame(); SM.offRender(); }
+    });
+    // le cadre suit le milieu de la carte tant que la fenêtre est ouverte
+    map.on('move', function () { if (frame) drawFrame(); });
+    var pop = $('#off-pop');
+    if (pop && window.MutationObserver) new MutationObserver(function () { if (!pop.hidden) fitFrame(); drawFrame(); }).observe(pop, { attributes: true, attributeFilter: ['hidden'] });
   // la fenêtre « Hors connexion » est indépendante : rendue au démarrage et à chaque déplacement de la carte
     map.on('moveend', function () { if (!$('#off-pop').hidden && !st.busy) { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; } });
   }

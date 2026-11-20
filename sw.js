@@ -29,7 +29,7 @@ self.addEventListener('activate', function (e) {
   })());
 });
 
-function isTile(url) { return /^https:\/\/(data\.geopf\.fr\/wmts|mapserver\.openig\.org|server\.arcgisonline\.com|[abc]?\.?tile\.)/.test(url) || /\/wmts\?/.test(url); }
+function isTile(url) { return /^https:\/\/(data\.geopf\.fr\/wmts|mapserver\.openig\.org|server\.arcgisonline\.com|[abc]?\.?tile\.)/.test(url) || /\/wmts\?/.test(url) || /^https:\/\/[\w.-]+\/scan25\/\d+\/\d+\/\d+\.jpg$/.test(url); }   // (dernier cas : SCAN 25 du serveur ScoutHub)
 
 self.addEventListener('fetch', function (e) {
   const req = e.request; if (req.method !== 'GET') return;
