@@ -39,8 +39,19 @@ jobs:
             echo "::warning::Un ou plusieurs services Géoplateforme ne répondent pas : le site est tout de même redéployé, vérifiez le fonctionnement."
           fi
 
+  test:
+    name: Tests automatiques
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Lancer les tests
+        run: npm test
+
   build:
-    needs: check
+    needs: [check, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +60,7 @@ jobs:
           SCAN25_KEY: ${{ secrets.SCAN25_KEY }}
         run: |
           mkdir -p build
-          cp -a index.html sw.js manifest.webmanifest assets css js build/
+          cp -a index.html sw.js manifest.webmanifest CHANGELOG.md assets css js build/
           # Versionne le CSS et le JS : un navigateur ne peut plus mélanger ancien cache et nouvelle page
           sed -i "s/__V__/${GITHUB_SHA::8}/g" build/index.html
           sed -i "s/__V__/${GITHUB_SHA::8}/g" build/sw.js

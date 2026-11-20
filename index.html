@@ -129,7 +129,7 @@
     <button type="button" class="rail-btn" data-rail="library" id="rail-library" title="Bibliothèque : tous mes tracés enregistrés dans ce navigateur"><svg class="ic"><use href="#i-layers"/></svg><span>Tracés</span><i class="rail-badge" id="rail-lib-n" hidden></i></button>
     <span class="rail-sp"></span>
     <button type="button" class="rail-btn" data-rail="share" id="rail-share" title="Partage en direct : inviter, voir qui est connecté, discuter"><svg class="ic"><use href="#i-people"/></svg><span>Partage</span><i class="rail-badge rail-green" id="share-count" hidden></i><i class="rail-badge rail-left" id="share-badge" title="Messages non lus" hidden></i></button>
-    <button type="button" class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
+    <button type="button" class="rail-btn" data-rail="notif" id="rail-notif" title="Notifications et alertes"><svg class="ic"><use href="#i-bell"/></svg><span>Notifications</span><i class="rail-badge" id="notif-badge" hidden></i></button>
     <button type="button" class="rail-btn" data-rail="settings" id="rail-settings" title="Paramètres du travail en cours"><svg class="ic"><use href="#i-gear"/></svg><span>Réglages</span></button>
   </nav>
 
@@ -327,10 +327,14 @@
       <div id="live-host"></div>
     </section>
     <section class="pane" data-pane="notif" hidden>
-      <h2 class="pane-title">Alertes</h2>
-      <p class="help">Les informations importantes sur votre travail en cours apparaissent ici : tracé qui repasse au même endroit, route nationale, tunnel, distance maximale dépassée, points hors sentier…</p>
+      <h2 class="pane-title">Notifications</h2>
+      <h3 class="ntf-h">Alertes sur le travail en cours</h3>
       <ul class="notes" id="notes-list"></ul>
-      <p class="empty" id="notes-empty">Aucune alerte pour le moment.</p>
+      <p class="empty" id="notes-empty">Aucune alerte : tracé qui repasse au même endroit, route nationale, tunnel, distance dépassée, points hors sentier… s’afficheraient ici.</p>
+      <div id="ntf-recent-box" hidden>
+        <h3 class="ntf-h">Récentes <button type="button" class="linkbtn" id="ntf-clear">Tout effacer</button></h3>
+        <ul class="ntf-recent" id="ntf-recent"></ul>
+      </div>
     </section>
 
     <section class="pane" data-pane="settings" hidden>
@@ -621,6 +625,8 @@
 <script src="js/live.js?v=__V__"></script>
 <script src="js/chat.js?v=__V__"></script>
 <script src="js/appel.js?v=__V__"></script>
+<script src="js/settings.js?v=__V__"></script>
+<script src="js/nav.js?v=__V__"></script>
 <script src="/ScoutHub/scouthub-client.js" data-app="ScoutMap"></script>
 </body>
 </html>

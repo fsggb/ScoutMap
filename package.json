@@ -1,0 +1,20 @@
+{
+  "name": "scoutmap",
+  "version": "2.0.0",
+  "private": true,
+  "description": "ScoutMap : cartes IGN, itinéraires à pied, azimuts, grand jeu et impression pour les scouts (FSGGB).",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "check": "node scripts/build.js --check",
+    "test": "node scripts/build.js --check && node --test tests/unit.test.js",
+    "e2e": "node e2e/smoke.js",
+    "serve": "python3 -m http.server 8765"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
