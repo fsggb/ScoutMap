@@ -8,7 +8,7 @@ On retrouve cet historique dans l'application : **Réglages › Version et nouve
 ### Nouveautés
 - **Bouton Retour** : il ne fait plus quitter ScoutMap. Il ferme l'aperçu d'impression, la page Réglages, la fenêtre ou le menu ouvert, sinon il ramène à l'accueil.
 - **Notifications** : les messages apparaissent en cartes discrètes, puis se rétrécissent et rentrent dans le bouton **Notifications**, où on les retrouve (liste « Récentes »). L'avis de nouvelle version y passe aussi, avec son bouton « Mettre à jour ».
-- **Ma position** : un cône montre la direction du téléphone (boussole, sinon le sens de la marche). Un 2e appui fait tourner la carte dans votre direction, comme l'application Cartes IGN ; le bouton **N** remet le nord en haut.
+- **Ma position** : un cône montre la direction du téléphone (boussole, sinon le sens de la marche). Un 2e appui fait tourner la carte dans votre direction, comme l'application Cartes IGN ; le bouton **N** remet le nord en haut. Si la boussole ne répond pas, ScoutMap dit pourquoi (capteurs bloqués, accord refusé sur iPhone, ordinateur sans boussole) ; **Réglages › Général › Tester la boussole** permet de vérifier un appareil.
 - **Carroyage kilométrique bleu**, comme sur les cartes IGN papier (1 km, soit des carreaux de 4 cm au 1 : 25 000).
 - **Page Réglages** en pleine page, rangée par catégories (Général, Itinéraire, Azimuts, Grand jeu, Impression, Hors connexion, Version et nouveautés), avec les **valeurs par défaut** des nouveaux tracés : boucle ou aller simple, distance maximale, optimisation, allure, options de calcul, unités d'azimut, choix d'impression.
 - **Bibliothèque** : sélection de plusieurs tracés (Ctrl + clic, Maj + clic), **Tout sélectionner**, puis Afficher, Imprimer ou Masquer la sélection.
