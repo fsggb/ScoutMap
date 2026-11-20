@@ -56,7 +56,7 @@
       if (['route', 'az', 'game'].indexOf(S.rail) < 0) S.rail = 'route';
       if ((saved.ver || 0) < 4) { S.base = 'otm'; S.ov.hiking = true; }   // nouveaux réglages par défaut
       if ((saved.ver || 0) < 5) S.base = 'scan25';                        // le SCAN 25 devient le fond par défaut
-      S.ver = 5; S.layers = [];                                           // plus de calques superposés
+      S.ver = 6; if ((saved.ver || 0) < 5) S.layers = [];
       if (!S.view || !S.view.c) S.view = { c: [46.6, 2.5], z: 5.6 };
       delete S.route.profile;
     }
@@ -347,7 +347,7 @@
     return L.tileLayer(c.url, Object.assign({ tms: !!c.tms }, o));
   }
   function tile(key, off, extra) {
-    var d = LAYERS[key]; off = d.ign ? off : Math.min(off, 1);
+    var d = LAYERS[key]; off = d.ign ? off : Math.min(off, extra && extra.hires ? 2 : 1);
     if (d.scan) return scan25Layer(off, extra);
     var layer = L.tileLayer(srcUrl(key, '{z}', '{x}', '{y}'), Object.assign({
       maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: d.attr || ATTR, keepBuffer: 2, crossOrigin: 'anonymous',
@@ -917,7 +917,6 @@
     return all ? out : out.filter(function (l) { return l.type === S.mode; });   // seul le type en cours est visible
   }
   function archiveActive(t) {
-    return false;   // un seul dessin par onglet : on ne superpose plus de calques
     if (isEmpty(t, S[t])) return false;
     S.layers.push({ type: t, vis: S.vis[t] !== false, data: S[t], res: t === 'route' ? RT.route : null });
     return true;
@@ -948,7 +947,7 @@
   }
   function renderType(t) {
     if (t === 'route') refreshRouteView(); else if (t === 'az') renderAz(); else if (t === 'meas') renderMeas(); else if (window.SM && SM.game) SM.game.render();
-    renderStored(); renderLayerList(); refreshProfile();
+    syncNames(); renderStored(); renderLayerList(); refreshProfile();
   }
   function removeLayer(key) {
     if (key === 'route') { S.route.wps = []; S.route.loop = false; RT.route = null; select(null); refreshRouteView(); }
@@ -2177,6 +2176,7 @@
   }
   var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', meas: 'Mesure', game: 'Grand jeu' };
   function renderLayerList() {
+    renderMyLayers();
     var el = $('#layer-list'); if (!el) return;
     var box = $('#tracks-box'); if (box) box.hidden = !S.tracks.length;
     el.innerHTML = S.tracks.map(function (t) {
@@ -2232,6 +2232,91 @@
     inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(true); else if (ev.key === 'Escape') commit(false); });
     inp.addEventListener('blur', function () { commit(true); });
   });
+
+  // ---------- Mes itinéraires / mes parcours d'azimuts : plusieurs dessins du même type, affichés ensemble, imprimés à la suite ----------
+  var ML = { route: { one: 'itinéraire', many: 'Mes itinéraires', neu: 'Nouvel itinéraire', ico: 'route' }, az: { one: 'parcours', many: 'Mes parcours d’azimuts', neu: 'Nouveau parcours', ico: 'target' } };
+  function mlKind(l) { return l.type === 'route' ? (l.res ? G.fmtDist(l.res.dist) : (l.data.wps.length + ' point' + (l.data.wps.length > 1 ? 's' : ''))) : (l.data.pts.length + ' point' + (l.data.pts.length > 1 ? 's' : '')); }
+  function renderMyLayers() {
+    ['route', 'az'].forEach(function (t) {
+      var el = document.getElementById('ml-' + t); if (!el) return;
+      var T = ML[t], rows = layersList(true).filter(function (l) { return l.type === t && (!l.empty || !l.active || true); });
+      var shown = rows.filter(function (l) { return !l.empty && l.vis; }).length, impOpen = el.dataset.imp === '1';
+      el.innerHTML = '<div class="ml-h"><b>' + T.many + '</b><span class="count">' + shown + ' affiché' + (shown > 1 ? 's' : '') + '</span></div>' +
+        '<ul class="layers ml-list">' + rows.map(function (l) {
+          return '<li class="lrow' + (l.vis ? '' : ' off') + (l.active ? ' active' : '') + (l.empty ? ' vide' : '') + '" data-k="' + l.key + '" data-t="' + t + '">' +
+            '<button class="ibtn" data-a="vis" title="' + (l.vis ? 'Masquer' : 'Afficher') + ' sur la carte et à l’impression" aria-label="Afficher ou masquer">' + ic(l.vis ? 'eye' : 'eye-off') + '</button>' +
+            '<span class="lsw" style="background:' + esc(l.color) + '"></span>' +
+            '<button class="lmeta ml-open" data-a="edit" title="' + (l.active ? 'En cours de modification' : 'Modifier cet ' + T.one) + '"><b class="lname">' + esc(l.name) + '</b><small>' + (l.active ? 'En cours · ' : '') + (l.empty ? 'vide' : mlKind(l)) + '</small></button>' +
+            '<button class="ibtn" data-a="zoom" title="Centrer la carte" aria-label="Centrer">' + ic('target') + '</button>' +
+            (l.active && l.empty ? '' : '<button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
+        }).join('') + '</ul>' +
+        '<div class="btnrow ml-btns"><button type="button" class="btn-ghost" data-a="new">' + ic('plus') + T.neu + '</button>' +
+        '<button type="button" class="btn-ghost" data-a="imp">' + ic('download') + 'Importer…</button>' +
+        (rows.length > 1 ? '<button type="button" class="btn-ghost" data-a="all">Tout afficher</button>' : '') + '</div>' +
+        '<div class="ml-imp"' + (impOpen ? '' : ' hidden') + '>' + mlImportHtml(t) + '</div>';
+    });
+  }
+  function mlImportHtml(t) {
+    var list = projList().filter(function (e) { return e.data && ((e.data[t] && !isEmpty(t, e.data[t])) || (e.data.layers || []).some(function (l) { return l.type === t; })); });
+    return '<p class="note">Ajoutez des ' + (t === 'route' ? 'itinéraires' : 'parcours') + ' enregistrés dans ce navigateur, ou un fichier de votre ordinateur (travail .html, .json ou PDF imprimé par ScoutMap). Ils s’affichent avec les autres et restent modifiables.</p>' +
+      '<ul class="layers">' + (list.length ? list.map(function (e) {
+        return '<li class="lrow" data-pid="' + e.id + '"><div class="lmeta"><b class="lname">' + esc(e.name) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div><button type="button" class="btn-ghost sm" data-a="addp">Ajouter</button></li>';
+      }).join('') : '<li class="pr-none">Aucun travail enregistré dans ce navigateur.</li>') + '</ul>' +
+      '<button type="button" class="btn-ghost block" data-a="file">Choisir un fichier sur l’ordinateur…</button>';
+  }
+  // ajoute à la carte les dessins de type t trouvés dans un travail (sans toucher à ce qui est déjà affiché)
+  function addFromData(o, t) {
+    var src = [];
+    if (o && o[t] && !isEmpty(t, o[t])) src.push({ data: o[t], res: t === 'route' ? (o.res || null) : null });
+    ((o && o.layers) || []).forEach(function (l) { if (l && l.type === t && l.data) src.push({ data: l.data, res: l.res || null }); });
+    var n = 0, b = null;
+    src.forEach(function (x) {
+      if (isEmpty(t, x.data)) return;
+      var d = Object.assign(FRESH[t](null, S.layers.length + 2), x.data); d.id = nid();
+      if (t === 'route') d.wps = x.data.wps || []; else d.pts = x.data.pts || [];
+      var res = x.res && x.res.line ? { line: x.res.line, dist: x.res.dist, dur: x.res.dur, bounds: x.res.bounds, directs: x.res.directs || [], nat: x.res.nat || [], portions: x.res.portions || [] } : null;
+      S.layers.push({ type: t, vis: true, data: d, res: res }); n++;
+      var pts = res ? res.line : (t === 'route' ? d.wps.map(function (w) { return [w.lat, w.lon]; }) : d.pts);
+      if (pts.length) { var bb = L.latLngBounds(pts.map(ll)); b = b ? b.extend(bb) : bb; }
+    });
+    if (!n) { toast('Aucun ' + ML[t].one + ' dans ce fichier.'); return 0; }
+    renderStored(); renderLayerList(); refreshProfile(); persist();
+    if (b && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
+    toast(n + ' ' + ML[t].one + (n > 1 ? 's' : '') + ' ajouté' + (n > 1 ? 's' : '') + '.');
+    return n;
+  }
+  function mlClick(e) {
+    var host = e.target.closest('.mylay'); if (!host) return;
+    var t = host.dataset.t, b = e.target.closest('button[data-a]'); if (!b) return;
+    var a = b.dataset.a, li = b.closest('li'), k = li && li.dataset.k;
+    if (a === 'new') {
+      if (isEmpty(t, S[t])) { toast('Posez d’abord quelques points sur la carte : l’' + ML[t].one + ' en cours est vide.'); return; }
+      newLayer(t); toast(ML[t].neu + ' : le précédent est conservé dans ce navigateur et reste affiché.');
+    } else if (a === 'imp') { host.dataset.imp = host.dataset.imp === '1' ? '0' : '1'; renderMyLayers(); }
+    else if (a === 'all') { S.layers.forEach(function (l) { l.vis = true; }); S.vis[t] = true; applyVis(); renderStored(); renderLayerList(); refreshProfile(); persist(); }
+    else if (a === 'file') { var fi = $('#file-layer'); fi.dataset.t = t; fi.click(); }
+    else if (a === 'addp') { var pe = projList().filter(function (x) { return String(x.id) === li.dataset.pid; })[0]; if (pe) addFromData(pe.data, t); }
+    else if (k) {
+      var L0 = layersList(true).filter(function (l) { return l.key === k; })[0]; if (!L0) return;
+      if (a === 'vis') {
+        if (L0.active) { S.vis[t] = !L0.vis; applyVis(); } else { L0.item.vis = !L0.vis; renderStored(); }
+        renderLayerList(); refreshProfile(); persist();
+      } else if (a === 'zoom') {
+        var bd = layerBounds(k); if (bd) fit(bd, bd.getNorthEast().equals(bd.getSouthWest()) ? { maxZoom: 16 } : { padding: [60, 60], maxZoom: 17 });
+      } else if (a === 'edit') { if (!L0.active) activate(L0.id); }
+      else if (a === 'del') {
+        if (L0.active && S.layers.some(function (l) { return l.type === t; })) { var nx = S.layers.filter(function (l) { return l.type === t; })[0]; removeLayer(k); activate(nx.data.id); }
+        else removeLayer(k);
+      }
+    }
+  }
+  document.addEventListener('click', mlClick);
+  $('#file-layer').addEventListener('change', function () {
+    var t = this.dataset.t || 'route', files = Array.prototype.slice.call(this.files); this.value = '';
+    files.forEach(function (f) {
+      fileToProject(f).then(function (o) { if (!o) throw new Error('Ce fichier ne contient pas de travail ScoutMap.'); addFromData(o, t); }).catch(function (er) { toast(er.message || 'Ouverture impossible.'); });
+    });
+  });
   $('#pop-tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-tab]'); if (b) popTab(b.dataset.tab); });
   $('#ov-none').addEventListener('click', function () { OVERS.forEach(function (k) { S.ov[k] = false; }); applyLayers(); persist(); });
   // ---------- Travaux enregistrés dans le navigateur, fichiers .json / .html, ouverture ----------
@@ -2239,7 +2324,8 @@
   function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function projStore(list) { try { localStorage.setItem(PKEY, JSON.stringify(list)); return true; } catch (e) { toast('Le stockage du navigateur est plein : téléchargez vos travaux pour les garder.'); return false; } }
   function projData(withRes) {
-    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks };
+    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks,
+      layers: S.layers.filter(function (l) { return l.type === 'route' || l.type === 'az'; }).map(function (l) { return { type: l.type, vis: l.vis !== false, data: l.data, res: l.res || null }; }) };
     if (withRes && RT.route && RT.route.line) {
       o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, directs: RT.route.directs || [], nat: RT.route.nat || [],
         portions: (RT.route.portions || []).map(function (q) { return { start: q.start, end: q.end, distance: q.distance, duration: q.duration, steps: [] }; }) };
@@ -2276,7 +2362,11 @@
     S.az = Object.assign(freshAz(null, 1), o.az || {}); S.az.pts = (o.az && o.az.pts) || [];
     S.game = Object.assign(freshGame(null, 1), o.game || {}); S.game.shapes = (o.game && o.game.shapes) || [];
     if (o.gameStyle) Object.assign(S.gameStyle, o.gameStyle);
-    S.tracks = o.tracks || []; S.layers = [];
+    S.tracks = o.tracks || [];
+    S.layers = (Array.isArray(o.layers) ? o.layers : []).filter(function (l) { return l && l.data && (l.type === 'route' || l.type === 'az'); }).map(function (l) {
+      var d = Object.assign(FRESH[l.type](null, 1), l.data); if (l.type === 'route') d.wps = l.data.wps || []; else d.pts = l.data.pts || []; if (!d.id) d.id = nid();
+      return { type: l.type, vis: l.vis !== false, data: d, res: l.res || null };
+    });
     if (o.base && LAYERS[o.base] && LAYERS[o.base].base && !LAYERS[o.base].hidden) S.base = o.base;
     S.grid = o.grid && o.grid.type ? { type: o.grid.type } : { type: 'none' }; if (window.SM && SM.grid) SM.grid.apply();
     if (o.ov) Object.assign(S.ov, o.ov);
@@ -2284,6 +2374,9 @@
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : (S.route.wps.length ? 'route' : S.az.pts.length ? 'az' : S.game.shapes.length ? 'game' : 'route');
     select(null); applyVis(); applyLayers(); syncRouteUi(); refreshRouteView(); renderAz(); renderTracks(); renderLayerList(); if (window.SM && SM.game) SM.game.render();
     showHome(false); setRail(rail); setTool(rail === 'game' ? 'game' : 'pan'); persist();
+    syncNames();
+    var first = (rail === 'route' || rail === 'az') && isEmpty(rail, S[rail]) ? S.layers.filter(function (l) { return l.type === rail; })[0] : null;
+    if (first) { activate(first.data.id); return; }
     var b = layerBounds(rail === 'route' ? 'route' : rail); if (!(opts && opts.keepView) && b && b.isValid && b.isValid()) fit(b, { padding: [70, 70], maxZoom: 16 });
   }
   function downloadText(name, text, mime) { download(name, text, mime); }
@@ -2317,8 +2410,57 @@
       });
     }).catch(function (e) { toast('Export impossible : ' + (e.message || 'erreur')); });
   }
+
+  // ---------- Travail <-> texte (liens #projet= et données cachées dans les PDF) ----------
+  function bytesB64(u8) { var s = ''; for (var i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function b64Bytes(t) { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; var bin = atob(t), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function pipeBytes(u8, stream) { return new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer().then(function (b) { return new Uint8Array(b); }); }
+  function projEncode(o) {
+    var json = JSON.stringify(o);
+    if (typeof CompressionStream === 'undefined') return Promise.resolve(b64e(json));
+    return pipeBytes(new TextEncoder().encode(json), new CompressionStream('deflate-raw')).then(function (z) { return 'z' + bytesB64(z); }, function () { return b64e(json); });
+  }
+  function projDecode(t) {
+    if (t.charAt(0) !== 'z') { try { return Promise.resolve(JSON.parse(b64d(t))); } catch (e) { return Promise.reject(e); } }
+    if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('Ce navigateur ne sait pas relire ce fichier : essayez avec un navigateur récent.'));
+    return pipeBytes(b64Bytes(t.slice(1)), new DecompressionStream('deflate-raw')).then(function (u) { return JSON.parse(new TextDecoder().decode(u)); });
+  }
+  // lien « ouvrir ce travail dans ScoutMap » (mis, invisible, dans les PDF imprimés)
+  function projLink() {
+    var o = projData(true);
+    return projEncode(o).then(function (t) {
+      if (t.length > 1500000) { o = projData(false); return projEncode(o).then(function (t2) { return APP_URL + '#projet=' + t2; }); }
+      return APP_URL + '#projet=' + t;
+    });
+  }
+  // cherche le travail caché dans un PDF imprimé par ScoutMap (le lien est écrit en clair dans le fichier)
+  function pdfProject(buf) {
+    var u = new Uint8Array(buf), txt = '';
+    for (var i = 0; i < u.length; i += 16384) txt += String.fromCharCode.apply(null, u.subarray(i, i + 16384));
+    var re = /#projet=([A-Za-z0-9_\-]+)/g, m, best = null;
+    while ((m = re.exec(txt))) { if (!best || m[1].length > best.length) best = m[1]; }
+    if (!best) return Promise.resolve(null);
+    return projDecode(best);
+  }
+  function fileToProject(f) {
+    return new Promise(function (ok, ko) {
+      var fr = new FileReader(), pdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+      fr.onerror = function () { ko(new Error('Lecture impossible.')); };
+      fr.onload = function () {
+        try {
+          if (pdf) { pdfProject(fr.result).then(function (o) { if (!o) throw new Error('Ce PDF ne contient pas de travail ScoutMap (seuls les PDF imprimés par ScoutMap se relisent).'); ok(o); }).catch(ko); return; }
+          var txt = String(fr.result), o = null;
+          if (/\.html?$/i.test(f.name)) { var m = /<script id="scoutmap-data" type="application\/json">([\s\S]*?)<\/script>/.exec(txt); if (!m) throw new Error('Cette page ne contient pas de travail ScoutMap.'); o = JSON.parse(m[1]); }
+          else o = JSON.parse(txt);
+          ok(o && o.app === 'ScoutMap' ? o : null);
+        } catch (e) { ko(e); }
+      };
+      if (pdf) fr.readAsArrayBuffer(f); else fr.readAsText(f);
+    });
+  }
   function openFiles(files) {
     Array.prototype.forEach.call(files, function (f) {
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') { fileToProject(f).then(function (o) { loadProject(o); toast('Travail retrouvé dans le PDF : ' + (o.name || f.name)); }).catch(function (e) { toast(e.message || 'Ouverture impossible.'); }); return; }
       if (/\.(gpx|kml)$/i.test(f.name)) { if (S.mode !== 'route') setRail('route'); showHome(false); importGpx(f); return; }
       var fr = new FileReader();
       fr.onload = function () {
@@ -3127,7 +3269,8 @@
       return;
     }
     if (/^#projet=/.test(hash)) {
-      try { loadProject(JSON.parse(b64d(hash.slice(8)))); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } return; } catch (e) { toast('Lien illisible : le travail n’a pas pu être ouvert.'); }
+      projDecode(hash.slice(8)).then(function (o) { loadProject(o); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } }).catch(function () { showHome(true); toast('Lien illisible : le travail n’a pas pu être ouvert.'); });
+      return;
     }
     showHome(true);
   })();
@@ -3237,7 +3380,7 @@
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
     layersList: layersList, fillPlaces: fillPlaces, scaleAt: scaleAt, zoomFor: zoomFor, curScale: curScale, niceScale: niceScale, fileName: fileName,
-    wantOff: wantOff, openPdf: null,
+    wantOff: wantOff, openPdf: null, projLink: projLink,
     persist: persist, gGame: gGame, select: select, renderStored: renderStored, renderLayerList: renderLayerList, showCtx: showCtx, hideCtx: hideCtx,
     copyCoords: copyCoords, openDlg: openDlg, fit: fit, undoAction: undoAction, redoAction: redoAction, nid: nid, setMode: setMode, setRail: setRail, activate: activate,
     removeLayer: removeLayer, layerBounds: layerBounds, showHome: showHome, ensureVisible: ensureVisible, applyVis: applyVis, BASES: BASES

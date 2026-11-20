@@ -150,3 +150,9 @@ Les icônes viennent de [game-icons.net](https://game-icons.net) (CC BY 3.0 : Lo
 
 ### Calques réalistes, illustrations et motifs (Grand jeu)
 Onglet **Calques** : reliefs hachurés (taille selon l'altitude réelle, service d'altimétrie IGN), forêts et cours d'eau/lacs (BD TOPO) dessinés à la plume ; transparence réglable, masquage, impression sur les cartes et **sur des feuilles séparées sans fond de carte**. Illustrations en couleur (OpenMoji, CC BY-SA 4.0) : 5 à 6 par thème, posées à 3 cm sur le papier ; drapeaux d'équipe colorés ; motif de remplissage au choix pour toute zone (onglet Style).
+
+## Impression, PDF et plusieurs itinéraires
+
+- **Mes itinéraires / Mes parcours d'azimuts** (panneau de gauche) : « Nouvel itinéraire » range l'itinéraire en cours dans le navigateur et en ouvre un nouveau ; chaque ligne se masque/affiche (œil), se centre, se modifie (clic sur le nom) ou se supprime. « Importer… » ajoute des tracés enregistrés dans le navigateur ou un fichier de l'ordinateur (travail .html/.json ou PDF imprimé par ScoutMap).
+- **Impression** : tous les itinéraires affichés sont imprimés l'un après l'autre (feuille de route puis cartes de chacun). Les cartes sont demandées à 4× la définition de base, et la fenêtre d'impression se referme sur la carte une fois l'impression faite.
+- **PDF relisible** : chaque PDF imprimé contient, dans un lien invisible posé sur la première page, le travail complet (compressé). « Ouvrir » ou « Importer » avec ce PDF recharge le tracé.

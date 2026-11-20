@@ -14,7 +14,7 @@
   // ---------- Ce qu'on imprime : tout ce qui est dessiné dans l'onglet en cours ----------
   var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', game: 'Grand jeu', track: 'Trace importée' };
   function pickables() {
-    var out = SM.layersList().filter(function (l) { return !l.empty; }).map(function (l) {
+    var out = SM.layersList().filter(function (l) { return !l.empty && l.vis !== false; }).map(function (l) {
       return { key: l.key, type: l.type, name: l.name, color: l.color, vis: l.vis, active: l.active, data: l.data, res: l.res };
     });
     if (S.mode === 'route') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: true, active: false, data: t, res: null }); });
@@ -205,7 +205,7 @@
     if (SM.grid) SM.grid.addTo(m);
     if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
-      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
+      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4, hires: true }).addTo(m), done = false;
       function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(function () { return SM.waterDraw ? SM.waterDraw(m) : null; }).then(res, res); } }
       // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
       var t0 = Date.now();
@@ -329,38 +329,53 @@
     $('#doc-status').textContent = msg || '';
   }
   function buildCombo(c, tok) {
-    var items = c.items, rf = c.roadmap ? items.filter(sheetCapable) : [], prm = c.tiles, P = PAPER[c.paper], pm = 10;
-    var pl = c.maps ? tilesPlan(items, prm) : null;
-    if (c.maps && !pl) { SM.toast('Aucun tracé à imprimer sur plusieurs feuilles.'); return; }
-    if (pl && pl.pages.length > 60) { SM.toast('Trop de feuilles (' + pl.pages.length + ') : choisissez une échelle plus petite.'); return; }
+    var items = c.items, prm = c.tiles, P = PAPER[c.paper], pm = 10;
+    // Plusieurs itinéraires (ou parcours d'azimuts) affichés : chacun est imprimé comme un document à part, à la suite des autres.
+    var mains = items.filter(sheetCapable), rest = items.filter(function (x) { return !sheetCapable(x); });
+    var groups = S.mode !== 'game' && mains.length > 1 ? mains.map(function (it) { return [it]; }) : [items];
+    if (groups.length > 1 && rest.length) groups.push(rest);
+    var secs = groups.map(function (g) { return { items: g, rf: c.roadmap ? g.filter(sheetCapable) : [], pl: c.maps ? tilesPlan(g, prm) : null }; });
+    if (c.maps && secs.every(function (x) { return !x.pl; })) { SM.toast('Aucun tracé à imprimer sur plusieurs feuilles.'); return; }
+    var npages = secs.reduce(function (n, x) { return n + (x.pl ? x.pl.pages.length : 0); }, 0);
+    if (npages > 80) { SM.toast('Trop de feuilles (' + npages + ') : choisissez une échelle plus petite.'); return; }
     closeMaps();
     $('#page-style').textContent = '@page pp{size:' + c.paper + ' portrait;margin:0}@page pl{size:' + c.paper + ' landscape;margin:0}@page{size:' + c.paper + ' portrait;margin:0}';
-    var firstName = c.title || (rf[0] && rf[0].name) || (items[0] && items[0].name) || S.name || 'Itinéraire'; $('#doc-title').value = firstName;
+    var firstName = c.title || (secs[0].rf[0] && secs[0].rf[0].name) || (items[0] && items[0].name) || S.name || 'Itinéraire'; $('#doc-title').value = firstName;
     $('#doc-pages').innerHTML = '<div class="doc-loading" id="doc-loading"><i class="spin"></i><span>Chargement des feuilles…</span></div>'; $('#doc-side').innerHTML = '';
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var cals = (c.calq && S.mode === 'game' ? (S.game.calques || []).filter(function (l) { return l.sep; }) : []);
-    var total = rf.length + (c.onesheet ? 1 : 0) + cals.length + (pl ? pl.pages.length + 1 : 0), done = 0;
+    var total = cals.length + secs.reduce(function (n, x) { return n + x.rf.length + (c.onesheet && x.pl !== undefined ? 1 : 0) + (x.pl ? x.pl.pages.length + 1 : 0); }, 0), done = 0;
     setBusy(true); setProgress(0, total, 'Préparation du document…');
     var chain = Promise.resolve();
     function step(msg, fn) { chain = chain.then(function () { if (tok !== BT) throw ABORT; setProgress(done, total, msg); return fn(); }).then(function () { done++; if (tok === BT) addThumbs(tok, false); }); }
-    if (rf.length) {
-      chain = chain.then(function () { return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
-      rf.forEach(function (it) {
-        step('Feuille de route…', function () {
-          if (it.type === 'route') return roadmapPages(c, it, P, pm);
-          var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
-          return azSheet({ type: 'simple', title: c.title, overview: true, profile: true, notes: true, paper: c.paper }, it, sh, P[0] - 2 * pm, rf.length);
+    secs.forEach(function (sec) {
+      var gi = sec.items, rf = sec.rf, pl = sec.pl;
+      if (rf.length) {
+        chain = chain.then(function () { return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
+        rf.forEach(function (it) {
+          step('Feuille de route…', function () {
+            if (it.type === 'route') return roadmapPages(c, it, P, pm);
+            var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
+            return azSheet({ type: 'simple', title: c.title, overview: true, profile: true, notes: true, paper: c.paper }, it, sh, P[0] - 2 * pm, rf.length);
+          });
         });
-      });
-    }
-    if (c.onesheet) {
-      step('Carte générale…', function () {
-        var fit = fitScaleFor(items, c.paper), land = fit ? fit.land : true, pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
-        var sh = newSheet(null, pw, ph, pm); sh.className += ' rf ' + (land ? 'pl' : 'pp');
-        buildMapDoc({ title: '', scale: 'fit', items: items, showLine: c.showLine }, sh, pw - 2 * pm, ph - 2 * pm);
-      });
-    }
+      }
+      if (c.onesheet && pl !== undefined) {
+        step('Carte générale…', function () {
+          var fit = fitScaleFor(gi, c.paper), land = fit ? fit.land : true, pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
+          var sh = newSheet(null, pw, ph, pm); sh.className += ' rf ' + (land ? 'pl' : 'pp');
+          buildMapDoc({ title: '', scale: 'fit', items: gi, showLine: c.showLine }, sh, pw - 2 * pm, ph - 2 * pm);
+        });
+      }
+      if (pl) {
+        var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
+          off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 12 : 6) ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
+          title: c.title ? (groups.length > 1 && gi[0] ? c.title + ' – ' + gi[0].name : c.title) : (gi.length === 1 ? gi[0].name : (S.name || 'Parcours')) };
+        if (pl.pages.length > 1) step('Planche d’assemblage…', function () { return indexSheet(pl, gi, o); });
+        pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, gi, o); }); });
+      }
+    });
     cals.forEach(function (l) {
       step('Calque « ' + l.name + ' » à part…', function () {
         var b = l.bounds, land = (b.e - b.w) * Math.cos((b.s + b.n) / 2 * Math.PI / 180) >= (b.n - b.s), pw = land ? P[1] : P[0], ph = land ? P[0] : P[1];
@@ -368,13 +383,6 @@
         buildMapDoc({ title: l.name + (c.title ? ' — ' + c.title : ''), scale: 'fit', prefer: S.game.scale, items: [], only: l, showLine: false }, sh, pw - 2 * pm, ph - 2 * pm);
       });
     });
-    if (pl) {
-      var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
-        off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
-        title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
-      if (pl.pages.length > 1) step('Planche d’assemblage…', function () { return indexSheet(pl, items, o); });
-      pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, items, o); }); });
-    }
     var sizes = '';
     $('#page-style').textContent += sizes;
     chain.then(function () { return Promise.all(docMaps.map(function (m) { return m._ready; })); })
@@ -453,7 +461,7 @@
         return '<span class="idx-chip"><b>F' + pg.n + '</b>' + (pg.orient === 'portrait' ? 'portrait' : 'paysage') + ' · ' + esc(G.formatCoord('wgs', pg.center[0], pg.center[1])) + '</span>'; }).join('') + '</div></section>' +
       (S.mode === 'route' ? '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> dans l’ordre du parcours (carrés dorés) ; les <b>étapes</b> du parcours sont les pastilles rondes 1, 2, 3… Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles traversées par le tracé sont imprimées.</p>' : '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> (carrés dorés). Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles couvrant le dessin sont imprimées.</p>') + foot();
     var el = sh.querySelector('#didx'), cwmm = pw - 2 * o.pm, hmm = Math.round((ph - 2 * o.pm) * (landIdx ? 0.55 : 0.58));
-    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base });
+    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 2, { base: o.base });
     drawItems(m, items, { noMarkers: true });
     var all = L.latLngBounds([]);
     pl.pages.forEach(function (pg) {
@@ -475,7 +483,7 @@
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length,
-      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp,
+      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 12 : 6) ? 2 : 1) : +prm.sharp,
       z0: SM.zoomFor(prm.scale, pl.lat0), title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
     setBusy(true, 'Préparation des feuilles…');
     var chain = Promise.resolve();
@@ -580,12 +588,12 @@
         '<div class="goodraid"><b>Bon raid !</b><span>Restez groupés, soyez prudents et profitez du paysage.</span></div>' + foot();
       // la page 2 doit aussi tenir sur une feuille : on retire des lignes de notes (jusqu'à 3), puis on resserre le tableau
       (function fit2() {
-        var pg = P[1] * MM, lines = s2.querySelectorAll('.nlines .nl'), k = lines.length, tb = s2.querySelector('.rt');
+        var pg = (P[1] - 2) * MM, lines = s2.querySelectorAll('.nlines .nl'), k = lines.length, tb = s2.querySelector('.rt');
         while (s2.scrollHeight - pg > 1 && k > 3) { lines[--k].remove(); }
         if (s2.scrollHeight - pg > 1 && tb) tb.classList.add('dense');
       })();
       // hauteurs de la carte et du profil ajustées pour que la page 1 tienne sur une feuille, avant de créer la carte
-      var ov = $('#rov' + uid, s1), sv = $('#rsv' + uid, s1), pagePx = P[1] * MM, cw0 = Math.floor(cw * MM);
+      var ov = $('#rov' + uid, s1), sv = $('#rsv' + uid, s1), pagePx = (P[1] - 2) * MM, cw0 = Math.floor(cw * MM);
       var mh = Math.round(Math.min(cw0 * 0.75, 100 * MM)), ph = p ? Math.round(34 * MM) : 0;
       function apply() { ov.style.height = mh + 'px'; if (sv) { sv.setAttribute('height', ph); sv.style.height = ph + 'px'; } }
       function over() { apply(); return s1.scrollHeight - pagePx; }
@@ -594,7 +602,7 @@
       if (over() > 1 && sv) ph = Math.max(60, ph - over());
       if (over() > 1) mh = Math.max(150, mh - over());
       apply();
-      var m = makeMap(ov, cw0, mh, Math.max(1, SM.wantOff())), b = boundsOf(drawItems(m, [it]));
+      var m = makeMap(ov, cw0, mh, 2), b = boundsOf(drawItems(m, [it]));
       if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
       L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
       if (sv && p) {
@@ -659,7 +667,7 @@
         apply(); sq = { mh: mh, ph: ph };
       })();
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, Math.max(1, SM.wantOff()));
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, 2);
         var pts = drawItems(m, [it]), b = boundsOf(pts); mp = m; bnd = b;
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
@@ -688,7 +696,7 @@
       sheet.innerHTML = h + foot();
       var ov = $('#dov' + uid, sheet);
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), Math.max(1, SM.wantOff()));
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), 2);
         var b = boundsOf(drawItems(m, [it]));
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
@@ -704,15 +712,31 @@
     setTimeout(function () { SM.map.invalidateSize(); }, 50);
   }
   $('#doc-back').addEventListener('click', function () { BT++; closeDoc(); openPdf(); });
+  // Données du travail cachées dans le PDF : un lien invisible (rien à l'écran ni sur le papier) posé sur la première feuille.
+  // L'appli le retrouve dans le fichier (Ouvrir, ou Importer) et recharge le tracé.
+  function attachData() {
+    Array.prototype.forEach.call(document.querySelectorAll('#doc-pages .d-data'), function (a) { a.parentNode.removeChild(a); });
+    var first = document.querySelector('#doc-pages .sheet'); if (!first || !SM.projLink) return Promise.resolve();
+    return SM.projLink().then(function (url) {
+      var a = document.createElement('a'); a.className = 'd-data'; a.href = url; a.tabIndex = -1; a.contentEditable = 'false'; a.setAttribute('aria-hidden', 'true');
+      first.appendChild(a);
+    }, function () { /* pas de données cachées : l'impression continue */ });
+  }
+  var printing = false;
   function doPrint(pdf) {
     var h1 = $('.sheet h1'); origTitle = origTitle || document.title;
     document.title = (h1 && h1.textContent.trim()) || 'ScoutMap';
     if (pdf) SM.toast('Dans la fenêtre d’impression, choisissez « Enregistrer au format PDF » comme imprimante.');
-    setTimeout(function () { window.print(); }, pdf ? 1400 : 60);
+    attachData().then(function () { printing = true; setTimeout(function () { window.print(); }, pdf ? 1400 : 60); });
   }
   $('#doc-print').addEventListener('click', function () { doPrint(false); });
   $('#doc-pdf').addEventListener('click', function () { doPrint(true); });
-  window.addEventListener('afterprint', function () { document.title = 'ScoutMap'; });
+  // la fenêtre d'impression est fermée : retour direct à la carte (plus besoin de « Annuler »)
+  window.addEventListener('afterprint', function () {
+    document.title = 'ScoutMap';
+    if (!printing) return; printing = false;
+    if (document.body.classList.contains('doc-open')) { BT++; closeDoc(); SM.toast('Impression terminée : retour à la carte. Un PDF enregistré se rouvre dans ScoutMap avec « Ouvrir ».'); }
+  });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) { BT++; closeDoc(); openPdf(); } });
 
   SM.openPdf = openPdf;
