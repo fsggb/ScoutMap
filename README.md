@@ -42,7 +42,7 @@ npm run e2e        # essai complet dans Chromium (npm i puis npx playwright inst
 ### Publication
 
 - Chaque envoi sur `main` lance les tests puis déploie sur GitHub Pages (`.github/workflows/pages.yml`) ; un test qui échoue bloque la mise en ligne. Les pull requests sont testées aussi.
-- Versions : numéro dans `package.json` et `CHANGELOG.md`. Une étiquette `vX.Y.Z` poussée crée la version publiée sur GitHub (`.github/workflows/release.yml`).
+- Versions : changer le numéro dans `package.json` et `appVersion` (`src/app/17-liens-api.js`), ajouter sa section dans `CHANGELOG.md`, fusionner sur `main` : l'étiquette `vX.Y.Z` et la version GitHub sont créées automatiquement (`.github/workflows/release.yml`).
 - Les utilisateurs sont prévenus d'une nouvelle version par une notification dans l'application.
 
 ## Intégrations

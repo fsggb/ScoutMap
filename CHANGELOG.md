@@ -50,7 +50,7 @@ On retrouve cet historique dans l'application : **Réglages › Version et nouve
 ### Qualité
 - Le moteur de l'application (`js/app.js`, 3 700 lignes) est découpé en 18 parties par domaine dans `src/app/`, réassemblées par `npm run build`.
 - Tests automatiques (`npm test`) lancés sur chaque pull request et avant chaque mise en ligne : une erreur bloque la publication. Essai complet dans un vrai navigateur : `npm run e2e`.
-- Versions publiées sur GitHub à partir de ce fichier, documentation (README, architecture, notes de reprise).
+- Versions publiées sur GitHub automatiquement dès qu'un nouveau numéro arrive sur `main`, avec les notes de ce fichier ; documentation (README, guide d'utilisation, architecture, notes de reprise).
 - Une ancienne carte de jeu contenant des données privées a été effacée de l'historique du dépôt.
 
 ## 1.x — 2 au 20 novembre 2026

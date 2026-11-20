@@ -9,8 +9,12 @@ Lisez d'abord [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - Les messages à l'utilisateur passent par `toast(texte, { kind: 'ok'|'warn'|'bad'|'info', action: { label, fn }, sticky })`. Ils s'affichent puis se rangent dans le bouton Notifications.
 - Rien ne doit casser sans réseau : chaque appel à un service a un secours ou un message clair.
 - Vérifier sur ordinateur **et** sur un écran de téléphone (390 px), puis `npm run e2e`.
-- Chaque changement visible va dans `CHANGELOG.md`. Une version = numéro dans `package.json` + `appVersion` (partie `src/app/17-liens-api.js`) + étiquette `vX.Y.Z` (la version GitHub est créée automatiquement).
+- Chaque changement visible va dans `CHANGELOG.md`. Une version = numéro dans `package.json` + `appVersion` (partie `src/app/17-liens-api.js`) + section dans `CHANGELOG.md`, fusionnés sur `main` : l'étiquette et la version GitHub se créent toutes seules.
 - Publier = fusionner sur `main` (tests, puis déploiement GitHub Pages).
+
+## Historique Git réécrit le 20 novembre 2026
+
+Une ancienne carte de jeu contenant des données privées a été retirée de tout l'historique (toutes les branches ont été réécrites). **Une copie du dépôt faite avant cette date doit être reclonée** (`git clone https://github.com/fsggb/ScoutMap`), sinon un `git push` ferait revenir l'ancien historique. Ne pas réutiliser les anciennes branches locales.
 
 ## Ce qui a été fait pour la version 2.0.0 (novembre 2026)
 
