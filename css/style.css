@@ -1585,3 +1585,14 @@ body.lv-open .glegend{display:none!important}
 @media (max-width:860px){#ntf-host{left:12px;right:12px;align-items:stretch;max-width:none}}
 @media print{#ntf-host{display:none!important}}
 .notes .note-info{background:var(--navy-3);color:var(--navy)}
+/* ---------- Ma position : direction et carte orientée ---------- */
+.loc-wrap{overflow:visible}
+.loc-cone{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;transition:transform .15s linear}
+.loc-cone::before{content:"";position:absolute;left:-30px;top:-58px;width:60px;height:58px;background:radial-gradient(ellipse 50% 100% at 50% 100%,rgba(37,99,235,.85),rgba(37,99,235,.35) 60%,rgba(37,99,235,0) 100%);clip-path:polygon(50% 100%,0 0,100% 0)}
+.loc-wrap .loc-dot{position:relative}
+.map-rot{position:absolute;inset:0;transform-origin:50% 50%;transition:transform .2s linear}
+#locate.orient{background:#2563eb;color:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.35)}
+#north-btn{position:relative}
+#north-btn .nb-needle{display:grid;place-items:center;width:24px;height:24px;transition:transform .2s linear}
+#north-btn .nb-needle i{position:absolute;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:11px solid #c0262d;top:0}
+#north-btn .nb-needle b{font-size:10px;font-weight:800;color:var(--navy);margin-top:12px}
