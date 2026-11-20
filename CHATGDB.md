@@ -2,12 +2,20 @@
 # Fiche de connaissances ChatGDB (format : ScoutHub/docs/projet-chatgdb.md, §5).
 # ChatGDB lit ce fichier pour répondre aux questions sur les applications de ce dépôt.
 depot: fsggb/ScoutMap
-maj: 2026-11-12
+maj: 2026-11-20
 ---
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte.
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.0.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+
+## Nouveautés de la version 2
+- Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
+- Ma position avec boussole ; 2e appui sur le bouton de position = carte orientée dans la direction du téléphone, bouton N = nord en haut.
+- Réglages en pleine page avec les valeurs par défaut (boucle ou aller simple, distance maximale, allure, unités, impression).
+- Impression groupée : Bibliothèque, Ctrl + clic sur plusieurs tracés, puis Imprimer ; un onglet par tracé dans l'aperçu.
+- Grille « Carroyage kilométrique bleu » comme les cartes IGN.
+- Le bouton Retour du navigateur ne quitte plus l'application.
 
 ## Fonctions
 - Fonds : Plan IGN, photographies aériennes ; couches : courbes de niveau, ombrage, pentes, cadastre.
@@ -35,6 +43,7 @@ Base : `https://fsggb.github.io/ScoutMap/` suivi de paramètres. Tout est option
 - `couches=contour,shade,slope,cadastre,hiking,lidar` : couches affichées en plus (courbes de niveau, ombrage, pentes, cadastre, sentiers, relief LiDAR).
 - `itineraire=Lyon|Villeurbanne|45.7,4.9` : crée un itinéraire (de 2 à 12 étapes séparées par `|`, noms de lieux ou coordonnées). `boucle=1` ramène au départ. `titre=Sortie%20du%20samedi` nomme le projet.
 Exemple : `https://fsggb.github.io/ScoutMap/?itineraire=Annecy|Talloires|Menthon-Saint-Bernard&boucle=1&titre=Sortie%20du%20lac&fond=plan`
+- `nouveau=route|az|game` : ouvre directement un nouvel itinéraire, des azimuts ou un grand jeu. `ouvrir=horsconnexion` : réglages des cartes hors connexion ; `ouvrir=bibliotheque` : bibliothèque des tracés.
 Les liens sont expérimentaux : si un lieu est introuvable, la carte l'indique et l'utilisateur peut corriger à la main.
 
 - `#projet=<JSON en base64url>` (après l'adresse) ouvre un travail complet (itinéraire, azimuts, grand jeu) : c'est le format utilisé par le bouton « Modifier » des pages web exportées. Pour préparer un itinéraire simple, préférer `?itineraire=...`.
