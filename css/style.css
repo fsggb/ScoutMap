@@ -1603,3 +1603,8 @@ body.lv-open .glegend{display:none!important}
 .lib-selbar .linkbtn:last-child{margin-left:auto}
 .lib-selbar .btn-ghost.sm{padding:4px 8px;font-size:12px}
 .lib-row.picked{background:var(--navy-3);box-shadow:inset 3px 0 0 var(--navy)}
+
+/* en-tête des feuilles de carte : dans le coin libre */
+.pg-head.pg-head-tr{left:auto;right:8px}
+.pg-head.pg-head-br{left:auto;right:8px;top:auto;bottom:26px}
+.pg-head.pg-head-bl{top:auto;bottom:26px}
