@@ -219,7 +219,7 @@
     if (SM.grid) SM.grid.addTo(m);
     if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
-      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4, hires: true }).addTo(m), done = false;
+      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
       function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(function () { return SM.waterDraw ? SM.waterDraw(m) : null; }).then(res, res); } }
       // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
       var t0 = Date.now();
@@ -397,7 +397,7 @@
       }
       if (pl) {
         var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
-          off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 12 : 6) ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
+          off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
           title: c.title ? (groups.length > 1 && gi[0] ? c.title + ' – ' + gi[0].name : c.title) : (gi.length === 1 ? gi[0].name : (S.name || 'Parcours')) };
         if (pl.pages.length > 1) step('Planche d’assemblage…', function () { return indexSheet(pl, gi, o); }, gk, 'map', lab);
         pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, gi, o); }, gk, 'map', lab); });
@@ -493,7 +493,7 @@
         return '<span class="idx-chip"><b>F' + pg.n + '</b>' + (pg.orient === 'portrait' ? 'portrait' : 'paysage') + ' · ' + esc(G.formatCoord('wgs', pg.center[0], pg.center[1])) + '</span>'; }).join('') + '</div></section>' +
       (S.mode === 'route' ? '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> dans l’ordre du parcours (carrés dorés) ; les <b>étapes</b> du parcours sont les pastilles rondes 1, 2, 3… Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles traversées par le tracé sont imprimées.</p>' : '<p class="d-note">Les feuilles sont numérotées <b>F1, F2…</b> (carrés dorés). Imprimez à 100 % (sans « ajuster à la page »). Chaque feuille porte les renvois vers ses voisines (↑ → ↓ ←). Chevauchement : ' + pl.overlapMm + ' mm minimum. Seules les feuilles couvrant le dessin sont imprimées.</p>') + foot();
     var el = sh.querySelector('#didx'), cwmm = pw - 2 * o.pm, hmm = Math.round((ph - 2 * o.pm) * (landIdx ? 0.55 : 0.58));
-    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 2, { base: o.base });
+    var m = makeMap(el, Math.floor(cwmm * MM), Math.floor(hmm * MM), 1, { base: o.base });
     drawItems(m, items, { noMarkers: true });
     var all = L.latLngBounds([]);
     pl.pages.forEach(function (pg) {
@@ -515,7 +515,7 @@
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length,
-      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 12 : 6) ? 2 : 1) : +prm.sharp,
+      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp,
       z0: SM.zoomFor(prm.scale, pl.lat0), title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
     setBusy(true, 'Préparation des feuilles…');
     var chain = Promise.resolve();
@@ -634,7 +634,7 @@
       if (over() > 1 && sv) ph = Math.max(60, ph - over());
       if (over() > 1) mh = Math.max(150, mh - over());
       apply();
-      var m = makeMap(ov, cw0, mh, 2), b = boundsOf(drawItems(m, [it]));
+      var m = makeMap(ov, cw0, mh, Math.max(1, SM.wantOff())), b = boundsOf(drawItems(m, [it]));
       if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
       L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
       if (sv && p) {
@@ -699,7 +699,7 @@
         apply(); sq = { mh: mh, ph: ph };
       })();
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, 2);
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, Math.max(1, SM.wantOff()));
         var pts = drawItems(m, [it]), b = boundsOf(pts); mp = m; bnd = b;
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
@@ -728,7 +728,7 @@
       sheet.innerHTML = h + foot();
       var ov = $('#dov' + uid, sheet);
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), 2);
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), Math.max(1, SM.wantOff()));
         var b = boundsOf(drawItems(m, [it]));
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);

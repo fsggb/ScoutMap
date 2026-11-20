@@ -892,6 +892,7 @@
     var b = e.target.closest('button[data-a]'), li = e.target.closest('li[data-id]'); if (!b || !li) return;
     var id = +li.dataset.id, ent = projList().filter(function (x) { return x.id === id; })[0]; if (!ent) return;
     if (b.dataset.a === 'open') { loadProject(ent.data, ent.id); }
+    else if (b.dataset.a === 'dl') { exportHtml(ent.data, ent.name); }
     else if (b.dataset.a === 'del') { if (confirm('Supprimer « ' + ent.name + ' » de ce navigateur ?')) { projStore(projList().filter(function (x) { return x.id !== id; })); renderHome(); } }
   });
   $('#wps-toggle').addEventListener('click', function () { S.wpsCollapsed = !S.wpsCollapsed; applyWpsCollapse(); persist(); });
@@ -2555,7 +2556,7 @@
     var list = projList().sort(function (a, b) { return b.updated - a.updated; });
     $('#proj-rows').innerHTML = list.length ? list.map(function (e) {
       return '<li data-id="' + e.id + '"><button class="pr-open" data-a="open"><b>' + esc(e.name) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></button>' +
-        '<button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
+        '<button class="ibtn" data-a="dl" title="Enregistrer ce travail (page web .html)" aria-label="Télécharger">' + ic('download') + '</button><button class="ibtn danger" data-a="del" title="Supprimer" aria-label="Supprimer">' + ic('trash') + '</button></li>';
     }).join('') : '<li class="pr-none">Aucun travail enregistré pour le moment : ils apparaîtront ici automatiquement.</li>';
   }
   function resetAll(ask) {
@@ -3219,7 +3220,7 @@
       { t: 'Accueil : mes travaux', i: 'home', a: function () { showHome(true); } },
       { t: 'Ouvrir un fichier (PDF ScoutMap, GPX, KML, GeoJSON)…', i: 'upload', k: 'Ctrl+O', a: function () { $('#file-gpx').click(); } },
       '-',
-      { t: 'Imprimer en PDF (le PDF se rouvre ensuite dans ScoutMap)', i: 'download', k: 'Ctrl+S', a: function () { openPdf(); } },
+      { t: 'Enregistrer (page web .html : se rouvre ici, se partage)', i: 'download', k: 'Ctrl+S', a: function () { exportHtml(); } },
       { t: 'Exporter la trace en GPX (autres applications)', i: 'export', a: openExport },
       '-',
       { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
@@ -3298,7 +3299,7 @@
     if (VIEWER && !(mod && e.key.toLowerCase() === 'p')) return;
     if (document.body.classList.contains('doc-open') || document.querySelector('dialog[open]')) return;
     if (mod && e.key.toLowerCase() === 'p') { e.preventDefault(); openPdf(); return; }
-    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); openPdf(); return; }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); exportHtml(); return; }
     if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#file-gpx').click(); return; }
     if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redoAction(); else undoAction(); return; }
     if (mod && e.key.toLowerCase() === 'y' && !typing) { e.preventDefault(); redoAction(); return; }
