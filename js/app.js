@@ -297,14 +297,15 @@
   }
   function scan25Layer(off, extra) {
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
-    var o = Object.assign({ maxZoom: 19, maxNativeZoom: 16, attribution: LAYERS.scan25.attr, keepBuffer: 2 }, extra || {});
+    var so = Math.max(0, Math.min(2, off | 0));   // 2 : tuiles du niveau 16 (la meilleure définition de l'IGN) affichées en 64 px, soit environ 380 ppp à l'impression
+    var o = Object.assign({ maxZoom: 19, maxNativeZoom: 16 - so, tileSize: 256 / Math.pow(2, so), attribution: LAYERS.scan25.attr, keepBuffer: 2 }, extra || {});
     if (c.t === 'gas') {
       // Tuiles demandées au serveur Apps Script : 6 à la fois au plus (Google refuse les rafales), 3 essais, cause de l'échec signalée une fois.
       if (c.hub) {
         var H = L.GridLayer.extend({ createTile: function (co, done) {
           var im = document.createElement('img'); im.alt = '';
           var viaRelay = function () {   // secours : lots demandés au serveur ScoutHub
-            s25Fetch(co.z, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
+            s25Fetch(co.z + so, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
               var m = (e && e.message) || 'échec'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer';
               if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + m + ').'); } done(new Error(m), im);
             });
@@ -314,14 +315,14 @@
           im.crossOrigin = 'anonymous';
           im.onload = function () { S25P.seen = true; S25P.fails = 0; done(null, im); };
           im.onerror = function () {
-            if (!plain) { plain = true; im.removeAttribute('crossorigin'); im.src = s25ProxyUrl(co.z, co.x, co.y); return; }   // sans CORS : l'affichage marche quand même
+            if (!plain) { plain = true; im.removeAttribute('crossorigin'); im.src = s25ProxyUrl(co.z + so, co.x, co.y); return; }   // sans CORS : l'affichage marche quand même
             if (!S25P.seen && ++S25P.fails >= 4) S25P.ok = false;
             viaRelay();
           };
-          im.src = s25ProxyUrl(co.z, co.x, co.y);
+          im.src = s25ProxyUrl(co.z + so, co.x, co.y);
           return im;
         } });
-        return new H(Object.assign({ tileSize: 256, minNativeZoom: 6, maxNativeZoom: 16 }, o));
+        return new H(Object.assign({ minNativeZoom: Math.max(0, 6 - so) }, o));
       }
       var running = 0, queue = [];
       var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
@@ -331,9 +332,9 @@
         var go = function () {
           var req = c.hub
             ? hubApi().then(function (api) {
-                return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', token: localStorage.getItem('scouthub.token') || '', z: co.z, x: co.x, y: co.y }) });
+                return fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'scan25', token: localStorage.getItem('scouthub.token') || '', z: co.z + so, x: co.x, y: co.y }) });
               })
-            : fetch(c.url + '?z=' + co.z + '&x=' + co.x + '&y=' + co.y);
+            : fetch(c.url + '?z=' + (co.z + so) + '&x=' + co.x + '&y=' + co.y);
           req.then(function (r) { return r.json(); }).then(function (j) {
             running--; pump();
             if (!j.d) { var m = j.err || j.error || 'réponse vide'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer'; if (/HTTP 40[134]|Session|session|non configur|invalide|inconnue|redéployer/.test(m) || ++n >= 3) return fail(m); queue.push(go); pump(); return; }
@@ -343,13 +344,13 @@
         queue.push(go); pump();
         return im;
       } });
-      return new G(Object.assign({ tileSize: 256, minNativeZoom: 6, maxNativeZoom: 16 }, o));
+      return new G(Object.assign({ minNativeZoom: Math.max(0, 6 - so) }, o));
     }
     if (c.t === 'wms') return L.tileLayer.wms(c.url, Object.assign({ layers: c.layers, format: c.fmt, version: '1.1.1', transparent: false }, o));
     return L.tileLayer(c.url, Object.assign({ tms: !!c.tms }, o));
   }
   function tile(key, off, extra) {
-    var d = LAYERS[key]; off = d.ign ? off : Math.min(off, extra && extra.hires ? 2 : 1);
+    var d = LAYERS[key]; off = d.ign || d.scan ? off : Math.min(off, extra && extra.hires ? 2 : 1);
     if (d.scan) return scan25Layer(off, extra);
     var layer = L.tileLayer(srcUrl(key, '{z}', '{x}', '{y}'), Object.assign({
       maxZoom: 19, maxNativeZoom: d.n - off, tileSize: 256 / Math.pow(2, off), zoomOffset: off, attribution: d.attr || ATTR, keepBuffer: 2, crossOrigin: 'anonymous',
