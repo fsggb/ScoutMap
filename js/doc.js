@@ -19,6 +19,10 @@
     var out = SM.layersList().filter(function (l) { return !l.empty && (l.vis !== false || sel.indexOf(l.id) >= 0); }).map(function (l) {
       return { key: l.key, id: l.id, type: l.type, name: l.name, color: PCOL[l.type] || l.color, vis: l.vis, active: l.active, data: l.data, res: l.res, shown: l.color };
     });
+    // un même tracé présent deux fois (copie gardée par un autre travail, version avant modification…) ne s'imprime qu'une fois : on garde celui en cours
+    var seen = {};
+    out = out.slice().sort(function (a, b) { return (b.active ? 1 : 0) - (a.active ? 1 : 0); }).filter(function (x) { var k = SM.traceSig ? SM.traceSig(x.type, x.data) : ''; if (!k) return true; if (seen[k]) return false; seen[k] = 1; return true; });
+    out.sort(function (a, b) { var o = { route: 0, az: 1, meas: 2, game: 3 }; return (o[a.type] || 0) - (o[b.type] || 0) || a.id - b.id; });
     if (S.mode === 'route' || S.mode === 'az') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ key: 't' + t.id, type: 'track', name: t.name, color: t.color, vis: true, active: false, data: t, res: null }); });
     return out;
   }
