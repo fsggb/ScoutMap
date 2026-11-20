@@ -29,6 +29,16 @@ On retrouve cet historique dans l'application : **Réglages › Version et nouve
 - Marges plus étroites : la carte occupe une plus grande partie de la feuille.
 - L'en-tête de chaque feuille se place dans le coin où il ne cache aucune étape.
 
+### Grand jeu plus simple
+- Les consignes s'affichent pendant le dessin (comment terminer une zone, poser un élément…) ; Retour arrière retire le dernier point posé.
+- L'élément qu'on vient de poser est sélectionné (on règle sa couleur sans toucher aux autres) ; choisir un outil désélectionne l'élément précédent.
+- La barre de style du bas ne déborde plus : tous les réglages sont visibles, aussi sur téléphone.
+- Sur téléphone, le volet se referme quand on prend un outil pour dessiner sur la carte.
+- Un seul nom pour le jeu (celui de l'assistant devient le nom du travail) ; l'assistant n'a plus de bouton en double, et « Annuler » sur un jeu vide ramène à l'accueil.
+- Libellés plus clairs : « Plusieurs » (poser plusieurs fois le même élément), « Couleurs des prochains dessins », couleurs sans code hexadécimal.
+- Les fonds historiques choisis (Cassini, carte de 1950…) sont conservés à la réouverture.
+- Impression d'un jeu : plus de choix propres à l'itinéraire, et l'échelle de la carte générale est indiquée exactement.
+
 ### Corrections
 - Bibliothèque : un tracé n'apparaît plus en double (ou plus) à l'impression ; une copie ancienne d'un tracé modifié ou renommé n'est plus imprimée en plus.
 - Bibliothèque : le nom affiché est celui donné à l'itinéraire, et non « Itinéraire du (date) ».
