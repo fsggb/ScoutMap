@@ -1637,3 +1637,15 @@ body.doc-open .setpage{display:none!important}
 .set-def .seg button.on{background:#fff;font-weight:600;box-shadow:0 1px 3px rgba(0,7,97,.15);color:var(--navy)}
 .set-def .linkbtn{margin-top:8px;padding:0}
 .set-def .seg button{white-space:nowrap}
+/* ---------- Hors connexion : stockage, cartes enregistrées, installation ---------- */
+.off-store{display:grid;gap:4px;margin:6px 0 10px}
+.off-store-bar{height:7px;border-radius:9px;background:#e6e8f2;overflow:hidden}.off-store-bar i{display:block;height:100%;background:linear-gradient(90deg,#1a7f37,#3aa55a);border-radius:9px}
+.off-store small,.off-zones small{display:block;color:var(--muted);font-size:12px;line-height:1.4}
+small.ok,.ok{color:var(--ok)!important}small.warn{color:var(--warn)!important}
+.off-zones{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.off-zones li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.off-zones .oz-name{cursor:text}
+.off-zones .oz-act{display:flex;gap:6px;align-items:center}
+.off-zones .oz-more{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.off-zones .danger{color:var(--danger)}
+.off-steps{margin:4px 0 10px;padding-left:20px;font-size:13.5px;line-height:1.6}

@@ -10,7 +10,7 @@ const EMPTY = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAA
 self.addEventListener('install', function (e) {
   e.waitUntil((async function () {
     const cache = await caches.open(SHELL), base = self.registration.scope;
-    let urls = [base, base + 'index.html', base + 'manifest.webmanifest', base + 'assets/fsggb.png', base + 'assets/icon-192.png', base + 'js/themes.js', base + 'js/themes-art.js'];
+    let urls = [base, base + 'index.html', base + 'manifest.webmanifest', base + 'assets/fsggb.png', base + 'assets/icon-192.png', base + 'js/themes.js', base + 'js/themes-art.js', base + 'CHANGELOG.md'];
     try {
       const html = await (await fetch(base, { cache: 'reload' })).text();
       const re = /(?:src|href)="([^"#]+)"/g; let m;
