@@ -16,7 +16,7 @@ Application web de la **FSGGB** (Fédération des Scouts et Guides Godefroy de B
 | **Partage en direct** | Lien ou QR code : positions des chefs, discussion et appel vocal de groupe, chiffrés de bout en bout ([détails](docs/DIRECT.md)). |
 | **Fichiers** | Page web autonome (.html), GPX, KML, GeoJSON, PDF ScoutMap. |
 
-Les réglages par défaut (boucle, distance maximale, unités, impression…) se choisissent dans **Réglages**. Le détail de chaque fonction est dans l'aide de l'application.
+Les réglages par défaut (boucle, distance maximale, unités, impression…) se choisissent dans **Réglages**. Mode d’emploi complet : [docs/guide.md](docs/guide.md).
 
 ## Données et services
 
