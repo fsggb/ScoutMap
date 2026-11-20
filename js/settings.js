@@ -54,9 +54,15 @@
     '<div class="set-card"><h3>Enregistrer une carte</h3><p>Par défaut, la carte IGN SCAN 25 couvrant une feuille A0 au 1 : 25 000 (21 × 30 km), avec la meilleure netteté, centrée sur le milieu de l’écran. Un cadre sur la carte montre la zone ; déplacez la carte pour recadrer.</p>' +
     '<button type="button" class="btn-primary sm" id="set-off-open">' + ic('download') + 'Choisir la zone sur la carte…</button></div>' +
     '<div class="set-card"><h3>Cartes enregistrées sur cet appareil</h3><div id="set-off-list"></div></div>' +
-    '<div class="set-card"><h3>Application</h3><p>Installée, ScoutMap a son icône, s’ouvre en plein écran et démarre sans réseau.</p><button type="button" class="btn-ghost sm" data-install>' + ic('download') + 'Installer l’application</button></div>';
+    '<div class="set-card"><h3>Installer l’application</h3><div id="set-off-install"></div></div>' +
+    '<div class="set-card"><h3>Démarrage sans réseau</h3><p id="set-off-ready">…</p><p class="set-hint">Sans réseau, ScoutMap affiche les cartes enregistrées (contour vert sur la carte), ouvre vos tracés, suit votre position GPS et imprime. Le calcul d’un chemin, l’altitude, la recherche d’un lieu et le partage en direct demandent du réseau ; les points posés en « ligne droite » fonctionnent partout.</p></div>';
   $('#set-off-open', page).addEventListener('click', function () { close(); if (SM.openOffline) SM.openOffline(); });
-  $$('[data-install]', page).forEach(function (b) { b.addEventListener('click', function () { if (SM.install) SM.install(); }); });
+  function refreshOffline() {
+    if (page.hidden || cur !== 'offline') return;
+    if (SM.offListHtml) $('#set-off-list', page).innerHTML = SM.offListHtml();
+    if (SM.offInstallHtml) $('#set-off-install', page).innerHTML = SM.offInstallHtml();
+    if (SM.offAppReady) SM.offAppReady().then(function (ok) { $('#set-off-ready', page).innerHTML = ok ? '<span class="ok">✓ L’application est prête à démarrer sans réseau sur cet appareil.</span>' : 'L’application se prépare pour le hors connexion : rechargez la page une fois avec du réseau.'; });
+  }
 
   // 4. version et nouveautés (lues dans CHANGELOG.md)
   sec('about').innerHTML = '<div class="set-card"><h3>Version</h3><p id="set-version">…</p></div><div class="set-card"><h3>Historique des versions</h3><div id="set-changelog" class="set-log">Chargement…</div></div>';
@@ -79,7 +85,7 @@
     $$('.set-cat', page).forEach(function (b) { b.classList.toggle('on', b.dataset.cat === k); b.setAttribute('aria-current', b.dataset.cat === k ? 'page' : 'false'); });
     $$('.set-sec', page).forEach(function (s) { s.hidden = s.dataset.sec !== k; });
     if (k === 'game') { var on = S.mode === 'game'; $('#set-game-hint', page).hidden = on; $$('.set-game', page).forEach(function (g) { g.hidden = !on; }); }
-    if (k === 'offline' && SM.offListHtml) $('#set-off-list', page).innerHTML = SM.offListHtml();
+    if (k === 'offline') refreshOffline();
     if (k === 'about') loadLog();
   }
   function open(k) {
@@ -184,5 +190,5 @@
     });
   }
 
-  SM.settings = { open: open, close: close, isOpen: function () { return !page.hidden; } };
+  SM.settings = { open: open, close: close, isOpen: function () { return !page.hidden; }, refreshOffline: refreshOffline };
 })();
