@@ -6,6 +6,7 @@
   var TYPES = [
     { k: 'none', t: 'Aucune grille', d: '' },
     { k: 'l93', t: 'Kilométrique (Lambert-93)', d: 'Lignes tous les 100 m, 500 m, 1 km… selon l’échelle ; les kilomètres sont écrits sur les bords. C’est la grille des cartes IGN en France.' },
+    { k: 'km', t: 'Carroyage kilométrique bleu (cartes IGN)', d: 'Fines lignes bleues tous les kilomètres, comme sur les cartes papier IGN au 1 : 25 000 (carreaux de 4 cm) : on estime une distance d’un coup d’œil.' },
     { k: 'utm', t: 'UTM (WGS 84)', d: 'Même principe, en coordonnées UTM : pour les GPS et les cartes internationales.' },
     { k: 'll', t: 'Latitude / longitude', d: 'Graduation en degrés décimaux.' },
     { k: 'game', t: 'Quadrillage de jeu (A1, B2…)', d: 'Colonnes en lettres, lignes en chiffres : « rendez-vous en C4 ». La taille des cases est fixée par l’échelle du jeu.' }
@@ -20,6 +21,7 @@
 
   // Projection de la grille choisie : { fwd(lat, lon) -> [x, y], inv(x, y) -> [lat, lon] }
   function projFor(type, lat, lon) {
+    if (type === 'km') type = 'utm';   // le carroyage bleu des cartes IGN est celui de l'UTM
     if (type === 'l93' || type === 'game') return { fwd: function (a, o) { return proj('EPSG:4326', 'EPSG:2154', [o, a]); }, inv: function (x, y) { var q = proj('EPSG:2154', 'EPSG:4326', [x, y]); return [q[1], q[0]]; } };
     if (type === 'utm') { var z = Math.min(60, Math.max(1, Math.floor((lon + 180) / 6) + 1)), d = utmDef(z); return { zone: z, fwd: function (a, o) { return proj('EPSG:4326', d, [o, a]); }, inv: function (x, y) { var q = proj(d, 'EPSG:4326', [x, y]); return [q[1], q[0]]; } }; }
     return { fwd: function (a, o) { return [o, a]; }, inv: function (x, y) { return [y, x]; } };
@@ -56,10 +58,11 @@
       var step, org = null, isGame = type === 'game', isLL = type === 'll';
       if (isLL) { var degPerM = 1 / 111320; step = pick(NICEDEG, 25 * scale / 1000 * degPerM); }
       else if (isGame) { step = pick(NICE, 25 * (S.game.scale || scale) / 1000); org = gameOrigin(P, step); }
+      else if (type === 'km') step = 1000;
       else step = pick(NICE, 25 * scale / 1000);
       var minpx = isLL ? 6 : 8, pxStep = (function () { var a = cp.apply(null, P.inv(minx, miny)), bb = cp.apply(null, P.inv(minx + step, miny)); return Math.hypot(a[0] - bb[0], a[1] - bb[1]); })();
       var skip = 1; while (pxStep * skip < 14 && skip < 64) skip *= 2;
-      var lw = this._o.print ? 0.7 : 0.9, col = 'rgba(25,35,110,.62)', t0 = isGame ? Math.floor((minx - org.x0) / step) : Math.floor(minx / step), t1 = isGame ? Math.ceil((maxx - org.x0) / step) : Math.ceil(maxx / step);
+      var lw = type === 'km' ? (this._o.print ? 0.6 : 1.2) : this._o.print ? 0.7 : 0.9, col = type === 'km' ? 'rgba(0,120,215,.8)' : 'rgba(25,35,110,.62)', t0 = isGame ? Math.floor((minx - org.x0) / step) : Math.floor(minx / step), t1 = isGame ? Math.ceil((maxx - org.x0) / step) : Math.ceil(maxx / step);
       ctx.lineWidth = lw; ctx.strokeStyle = col; ctx.fillStyle = '#12142b'; ctx.font = '700 ' + (this._o.print ? 9 : 10.5) + 'px system-ui,sans-serif'; ctx.textBaseline = 'middle';
       function line(a, b2, fixed, vertical) {   // polyligne échantillonnée (la grille est légèrement penchée à l'écran)
         var pts = [], N = 10; for (var k = 0; k <= N; k++) { var v = a + (b2 - a) * k / N, ll = vertical ? P.inv(fixed, v) : P.inv(v, fixed); pts.push(cp(ll[0], ll[1])); }
@@ -105,7 +108,7 @@
         }
       }
       // petite mention : type de grille et taille des cases
-      var tag = isLL ? 'Latitude / longitude · ' + (step < 0.01 ? step.toString().replace('.', ',') : step) + '°' : (type === 'utm' ? 'UTM zone ' + P.zone : type === 'game' ? 'Quadrillage' : 'Lambert-93') + ' · ' + (step >= 1000 ? (step / 1000) + ' km' : step + ' m');
+      var tag = isLL ? 'Latitude / longitude · ' + (step < 0.01 ? step.toString().replace('.', ',') : step) + '°' : (type === 'utm' || type === 'km' ? 'UTM zone ' + P.zone : type === 'game' ? 'Quadrillage' : 'Lambert-93') + ' · ' + (step >= 1000 ? (step / 1000) + ' km' : step + ' m');
       ctx.font = '700 ' + (this._o.print ? 8.5 : 10) + 'px system-ui,sans-serif'; var tw = ctx.measureText(tag).width + 12;
       ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(ox + 8, oy + sz.y - 24, tw, 16); ctx.fillStyle = '#12142b'; ctx.textAlign = 'left'; ctx.fillText(tag, ox + 14, oy + sz.y - 16);
     }
