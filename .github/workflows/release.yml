@@ -1,36 +1,54 @@
 name: Version publiée
 
-# Une étiquette vX.Y.Z poussée sur le dépôt crée la version GitHub correspondante,
-# avec les notes de la section de CHANGELOG.md qui porte ce numéro.
+# Chaque fois que main reçoit un nouveau numéro de version (package.json), l'étiquette vX.Y.Z et la version GitHub
+# sont créées automatiquement, avec les notes de la section correspondante de CHANGELOG.md.
+# Publier une version = changer le numéro dans package.json (et appVersion), compléter CHANGELOG.md, fusionner sur main.
 on:
   push:
-    tags: ['v*.*.*']
+    branches: [main]
+    paths: ['package.json', 'CHANGELOG.md']
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: scoutmap-release
+  cancel-in-progress: false
+
 jobs:
   release:
-    name: Créer la version
+    name: Créer la version si elle n'existe pas
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Numéro de version
+        id: v
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then echo "exists=true" >> "$GITHUB_OUTPUT"; echo "v$v existe déjà : rien à faire."; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
       - name: Tests
+        if: steps.v.outputs.exists == 'false'
         run: npm test
-      - name: Vérifier le numéro de version
+      - name: Vérifier le numéro dans l'application et l'historique
+        if: steps.v.outputs.exists == 'false'
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          p=$(node -p "require('./package.json').version")
-          if [ "$v" != "$p" ]; then echo "L'étiquette ($v) ne correspond pas à package.json ($p)"; exit 1; fi
+          v="${{ steps.v.outputs.version }}"
+          grep -q "appVersion: '$v'" src/app/17-liens-api.js || { echo "appVersion ($v) absent de src/app/17-liens-api.js"; exit 1; }
+          grep -q "^## $v " CHANGELOG.md || { echo "Section « ## $v » absente de CHANGELOG.md"; exit 1; }
       - name: Notes de version (CHANGELOG.md)
-        run: |
-          v="${GITHUB_REF_NAME#v}"
-          awk -v v="$v" '$0 ~ "^## "v" " {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
-          [ -s notes.md ] || echo "Voir CHANGELOG.md." > notes.md
-      - name: Créer la version GitHub
+        if: steps.v.outputs.exists == 'false'
+        run: awk -v v="${{ steps.v.outputs.version }}" '$0 ~ "^## "v" " {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+      - name: Créer l'étiquette et la version GitHub
+        if: steps.v.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "ScoutMap $GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+        run: |
+          v="v${{ steps.v.outputs.version }}"
+          gh release create "$v" --target "$GITHUB_SHA" --title "ScoutMap $v" --notes-file notes.md --latest
