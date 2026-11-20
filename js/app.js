@@ -960,6 +960,13 @@
 
   // ---------- Calques : modèle ----------
   function inGroup(t) { return S.mode === 'game' || S.mode === 'meas' ? t === S.mode : (t === 'route' || t === 'az'); }
+  // empreinte d'un tracé (ses points) : sert à reconnaître deux copies du même itinéraire
+  function traceSig(t, d) {
+    if (!d) return '';
+    var pts = t === 'route' ? (d.wps || []).map(function (w) { return [w.lat, w.lon]; }) : t === 'az' ? (d.pts || []) : null;
+    if (!pts || !pts.length) return '';
+    return t + ':' + pts.map(function (p) { return (+p[0]).toFixed(5) + ',' + (+p[1]).toFixed(5); }).join(';');
+  }
   function isEmpty(t, d) { return t === 'route' ? !d.wps.length : t === 'game' ? !d.shapes.length : !d.pts.length; }
   // Liste unifiée des calques de tracé (en cours d'édition + stockés), regroupés par type.
   function layersList(all) {
@@ -2303,6 +2310,15 @@
       return game ? !!(d.game && d.game.shapes && d.game.shapes.length) : !!((d.route && !isEmpty('route', d.route)) || (d.az && !isEmpty('az', d.az)));
     }).sort(function (a, b) { return b.updated - a.updated; });
   }
+  function libName(e) {
+    var d = e.data || {}, n = e.name || '';
+    if (d.name) return d.name;
+    if (/ du \d{1,2}\/\d{1,2}\/\d{4}$/.test(n)) {   // ancien nom automatique : on préfère le nom donné au tracé
+      var own = ['route', 'az', 'game'].filter(function (t) { return d[t] && d[t].name && !DEFAULT_NAME.test(d[t].name.trim()) && !isEmpty(t, Object.assign({ wps: [], pts: [], shapes: [] }, d[t])); })[0];
+      if (own) return d[own].name.trim();
+    }
+    return n;
+  }
   function libShown(pid) { return S.layers.some(function (l) { return l.pid === pid; }); }
   function libColor(t, taken) {
     var pal = t === 'route' ? ROUTE_PAL : AZ_PAL, i;
@@ -2316,13 +2332,17 @@
     var list = libEntries();
     var h = '<button type="button" class="btn-primary block" data-a="new">' + ic('plus') + 'Nouveau tracé</button>' +
       '<p class="help">' + (game ? 'Vos grands jeux enregistrés dans ce navigateur. Cliquez pour en ouvrir un.' : 'Vos tracés enregistrés dans ce navigateur. Cliquez sur un tracé pour l’ouvrir ; l’œil l’affiche aussi sur la carte, avec le tracé en cours (ils s’impriment alors tous).') + '</p>';
+    var nsel = list.filter(function (e) { return LIBSEL[e.id]; }).length;
+    if (list.length > 1 && !game) h += '<div class="lib-selbar' + (nsel ? ' on' : '') + '">' + (nsel
+      ? '<b>' + nsel + ' sélectionné' + (nsel > 1 ? 's' : '') + '</b><button type="button" class="btn-ghost sm" data-a="sel-show">' + ic('eye') + 'Afficher</button><button type="button" class="btn-ghost sm" data-a="sel-print">' + ic('printer') + 'Imprimer</button><button type="button" class="btn-ghost sm" data-a="sel-hide">' + ic('eye-off') + 'Masquer</button><button type="button" class="linkbtn" data-a="sel-none">Aucun</button>'
+      : '<small>Ctrl + clic ou Maj + clic pour en choisir plusieurs</small>') + '<button type="button" class="linkbtn" data-a="sel-all">Tout sélectionner</button></div>';
     h += '<ul class="layers lib-list">' + (list.length ? list.map(function (e) {
       var cur = e.id === S.pid, on = libShown(e.id), l0 = S.layers.filter(function (l) { return l.pid === e.id; })[0];
       var col = cur ? (S[S.mode === 'az' ? 'az' : 'route'].color) : (l0 ? l0.data.color : '#c9ccdc');
-      return '<li class="lrow lib-row' + (cur ? ' active' : '') + (on ? ' on' : '') + '" data-pid="' + e.id + '">' +
+      return '<li class="lrow lib-row' + (cur ? ' active' : '') + (on ? ' on' : '') + (LIBSEL[e.id] ? ' picked' : '') + '" data-pid="' + e.id + '">' +
         (cur || game ? '<span class="lib-cur">' + (cur ? 'En cours' : '') + '</span>' : '<button class="ibtn" data-a="vis" title="' + (on ? 'Retirer de la carte' : 'Afficher aussi sur la carte') + '" aria-label="Afficher sur la carte">' + ic(on ? 'eye' : 'eye-off') + '</button>') +
         (game ? '' : '<span class="lsw" style="background:' + esc(col) + '"></span>') +
-        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(e.name) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
+        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(libName(e)) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
         (cur ? '' : '<button class="ibtn danger" data-a="del" title="Supprimer ce tracé" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
     }).join('') : '<li class="pr-none">Aucun tracé enregistré pour le moment : tracez sur la carte, il apparaîtra ici tout seul.</li>') + '</ul>';
     h += '<button type="button" class="btn-ghost block" data-a="file">' + ic('upload') + 'Importer un PDF, GPX ou KML…</button>';
@@ -2331,8 +2351,12 @@
   // affiche à côté du tracé en cours les itinéraires et azimuts d'un tracé enregistré
   function addFromData(o, pid) {
     var src = [], n = 0, b = null;
+    if (pid) { if (pid === S.pid) return 0; S.layers = S.layers.filter(function (l) { return l.pid !== pid; }); }   // jamais deux fois le même travail
+    var have = {}; ['route', 'az'].forEach(function (t) { have[traceSig(t, S[t])] = 1; }); S.layers.forEach(function (l) { have[traceSig(l.type, l.data)] = 1; });
     ['route', 'az'].forEach(function (t) { if (o && o[t] && !isEmpty(t, o[t])) src.push({ t: t, data: o[t], res: t === 'route' ? (o.res || null) : null }); });
-    ((o && o.layers) || []).forEach(function (l) { if (l && l.data && (l.type === 'route' || l.type === 'az')) src.push({ t: l.type, data: l.data, res: l.res || null }); });
+    // les tracés propres à ce travail seulement : pas les copies d'autres travaux qu'il affichait lui-même (source des doublons)
+    ((o && o.layers) || []).forEach(function (l) { if (l && l.data && !l.pid && (l.type === 'route' || l.type === 'az')) src.push({ t: l.type, data: l.data, res: l.res || null }); });
+    src = src.filter(function (x) { var k = traceSig(x.t, x.data); if (!k || have[k]) return false; have[k] = 1; return true; });
     src.forEach(function (x) {
       var t = x.t; if (isEmpty(t, x.data)) return;
       var taken = [S[t].color].concat(S.layers.filter(function (l) { return l.type === t; }).map(function (l) { return l.data.color; }));
@@ -2366,11 +2390,37 @@
     projAutosave();
     newProject(t || (S.mode === 'az' ? 'az' : S.mode === 'game' ? 'game' : 'route'));
   }
+  // sélection de plusieurs tracés (Ctrl / Cmd + clic, Maj + clic pour une plage), puis Afficher, Imprimer ou Masquer d'un coup
+  var LIBSEL = {}, libAnchor = 0;
+  function libSelected() { return libEntries().filter(function (x) { return LIBSEL[x.id]; }); }
+  function libShowSel() {
+    var n = 0; libSelected().forEach(function (x) { if (x.id !== S.pid && !libShown(x.id)) n += addFromData(x.data, x.id) ? 1 : 0; });
+    return n;
+  }
   function libClick(e) {
     var host = e.target.closest('#lib-body'); if (!host) return;
     var b = e.target.closest('[data-a]'); if (!b) return;
     var a = b.dataset.a, li = b.closest('li'), pid = li ? +li.dataset.pid : 0;
     if (a === 'new') { newTrace(); return; }
+    if (a === 'sel-all') { libEntries().forEach(function (x) { LIBSEL[x.id] = 1; }); renderMyLayers(); return; }
+    if (a === 'sel-none') { LIBSEL = {}; renderMyLayers(); return; }
+    if (a === 'sel-show') { libShowSel(); renderMyLayers(); return; }
+    if (a === 'sel-hide') { var ids = libSelected().map(function (x) { return x.id; }); S.layers = S.layers.filter(function (l) { return ids.indexOf(l.pid) < 0; }); applyVis(); renderStored(); renderLayerList(); refreshProfile(); persist(); renderMyLayers(); return; }
+    if (a === 'sel-print') {
+      // n'imprime que la sélection : les autres tracés affichés sont retirés de la carte, la sélection y est ajoutée
+      var keep = libSelected().map(function (x) { return x.id; });
+      S.layers = S.layers.filter(function (l) { return !l.pid || keep.indexOf(l.pid) >= 0; });
+      libShowSel(); applyVis(); renderStored(); renderLayerList(); persist(); renderMyLayers(); openPdf(); return;
+    }
+    if (a === 'open' && pid && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      e.preventDefault();
+      if (e.shiftKey && libAnchor) {
+        var ls = libEntries().map(function (x) { return x.id; }), i0 = ls.indexOf(libAnchor), i1 = ls.indexOf(pid);
+        if (i0 >= 0 && i1 >= 0) { if (!(e.ctrlKey || e.metaKey)) LIBSEL = {}; ls.slice(Math.min(i0, i1), Math.max(i0, i1) + 1).forEach(function (id) { LIBSEL[id] = 1; }); }
+      } else { if (LIBSEL[pid]) delete LIBSEL[pid]; else LIBSEL[pid] = 1; libAnchor = pid; }
+      renderMyLayers(); return;
+    }
+    if (a === 'open' && pid) libAnchor = pid;
     if (a === 'file') { $('#file-layer').click(); return; }
     var ent = pid ? projList().filter(function (x) { return x.id === pid; })[0] : null; if (!ent) return;
     if (a === 'open') { if (pid !== S.pid) openProj(pid); else showSub(null); }
@@ -2389,12 +2439,15 @@
   document.addEventListener('dblclick', function (e) {
     var n = e.target.closest && e.target.closest('#lib-body .lib-row .lname'); if (!n) return;
     var li = n.closest('li'), pid = +li.dataset.pid, ent = projList().filter(function (x) { return x.id === pid; })[0]; if (!ent) return;
-    var inp = document.createElement('input'); inp.className = 'lname-in'; inp.value = ent.name; inp.maxLength = 60; n.replaceWith(inp); inp.focus(); inp.select();
+    var inp = document.createElement('input'); inp.className = 'lname-in'; inp.value = libName(ent); inp.maxLength = 60; n.replaceWith(inp); inp.focus(); inp.select();
     var done = false;
     function commit(save) {
       if (done) return; done = true; var v = inp.value.trim();
       if (save && v) {
-        if (pid === S.pid) { S.name = v; $('#proj-name').value = v; persist(); } else { var l = projList(); l.forEach(function (x) { if (x.id === pid) x.name = v; }); projStore(l); }
+        if (pid === S.pid) { S.name = v; $('#proj-name').value = v; persist(); projAutosave(); }
+        else { var l = projList(); l.forEach(function (x) { if (x.id === pid) { x.name = v; if (x.data) x.data.name = v; } }); projStore(l); }
+        // le tracé affiché sur la carte prend aussi le nouveau nom (pas de copie avec l'ancien nom à l'impression)
+        S.layers.forEach(function (ly) { if (ly.pid === pid) ly.data.name = v; }); renderLayerList(); persist();
       }
       renderMyLayers();
     }
@@ -2443,8 +2496,12 @@
     if (S.tracks.length) k.push('Trace importée');
     return k;
   }
+  var DEFAULT_NAME = /^(Itinéraire|Azimuts|Grand jeu|Mesure) \d+$|^Sans nom$/;
   function projName() {
     if (S.name) return S.name;
+    // pas de nom de travail : le nom donné à l'itinéraire (ou aux azimuts) s'il a été changé
+    var own = ['route', 'az', 'game'].filter(function (t) { return !isEmpty(t, S[t]) && S[t].name && !DEFAULT_NAME.test(S[t].name.trim()); })[0];
+    if (own) return S[own].name.trim();
     var k = projKinds()[0] || 'Travail';
     return k.split(' ')[0] + ' du ' + new Date().toLocaleDateString('fr-FR');
   }
@@ -2472,6 +2529,20 @@
       var d = Object.assign(FRESH[l.type](null, 1), l.data); if (l.type === 'route') d.wps = l.data.wps || []; else d.pts = l.data.pts || []; if (!d.id) d.id = nid();
       return { type: l.type, vis: l.vis !== false, data: d, res: l.res || null, pid: l.pid || null };
     });
+    // tracés d'autres travaux affichés à côté : on reprend leur dernière version (sinon une copie ancienne s'imprimait en plus)
+    (function () {
+      var refs = {}, lib = {}; projList().forEach(function (e) { lib[e.id] = e; });
+      var keep = S.layers.filter(function (l) { return !l.pid; });
+      S.layers.forEach(function (l) { if (l.pid && l.pid !== S.pid && lib[l.pid]) refs[l.pid] = 1; });
+      S.layers = keep;
+      Object.keys(refs).forEach(function (k) { var e = lib[k], d = e.data || {}; ['route', 'az'].forEach(function (t) {
+        if (!d[t] || isEmpty(t, Object.assign({ wps: [], pts: [] }, d[t]))) return;
+        var x = Object.assign(FRESH[t](null, 1), d[t]); if (t === 'route') x.wps = d[t].wps || []; else x.pts = d[t].pts || []; x.id = nid();
+        S.layers.push({ type: t, vis: true, data: x, res: t === 'route' && d.res && d.res.line ? d.res : null, pid: +k });
+      }); });
+      var seen = {}; ['route', 'az'].forEach(function (t) { seen[traceSig(t, S[t])] = 1; });
+      S.layers = S.layers.filter(function (l) { var k = traceSig(l.type, l.data); if (!k) return true; if (seen[k]) return false; seen[k] = 1; return true; });
+    })();
     if (o.base && LAYERS[o.base] && LAYERS[o.base].base && !LAYERS[o.base].hidden) S.base = o.base;
     S.grid = o.grid && o.grid.type ? { type: o.grid.type } : { type: 'none' }; if (window.SM && SM.grid) SM.grid.apply();
     if (o.ov) Object.assign(S.ov, o.ov);
@@ -3559,6 +3630,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
+    traceSig: traceSig,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
