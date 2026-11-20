@@ -1,17 +1,105 @@
 {
+  "id": "./",
   "name": "ScoutMap – FSGGB",
   "short_name": "ScoutMap",
-  "description": "Itinéraires, azimuts et grands jeux, sur de vraies cartes imprimables. Fonctionne aussi hors connexion.",
+  "description": "Itinéraires à pied, azimuts et grands jeux sur les cartes IGN, imprimables et utilisables hors connexion.",
   "lang": "fr",
-  "start_url": "./",
+  "dir": "ltr",
+  "start_url": "./?source=app",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#000761",
   "theme_color": "#000761",
+  "categories": [
+    "navigation",
+    "travel",
+    "education",
+    "sports"
+  ],
   "icons": [
-    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nouvel itinéraire",
+      "short_name": "Itinéraire",
+      "url": "./?nouveau=route",
+      "icons": [
+        {
+          "src": "assets/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Nouveaux azimuts",
+      "short_name": "Azimuts",
+      "url": "./?nouveau=az",
+      "icons": [
+        {
+          "src": "assets/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Nouveau grand jeu",
+      "short_name": "Grand jeu",
+      "url": "./?nouveau=game",
+      "icons": [
+        {
+          "src": "assets/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Cartes hors connexion",
+      "short_name": "Hors connexion",
+      "url": "./?ouvrir=horsconnexion",
+      "icons": [
+        {
+          "src": "assets/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/gpx+xml": [
+          ".gpx"
+        ],
+        "application/vnd.google-earth.kml+xml": [
+          ".kml"
+        ],
+        "application/pdf": [
+          ".pdf"
+        ]
+      }
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }
