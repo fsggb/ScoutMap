@@ -267,6 +267,7 @@
     <section class="pane" data-pane="route" hidden>
       <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
+      <div class="mylay" id="ml-route" data-t="route"></div>
       <div class="seg full" id="route-mode"><button type="button" data-v="oneway">Aller simple</button><button type="button" data-v="loop">Boucle</button></div>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
       <div class="group">
@@ -298,6 +299,7 @@
     <section class="pane" data-pane="az" hidden>
       <div class="pane-head"><h2 class="pane-title">Azimuts</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
+      <div class="mylay" id="ml-az" data-t="az"></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
 
       <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -480,7 +482,8 @@
   </main>
 </div>
 
-<input id="file-gpx" type="file" accept=".html,.htm,.gpx,.kml,.geojson,.json,text/html,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json,text/xml" hidden>
+<input id="file-layer" type="file" accept=".html,.htm,.json,.pdf,application/pdf,text/html" multiple hidden>
+<input id="file-gpx" type="file" accept=".pdf,application/pdf,.html,.htm,.gpx,.kml,.geojson,.json,text/html,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json,text/xml" hidden>
 <div id="toast" class="toast" role="status" hidden></div>
 
 
