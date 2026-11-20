@@ -148,6 +148,7 @@
   var OVERS = Object.keys(LAYERS).filter(function (k) { return !LAYERS[k].base; });
   function srcUrl(key, z, x, y) {
     var d = LAYERS[key];
+    if (d.scan) return s25ProxyUrl(z, x, y);   // SCAN 25 : serveur de tuiles ScoutHub (utilisé pour l'enregistrement hors connexion)
     if (d.url) return d.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
     return GP + '/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=' + d.l + '&STYLE=normal&FORMAT=image/' + d.f +
       '&TILEMATRIXSET=PM&TILEMATRIX=' + z + '&TILEROW=' + y + '&TILECOL=' + x;
