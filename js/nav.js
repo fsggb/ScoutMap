@@ -14,6 +14,8 @@
   function closeTop() {
     // 1. aperçu d'impression : retour à la fenêtre de choix (comme Échap)
     if (document.body.classList.contains('doc-open')) { esc(); return true; }
+    // 1 bis. page Réglages
+    if (SM.settings && SM.settings.isOpen()) { SM.settings.close(); return true; }
     // 2. fenêtres (dialog) : la dernière ouverte
     var dl = document.querySelectorAll('dialog[open]');
     if (dl.length) { var d = dl[dl.length - 1]; try { d.close(); } catch (e) { d.removeAttribute('open'); } return true; }

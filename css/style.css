@@ -1608,3 +1608,25 @@ body.lv-open .glegend{display:none!important}
 .pg-head.pg-head-tr{left:auto;right:8px}
 .pg-head.pg-head-br{left:auto;right:8px;top:auto;bottom:26px}
 .pg-head.pg-head-bl{top:auto;bottom:26px}
+
+/* ---------- Accueil : la barre latérale reste visible ---------- */
+@media (min-width:861px){.home{left:72px}}
+@media (max-width:860px){.home{bottom:calc(60px + env(safe-area-inset-bottom,0px))}}
+/* ---------- Page Réglages (pleine page, catégories à gauche) ---------- */
+.setpage{position:fixed;left:72px;right:0;top:48px;bottom:0;z-index:1460;background:var(--bg);overflow:auto}
+.setpage-in{position:relative;display:grid;grid-template-columns:240px minmax(0,760px);gap:28px;max-width:1080px;margin:0 auto;padding:28px 28px 60px}
+.set-nav{position:sticky;top:0;align-self:start;display:flex;flex-direction:column;gap:2px}
+.set-nav h1{font:700 22px var(--ui);color:var(--ink);margin:4px 10px 14px}
+.set-cat{display:flex;align-items:center;gap:10px;border:0;background:none;padding:9px 12px;border-radius:9px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+.set-cat:hover{background:#e8eaf3}.set-cat.on{background:#fff;font-weight:600;box-shadow:var(--shadow)}
+.set-cat .ic{width:17px;height:17px;color:var(--muted)}.set-cat.on .ic{color:var(--navy)}
+.set-sec h2{font:700 19px var(--ui);margin:6px 0 16px;color:var(--ink)}
+.set-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.set-card h3{font-size:14.5px;margin:0 0 6px}.set-card p{margin:0 0 10px;color:#4d5069;font-size:13.5px;line-height:1.5}
+.set-card .check{display:flex;gap:8px;align-items:flex-start;padding:6px 0}
+.set-hint{color:var(--muted);font-size:13.5px}
+.set-close{position:absolute;right:20px;top:22px}
+.set-log h4{font-size:14px;margin:16px 0 4px;color:var(--navy)}.set-log h5{font-size:12.5px;margin:10px 0 2px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.set-log ul{margin:0 0 6px;padding-left:18px;font-size:13px;line-height:1.5}
+@media (max-width:860px){.setpage{left:0;top:44px;bottom:calc(60px + env(safe-area-inset-bottom,0px))}.setpage-in{grid-template-columns:1fr;padding:14px 14px 40px;gap:12px}.set-nav{position:static;flex-direction:row;overflow-x:auto;gap:4px}.set-nav h1{display:none}.set-cat{white-space:nowrap;flex:0 0 auto}.set-close{display:none}}
+body.doc-open .setpage{display:none!important}
