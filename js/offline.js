@@ -189,6 +189,14 @@
     map.on('moveend', function () { if (!$('#off-pop').hidden && !st.busy) { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; } });
   }
   var ho = $('#home-offline'); if (ho) ho.addEventListener('click', function () { if (SM.openOffline) SM.openOffline(); });
+  // pour la page Réglages : la liste des cartes enregistrées
+  SM.offListHtml = function () {
+    var l = load();
+    if (!l.length) return '<p class="set-hint">Aucune carte enregistrée sur cet appareil.</p>';
+    return '<ul class="off-list">' + l.map(function (z) { return '<li><div><b>' + esc(z.name) + '</b><small>' + z.n + ' tuiles · ' + z.mb + ' Mo · ' + z.layers.map(function (k) { return SM.LAYERS[k] ? SM.LAYERS[k].label : k; }).join(', ') + ' · ' + new Date(z.t).toLocaleDateString('fr-FR') + '</small></div><button type="button" class="btn-ghost sm" data-oshow="' + z.id + '">Voir</button><button type="button" class="ibtn danger" data-odel="' + z.id + '" aria-label="Supprimer">×</button></li>'; }).join('') + '</ul>';
+  };
+  SM.offRemove = function (id, cb) { remove(id); setTimeout(function () { if (cb) cb(); }, 400); };
+  SM.offShow = show;
   SM.install = install; SM.offRender = function () { var n = $('#off-name') ? $('#off-name').value : ''; render(); if ($('#off-name')) $('#off-name').value = n; };
   document.querySelectorAll('[data-install]').forEach(function (b) { b.addEventListener('click', install); });
   render();
