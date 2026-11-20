@@ -29,6 +29,8 @@ Reprise de l'application, développée très vite (111 pull requests en 18 jours
 
 ## Pistes et points ouverts
 
+Tout ce qui reste à faire est aussi dans les [tickets GitHub](https://github.com/fsggb/ScoutMap/issues) (n° 113 à 124).
+
 - **Tutoriels vidéo** (`assets/tuto-*.mp4`, 29 Mo) : ils ne sont plus à jour avec la version 2. Il faut décider de les refaire (scripts dans `docs/tutoriel/`) ou de les retirer.
 - **SCAN 25** : le serveur ScoutHub refuse les sites non autorisés, mais un programme peut se faire passer pour `fsggb.github.io`. Ajouter une limite de débit par adresse dans le serveur (dépôt ScoutHub).
 - **Ancien projet Firebase** `scoutmap-fsggb` : il n'est plus utilisé. Le supprimer dans la console Firebase.
