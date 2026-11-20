@@ -257,6 +257,7 @@
   function updateHint() {
     var el = $('#toolhint'), r = S.rail;
     if (!S.mode || VIEWER || ($('#home') && !$('#home').hidden)) { el.hidden = true; return; }
+    el.classList.toggle('is-game', r === 'game');
     if (r === 'game' && window.SM && SM.game) {
       el.hidden = false; $('#hint-ic').innerHTML = '<use href="#i-flag"/>';
       $('#hint-txt').textContent = SM.game.hint(); $('#hint-btn').textContent = SM.game.hintBtn(); $('#hint-btn').hidden = !SM.game.hintBtn();
