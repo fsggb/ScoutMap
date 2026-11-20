@@ -1555,3 +1555,9 @@ body.lv-open .glegend{display:none!important}
 .doc-sep::before,.doc-sep::after{content:"";flex:1;height:2px;background:var(--gold)}
 .doc-sep span{padding:5px 14px;border-radius:999px;background:var(--navy)}
 @media print{.doc-sep{display:none}}
+
+#lib-body>.btn-primary,#lib-body>.btn-ghost{margin:0 0 12px}
+#lib-body .lib-list{margin:0 0 12px}
+#lib-body .lib-row.on{border-color:var(--gold)}
+#lib-body .lib-cur{font-size:11px;font-weight:700;color:var(--navy);background:var(--gold-l);border-radius:999px;padding:2px 8px;flex:none}
+#lib-body .lib-cur:empty{display:none}
