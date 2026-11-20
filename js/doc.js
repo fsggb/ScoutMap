@@ -219,7 +219,7 @@
     if (SM.grid) SM.grid.addTo(m);
     if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
-      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
+      var bl = SM.LAYERS[o.base || S.base], base = SM.tile(o.base || S.base, bl && bl.scan ? 2 : off, { keepBuffer: 4 }).addTo(m), done = false;   // SCAN 25 : toujours la meilleure définition
       function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(function () { return SM.waterDraw ? SM.waterDraw(m) : null; }).then(res, res); } }
       // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
       var t0 = Date.now();
