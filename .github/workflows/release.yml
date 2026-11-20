@@ -1,0 +1,36 @@
+name: Version publiée
+
+# Une étiquette vX.Y.Z poussée sur le dépôt crée la version GitHub correspondante,
+# avec les notes de la section de CHANGELOG.md qui porte ce numéro.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Créer la version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tests
+        run: npm test
+      - name: Vérifier le numéro de version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          p=$(node -p "require('./package.json').version")
+          if [ "$v" != "$p" ]; then echo "L'étiquette ($v) ne correspond pas à package.json ($p)"; exit 1; fi
+      - name: Notes de version (CHANGELOG.md)
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## "v" " {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Voir CHANGELOG.md." > notes.md
+      - name: Créer la version GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "ScoutMap $GITHUB_REF_NAME" --notes-file notes.md --verify-tag
