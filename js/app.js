@@ -2423,7 +2423,7 @@
       // n'imprime que la sélection : les autres tracés affichés sont retirés de la carte, la sélection y est ajoutée
       var keep = libSelected().map(function (x) { return x.id; });
       S.layers = S.layers.filter(function (l) { return !l.pid || keep.indexOf(l.pid) >= 0; });
-      libShowSel(); applyVis(); renderStored(); renderLayerList(); persist(); renderMyLayers(); openPdf(); return;
+      libShowSel(); applyVis(); renderStored(); renderLayerList(); persist(); renderMyLayers(); if (SM.openPdf) SM.openPdf({ group: true, pids: keep }); return;
     }
     if (a === 'open' && pid && (e.ctrlKey || e.metaKey || e.shiftKey)) {
       e.preventDefault();

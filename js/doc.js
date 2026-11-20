@@ -14,9 +14,18 @@
   // ---------- Ce qu'on imprime : tout ce qui est dessiné dans l'onglet en cours ----------
   var TYPE_LABEL = { route: 'Itinéraire', az: 'Azimuts', game: 'Grand jeu', track: 'Trace importée' };
   var PCOL = { route: '#000761', az: '#c6a24e' };   // à l'impression, tous les tracés d'un même type ont la même couleur
+  /* Deux façons d'imprimer :
+     - impression simple (bouton Imprimer, Ctrl+P) : le tracé ouvert seulement, même si d'autres tracés de la bibliothèque sont affichés à côté ;
+     - impression groupée (Bibliothèque › sélection › Imprimer) : les tracés choisis, chacun comme un document à part, avec un onglet par tracé dans l'aperçu. */
+  var GROUP = null;   // null : impression simple ; sinon { pids: [identifiants des travaux choisis] }
   function allPick() {
     var sel = SM.selected();
-    var out = SM.layersList().filter(function (l) { return !l.empty && (l.vis !== false || sel.indexOf(l.id) >= 0); }).map(function (l) {
+    var out = SM.layersList().filter(function (l) {
+      if (l.empty) return false;
+      var pid = l.item ? l.item.pid : null;
+      if (GROUP) return pid ? GROUP.pids.indexOf(pid) >= 0 : (l.vis !== false && GROUP.pids.indexOf(S.pid) >= 0);
+      return !pid && (l.vis !== false || sel.indexOf(l.id) >= 0);
+    }).map(function (l) {
       return { key: l.key, id: l.id, type: l.type, name: l.name, color: PCOL[l.type] || l.color, vis: l.vis, active: l.active, data: l.data, res: l.res, shown: l.color };
     });
     // un même tracé présent deux fois (copie gardée par un autre travail, version avant modification…) ne s'imprime qu'une fois : on garde celui en cours
@@ -156,7 +165,11 @@
     renderChoices();
   });
   $('#pdf-name').addEventListener('input', function () { PRM.title = this.value; });
-  function openPdf() {
+  function openPdf(opts) {
+    GROUP = opts && opts.group && opts.pids && opts.pids.length ? { pids: opts.pids.slice() } : null;
+    $('#dlg-pdf h2').textContent = GROUP ? 'Impression groupée' : 'Que voulez-vous imprimer ?';
+    $('#dlg-pdf .dlg-sub').innerHTML = GROUP ? 'Chaque tracé choisi dans la bibliothèque est imprimé comme un document à part, à la suite des autres. Dans l’aperçu, un onglet par tracé permet de les relire et de les modifier un par un.'
+      : 'Cochez ce que vous voulez : tout s’imprime à la suite.' + (S.layers.some(function (l) { return l.pid; }) ? ' <span class="pdf-tip">Seul le tracé ouvert est imprimé. Pour en imprimer plusieurs ensemble : <b>Bibliothèque</b>, sélection (Ctrl + clic), puis <b>Imprimer</b>.</span>' : '');
     var sel0 = SM.selected(); PRM.pick = {};
     allPick().filter(sheetCapable).forEach(function (x) { PRM.pick[x.id] = sel0.length ? sel0.indexOf(x.id) >= 0 : true; });
     var items = pickables(), sheetOk = items.some(sheetCapable), tilesOk = lonlat(items).length > 0;
@@ -326,8 +339,32 @@
     if (l) host.insertBefore(el, l); else host.appendChild(el);
   }
 
+  // Onglets « Tout » + un par tracé : un onglet n'affiche (et n'imprime) que les feuilles de ce tracé ; son nom se modifie dans le champ du haut.
+  var TAB = '';
+  function renderTabs(list) {
+    var bar = $('#doc-tabs');
+    if (!bar) { bar = document.createElement('div'); bar.id = 'doc-tabs'; bar.className = 'doc-tabs'; bar.setAttribute('role', 'tablist'); var pr = $('#doc-prog'); pr.parentNode.insertBefore(bar, pr); }
+    bar.hidden = !list.length;
+    bar.innerHTML = list.length ? '<button type="button" role="tab" data-tab="" class="on">Tout (' + list.length + ')</button>' + list.map(function (x, i) { return '<button type="button" role="tab" data-tab="' + x.k + '"><i>' + (i + 1) + '</i>' + esc(x.t) + '</button>'; }).join('') : '';
+    applyTab();
+  }
+  function applyTab() {
+    var tabs = $('#doc-tabs'); if (tabs) $$('button', tabs).forEach(function (b) { b.classList.toggle('on', b.dataset.tab === TAB); b.setAttribute('aria-selected', b.dataset.tab === TAB); });
+    $$('#doc-pages .sheet').forEach(function (sh) { sh.classList.toggle('tab-off', !!TAB && sh.dataset.grp !== TAB); });
+    $$('#doc-pages .doc-sep').forEach(function (sp) { sp.classList.toggle('tab-off', !!TAB); });
+    $$('#doc-side .dthumb').forEach(function (b) { var sh = $$('#doc-pages .sheet')[+b.dataset.i]; b.hidden = !!(sh && sh.classList.contains('tab-off')); });
+    if (GRPN > 1) {
+      $('#doc-title').hidden = !TAB;
+      if (TAB) { var h1 = $('#doc-pages .sheet[data-grp="' + TAB + '"] .d-head h1'); $('#doc-title').value = h1 ? h1.textContent : ''; }
+    }
+    var pb = $('#doc-print'), pdf = $('#doc-pdf');
+    if (pb) pb.lastChild.nodeValue = TAB ? 'Imprimer ce tracé' : 'Imprimer';
+    if (pdf) pdf.lastChild.nodeValue = TAB ? 'PDF de ce tracé' : 'Enregistrer en PDF';
+    $('.doc-scroll').scrollTop = 0;
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest('#doc-tabs button[data-tab]'); if (b) { TAB = b.dataset.tab; applyTab(); } });
   function buildDoc(c) {
-    var tok = ++BT; curGrp = ''; $('#doc-title').hidden = false;
+    var tok = ++BT; curGrp = ''; $('#doc-title').hidden = false; TAB = ''; renderTabs([]);
     if (c.type === 'combo') { buildCombo(c, tok); return; }
     if (c.type === 'tiles') { buildTilesDoc(c, tok); return; }
     closeMaps();
@@ -370,6 +407,7 @@
     var npages = secs.reduce(function (n, x) { return n + (x.pl ? x.pl.pages.length : 0); }, 0);
     if (npages > 80) { SM.toast('Trop de feuilles (' + npages + ') : choisissez une échelle plus petite.'); return; }
     closeMaps(); curGrp = ''; lastGrp = null; GRPN = groups.length; GI = {}; $('#doc-title').hidden = groups.length > 1;
+    renderTabs(groups.length > 1 ? groups.map(function (g, i) { var m = g.filter(sheetCapable)[0]; return { k: 'g' + i, t: m ? m.name : 'Autres tracés' }; }) : []);
     $('#page-style').textContent = '@page pp{size:' + c.paper + ' portrait;margin:0}@page pl{size:' + c.paper + ' landscape;margin:0}@page{size:' + c.paper + ' portrait;margin:0}';
     var firstName = c.title || (secs[0].rf[0] && secs[0].rf[0].name) || (items[0] && items[0].name) || S.name || 'Itinéraire'; $('#doc-title').value = firstName;
     $('#doc-pages').innerHTML = '<div class="doc-loading" id="doc-loading"><i class="spin"></i><span>Chargement des feuilles…</span></div>'; $('#doc-side').innerHTML = '';
@@ -454,7 +492,10 @@
     });
     clearTimeout(thumbTimer); thumbTimer = setTimeout(function () { if ($('#doc-loading')) return; addThumbs(BT, true); }, 700);
   }
-  $('#doc-title').addEventListener('input', function () { syncOthers(null, '.d-head h1', this.value); });
+  $('#doc-title').addEventListener('input', function () {
+    if (TAB) { var v = this.value; $$('#doc-pages .sheet[data-grp="' + TAB + '"] .d-head h1').forEach(function (h) { h.textContent = v; }); var b = $('#doc-tabs button[data-tab="' + TAB + '"]'); if (b) b.lastChild.nodeValue = v; return; }
+    syncOthers(null, '.d-head h1', this.value);
+  });
   $('#doc-pages').addEventListener('input', function (e) {
     // l'événement « input » vise la feuille entière (zone éditable) : on retrouve l'élément réellement modifié par la position du curseur
     var sel = window.getSelection(), nd = sel && sel.anchorNode, at = nd ? (nd.nodeType === 3 ? nd.parentNode : nd) : e.target;
@@ -767,7 +808,7 @@
     closeMaps(); $('#doc-side').innerHTML = ''; $('#doc').hidden = true; document.body.classList.remove('doc-open'); document.title = origTitle;
     setTimeout(function () { SM.map.invalidateSize(); }, 50);
   }
-  $('#doc-back').addEventListener('click', function () { BT++; closeDoc(); openPdf(); });
+  $('#doc-back').addEventListener('click', function () { BT++; closeDoc(); openPdf(GROUP ? { group: true, pids: GROUP.pids } : null); });
   // Données du travail cachées dans le PDF : un lien invisible (rien à l'écran ni sur le papier) posé sur la première feuille.
   // L'appli le retrouve dans le fichier (Ouvrir, ou Importer) et recharge le tracé.
   function attachData() {
@@ -798,7 +839,7 @@
     if (!printing) return; printing = false;
     if (document.body.classList.contains('doc-open')) { BT++; closeDoc(); SM.toast('Impression terminée : retour à la carte. Un PDF enregistré se rouvre dans ScoutMap avec « Ouvrir ».'); }
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) { BT++; closeDoc(); openPdf(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('doc-open') && !e.target.isContentEditable) { BT++; closeDoc(); openPdf(GROUP ? { group: true, pids: GROUP.pids } : null); } });
 
   SM.openPdf = openPdf;
 })();

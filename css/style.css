@@ -1649,3 +1649,12 @@ small.ok,.ok{color:var(--ok)!important}small.warn{color:var(--warn)!important}
 .off-zones .oz-more{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
 .off-zones .danger{color:var(--danger)}
 .off-steps{margin:4px 0 10px;padding-left:20px;font-size:13.5px;line-height:1.6}
+
+/* Aperçu d'une impression groupée : un onglet par tracé */
+.doc-tabs{display:flex;gap:4px;overflow-x:auto;padding:6px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.doc-tabs button{flex:0 0 auto;display:flex;align-items:center;gap:7px;border:0;background:none;padding:7px 12px;border-radius:9px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.doc-tabs button i{font-style:normal;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--navy-3);color:var(--navy);font-size:11px;font-weight:700}
+.doc-tabs button.on{background:var(--navy);color:#fff}.doc-tabs button.on i{background:#fff}
+#doc-pages .tab-off{display:none!important}
+.pdf-tip{display:block;margin-top:6px;padding:7px 10px;border-radius:9px;background:var(--navy-3);color:var(--navy);font-size:12.5px}
+@media print{.doc-tabs{display:none!important}}
