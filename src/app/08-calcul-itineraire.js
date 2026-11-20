@@ -34,7 +34,7 @@
       if (r.d <= 40) { if (w.anchor) { delete w.anchor; renderRouteMarkers(); computeRoute(); persist(); } return; }
       w.anchor = { lat: r.lat, lon: r.lon, d: Math.round(r.d) };
       renderRouteMarkers(); renderWpList(); computeRoute(); persist();
-      toast('Point hors sentier : il est relié en pointillés au chemin le plus proche (' + G.fmtDist(r.d) + ').');
+      toast('Point hors sentier : il est relié à vol d’oiseau (pointillés) au chemin le plus proche, à ' + G.fmtDist(r.d) + '.', { kind: 'warn', level: 'important' });
     });
   }
   function snapPoint(w) {
@@ -58,7 +58,7 @@
       var moved = [];
       rs.forEach(function (r, k) { if (r) { var x = cands[k]; if (r.anchor) { x.anchor = r.anchor; moved.push(r.what); } else { if (!x.orig) x.orig = { lat: x.lat, lon: x.lon }; x.lat = r.lat; x.lon = r.lon; x.place = undefined; x.moved = true; moved.push(r.what); } } });
       if (!moved.length) { var msg = 'Je n’arrive pas à trouver de chemin proche de ces points (à moins de 2,5 km) : rapprochez-les d’une route ou d’un chemin.'; setRouteStatus(msg, true); toast(msg); return; }
-      toast('Aucun chemin direct : point placé sur ' + moved[0] + '.');
+      toast('Aucun chemin trouvé depuis le point cliqué : il a été déplacé sur ' + moved[0] + '.', { kind: 'warn', level: 'important' });
       renderRouteMarkers(); renderWpList(); persist(); fillPlaces(S.route); computeRoute();
     });
     return true;
@@ -161,7 +161,7 @@
     clearRouteLines(); RT.route = res;
     drawRoute(); setRouteStatus('');
     renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList(); loadNature();
-    if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
+    if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.', { kind: 'warn', level: 'important' });
     S.profileSrc = 'route'; refreshProfile(); persist();
   }
   // Repère les passages repris (même chemin parcouru deux fois) : échantillons tous les ~10 m, voisins à moins de 15 m, séparés par au moins 120 m de parcours.

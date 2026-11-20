@@ -23,7 +23,7 @@
     /* ---- Direction (boussole du téléphone) et carte orientée, comme l'application Cartes IGN :
        1er appui : position, carte au nord ; 2e appui (téléphone avec boussole) : la carte tourne pour suivre la direction du téléphone ;
        3e appui : arrêt. Le bouton « N » remet le nord en haut ; faire glisser la carte la remet aussi au nord. */
-    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false }, prevFix = null;
+    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
     function bearingOf(a, b) { var r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
     function screenAngle() { return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0); }
     function onOrient(e) {
@@ -67,7 +67,7 @@
       raf = requestAnimationFrame(function () {
         raf = 0;
         var el = dot && dot.getElement(), cone = el && el.querySelector('.loc-cone');
-        if (cone) { cone.hidden = CMP.h === null; if (CMP.h !== null) cone.style.transform = 'rotate(' + CMP.h + 'deg)'; }
+        if (cone) { cone.hidden = CMP.h === null; if (CMP.h !== null) { var dc = ((CMP.h - CMP.cone + 540) % 360) - 180; CMP.cone += dc; cone.style.transform = 'rotate(' + CMP.cone + 'deg)'; } }
         if (CMP.orient && CMP.h !== null) setRot(-CMP.h);
       });
     }
@@ -81,7 +81,7 @@
       var d = ((deg - CMP.rot + 540) % 360) - 180; CMP.rot = CMP.rot + d;   // chemin le plus court (pas de tour complet à 0°/360°)
       rotWrap.style.transform = CMP.rot ? 'rotate(' + CMP.rot + 'deg)' : '';
       map._smRot = CMP.rot;
-      var nb = $('#north-btn'); if (nb) { nb.hidden = !CMP.rot && !CMP.orient; nb.firstElementChild.style.transform = 'rotate(' + CMP.rot + 'deg)'; }
+      var nb = $('#north-btn'); if (nb) { nb.firstElementChild.style.transform = 'rotate(' + CMP.rot + 'deg)'; nb.classList.toggle('on', CMP.orient); }
     }
     // tuiles : on charge aussi les coins (la vue tournée dépasse le rectangle de la carte)
     L.GridLayer.prototype._getTiledPixelBounds = function (center) {
@@ -104,10 +104,27 @@
       map.fire('moveend');
       paint();
     }
-    var nb0 = document.createElement('button'); nb0.type = 'button'; nb0.id = 'north-btn'; nb0.hidden = true; nb0.title = 'Remettre le nord en haut'; nb0.setAttribute('aria-label', 'Remettre le nord en haut');
+    /* Bouton boussole, toujours visible avec les boutons de la carte (comme Google Maps ou Cartes IGN) :
+       carte au nord → un appui oriente la carte dans la direction du téléphone (et démarre la position si besoin) ;
+       carte orientée → un appui remet le nord en haut. L'aiguille montre toujours où est le nord. */
+    var nb0 = document.createElement('button'); nb0.type = 'button'; nb0.id = 'north-btn';
     nb0.innerHTML = '<span class="nb-needle"><i></i><b>N</b></span>';
-    btn.parentNode.insertBefore(nb0, btn);
-    nb0.addEventListener('click', function () { setOrient(false); toast('Carte orientée au nord.'); });
+    btn.parentNode.insertBefore(nb0, btn.nextSibling);
+    function nbTitle() { nb0.title = CMP.orient ? 'Boussole : remettre le nord en haut' : 'Boussole : orienter la carte dans ma direction'; nb0.setAttribute('aria-label', nb0.title); }
+    nbTitle();
+    nb0.addEventListener('click', function () {
+      if (CMP.orient) { setOrient(false); toast('Carte orientée au nord.', { level: 'discret' }); nbTitle(); return; }
+      if (watchId === null) { firstFix = true; follow = true; watchId = SMGeo.subscribe(onFix, onErr); }
+      follow = true; CMP.why = false;
+      compassOn().then(function () {
+        setTimeout(function () {
+          if (CMP.live) { setOrient(true); if (dot) map.panTo(dot.getLatLng(), { animate: true }); toast('Carte orientée dans votre direction.', { level: 'discret' }); }
+          else toast(compassWhy(), { kind: 'warn', level: 'important' });
+          nbTitle(); paint();
+        }, 1200);
+      });
+      paint();
+    });
     // glisser la carte tournée : retour au nord, carte libre (on reprend la main)
     map.getContainer().addEventListener('touchmove', function (e) { if (CMP.orient && e.touches && e.touches.length === 1) { setOrient(false); follow = false; paint(); } }, { passive: true });
     map.getContainer().addEventListener('mousedown', function () { if (CMP.orient) { setOrient(false); follow = false; paint(); } });
@@ -123,7 +140,7 @@
       if (!CMP.live && prevFix && SMGeo.dist(prevFix[0], prevFix[1], c[0], c[1]) > Math.max(8, acc / 2)) { CMP.h = bearingOf(prevFix, c); CMP.src = 'gps'; paintHeading(); prevFix = c; }
       else if (!prevFix) prevFix = c;
       if (CMP.orient && follow) { map.panTo(c, { animate: true, duration: 0.5 }); return; }
-      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(Math.max(25000, acc * 12), c[0])), { animate: true }); toast(pos.coarse ? 'Position approximative (≈ ' + Math.round(acc) + ' m) : sur ordinateur, elle vient du réseau. Sur téléphone, en extérieur, elle sera bien plus précise.' : 'Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.'); }
+      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(Math.max(25000, acc * 12), c[0])), { animate: true }); toast(pos.coarse ? 'Position approximative (≈ ' + Math.round(acc) + ' m) : sur ordinateur, elle vient du réseau. Sur téléphone, en extérieur, elle sera bien plus précise.' : 'Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.', { level: 'discret' }); }
       else if (follow && !map.getBounds().pad(-0.3).contains(c)) map.panTo(c, { animate: true, duration: 0.6 });      // la carte ne bouge que si le point approche du bord
     }
     function onErr(code) {
@@ -145,12 +162,16 @@
           });
           return;
         }
-        if (follow) { stop(); toast('Suivi de votre position arrêté.'); return; }
+        if (follow) { stop(); toast('Suivi de votre position arrêté.', { level: 'discret' }); return; }
         follow = true; paint(); if (dot) map.panTo(dot.getLatLng(), { animate: true }); return;
       }
-      toast('Recherche de votre position…'); firstFix = true; follow = true;
+      toast('Recherche de votre position…', { level: 'discret' }); firstFix = true; follow = true;
       watchId = SMGeo.subscribe(onFix, onErr);
-      compassOn().then(function () { paint(); });   // (au toucher : l'iPhone demande l'accord pour la boussole)
+      compassOn().then(function () {
+        paint();
+        // sur téléphone, si la boussole reste muette, on le dit tout de suite (capteurs de mouvement désactivés pour le site, accord refusé)
+        setTimeout(function () { if (watchId !== null && !CMP.live && isMobile() && !CMP.warned) { CMP.warned = true; toast(compassWhy(), { kind: 'warn', level: 'important' }); } }, 3500);
+      });   // (au toucher : l'iPhone demande l'accord pour la boussole)
       paint();
     });
     // un déplacement manuel de la carte (souris ou doigt) libère la carte, mais le point continue de bouger
