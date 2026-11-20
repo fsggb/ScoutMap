@@ -126,7 +126,7 @@
     <button type="button" class="rail-btn" data-rail="home" title="Accueil : changer de type de travail"><svg class="ic"><use href="#i-home"/></svg><span>Accueil</span></button>
     <span class="rail-line"></span>
     <button type="button" class="rail-btn on" data-rail="mode" id="rail-mode" title="Outils du travail en cours"><svg class="ic"><use href="#i-route"/></svg><span id="rail-mode-l">Itinéraire</span></button>
-    <button type="button" class="rail-btn" data-rail="library" id="rail-library" title="Bibliothèque : mes itinéraires et parcours, à afficher ou masquer sur la carte"><svg class="ic"><use href="#i-layers"/></svg><span>Tracés</span><i class="rail-badge" id="rail-lib-n" hidden></i></button>
+    <button type="button" class="rail-btn" data-rail="library" id="rail-library" title="Bibliothèque : tous mes tracés enregistrés dans ce navigateur"><svg class="ic"><use href="#i-layers"/></svg><span>Tracés</span><i class="rail-badge" id="rail-lib-n" hidden></i></button>
     <span class="rail-sp"></span>
     <button type="button" class="rail-btn" data-rail="share" id="rail-share" title="Partage en direct : inviter, voir qui est connecté, discuter"><svg class="ic"><use href="#i-people"/></svg><span>Partage</span><i class="rail-badge rail-green" id="share-count" hidden></i><i class="rail-badge rail-left" id="share-badge" title="Messages non lus" hidden></i></button>
     <button type="button" class="rail-btn" data-rail="notif" id="rail-notif" title="Alertes et informations sur le travail en cours"><svg class="ic"><use href="#i-bell"/></svg><span>Alertes</span><i class="rail-badge" id="notif-badge" hidden></i></button>
@@ -268,7 +268,7 @@
     <section class="pane" data-pane="route" hidden>
       <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
-      <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="route-new"><svg class="ic"><use href="#i-plus"/></svg>Nouvel itinéraire</button><button type="button" class="btn-ghost" id="route-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
+      <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="route-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau tracé</button><button type="button" class="btn-ghost" id="route-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
       <div class="seg full" id="route-mode"><button type="button" data-v="oneway">Aller simple</button><button type="button" data-v="loop">Boucle</button></div>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
       <div class="group">
@@ -300,7 +300,7 @@
     <section class="pane" data-pane="az" hidden>
       <div class="pane-head"><h2 class="pane-title">Azimuts</h2><button class="edit-toggle" data-edit type="button"></button></div>
       <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
-      <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="az-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau parcours</button><button type="button" class="btn-ghost" id="az-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
+      <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="az-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau tracé</button><button type="button" class="btn-ghost" id="az-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
 
       <div class="table-wrap"><table class="tbl" id="az-table"><thead><tr><th>#</th><th>Azimut</th><th>Contre-az.</th><th>Dist.</th><th>Cumul</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -320,8 +320,7 @@
 
     <section class="pane" data-pane="library" aria-label="Bibliothèque" hidden>
       <div class="pane-head"><h2 class="pane-title">Bibliothèque</h2></div>
-      <p class="help">Vos itinéraires et parcours d’azimuts gardés dans ce navigateur. Œil : afficher ou masquer sur la carte. Ctrl ou Maj + clic : en sélectionner plusieurs ; « Imprimer » imprime alors la sélection.</p>
-      <div id="lib-body"></div>
+            <div id="lib-body"></div>
     </section>
 
     <section class="pane" data-pane="share" aria-label="Partage en direct" hidden>
