@@ -42,6 +42,7 @@
 
   // Réglages choisis dans la première fenêtre (l'aperçu n'a plus de barre d'outils)
   var PRM = { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false, calq: false, title: '' };
+  if (SM.DEF && SM.DEF.print) Object.keys(SM.DEF.print).forEach(function (k) { PRM[k] = SM.DEF.print[k]; });   // valeurs par défaut choisies dans Réglages
   var BT = 0, ABORT = { abort: true };
   var FRAMES = { A4: [210, 297], A3: [297, 420] };
   function config() {

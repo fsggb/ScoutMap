@@ -84,6 +84,9 @@
   }
   function open(k) {
     page.hidden = false; document.body.classList.add('set-open');
+    // seul le bouton Réglages est allumé dans la barre latérale tant que la page est ouverte
+    railOn = $$('#rail .rail-btn.on').filter(function (b) { return b.id !== 'rail-settings'; });
+    railOn.forEach(function (b) { b.classList.remove('on'); });
     var rb = $('#rail-settings'); if (rb) rb.classList.add('on');
     show(k || (S.mode && ['route', 'az', 'game'].indexOf(S.mode) >= 0 && cur === 'general' ? S.mode : cur));
   }
@@ -91,7 +94,9 @@
     if (page.hidden) return;
     page.hidden = true; document.body.classList.remove('set-open');
     var rb = $('#rail-settings'); if (rb) rb.classList.remove('on');
+    railOn.forEach(function (b) { b.classList.add('on'); }); railOn = [];
   }
+  var railOn = [];
   page.addEventListener('click', function (e) {
     var c = e.target.closest('.set-cat'); if (c) { show(c.dataset.cat); return; }
     if (e.target.closest('.set-close')) close();
@@ -108,5 +113,76 @@
     // depuis l'accueil (barre latérale visible) : un bouton du travail en cours ramène à la carte
     var home = $('#home'); if (home && !home.hidden && b.dataset.rail !== 'home' && S.mode && SM.showHome) SM.showHome(false);
   }, true);
+  // ---- Valeurs par défaut des nouveaux tracés et de l'impression (enregistrées sur l'appareil) ----
+  var D = SM.DEF;
+  if (D) {
+    var F = {
+      route: [
+        ['loop', 'seg', 'Type de parcours', [[false, 'Aller simple'], [true, 'Boucle']]],
+        ['opt', 'seg', 'Optimisation', [['fastest', 'Le plus rapide'], ['shortest', 'Le plus court']]],
+        ['maxOn', 'check', 'Limiter la distance totale'],
+        ['maxKm', 'num', 'Distance maximale', { min: 1, max: 200, step: 1, unit: 'km' }],
+        ['speed', 'num', 'Allure de marche', { min: 1, max: 8, step: 0.5, unit: 'km/h' }],
+        ['freeOrder', 'check', 'Ordre de passage libre (boucle la plus courte par les points choisis)'],
+        ['avoidMotorway', 'check', 'Éviter les autoroutes'],
+        ['noBack', 'check', 'Éviter de repasser par le même chemin'],
+        ['snapChurch', 'check', 'Poser le point sur l’église du village quand la carte est dézoomée'],
+        ['flagNat', 'check', 'Signaler les routes nationales']
+      ],
+      az: [
+        ['unit', 'seg', 'Unité', [['deg', 'Degrés'], ['grd', 'Grades'], ['mil', 'Millièmes']]],
+        ['ref', 'seg', 'Référence', [['true', 'Nord géographique'], ['mag', 'Nord magnétique']]],
+        ['decl', 'num', 'Déclinaison magnétique (Est +)', { min: -30, max: 30, step: 0.1, unit: '°' }]
+      ],
+      print: [
+        ['paper', 'seg', 'Papier', [['A4', 'A4'], ['A3', 'A3']]],
+        ['tscale', 'seg', 'Échelle des cartes', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']]],
+        ['line', 'seg', 'Tracé sur les cartes de l’itinéraire', [[false, 'Points seulement'], [true, 'Affiché']]],
+        ['roadmap', 'check', 'Feuille de route'],
+        ['maps', 'check', 'Cartes du parcours (feuilles numérotées)'],
+        ['onesheet', 'check', 'Carte générale sur une seule feuille']
+      ]
+    };
+    var TITLE = { route: 'Pour chaque nouvel itinéraire', az: 'Pour chaque nouveau relevé d’azimuts', print: 'Choix proposés à l’impression' };
+    function defCard(k) {
+      var h = '<div class="set-card set-def" data-def="' + k + '"><h3>' + TITLE[k] + '</h3><p>Ces valeurs s’appliquent aux prochains ' + (k === 'print' ? 'documents imprimés (vous pouvez toujours les changer au moment d’imprimer)' : 'tracés ; le tracé ouvert garde ses propres réglages') + '.</p>';
+      F[k].forEach(function (f) {
+        var v = D[k][f[0]], id = 'def-' + k + '-' + f[0];
+        if (f[1] === 'check') h += '<label class="check"><input type="checkbox" id="' + id + '" data-f="' + f[0] + '"' + (v ? ' checked' : '') + '> ' + f[2] + '</label>';
+        else if (f[1] === 'num') h += '<label class="set-row"><span>' + f[2] + '</span><span class="num"><input type="number" id="' + id + '" data-f="' + f[0] + '" min="' + f[3].min + '" max="' + f[3].max + '" step="' + f[3].step + '" value="' + v + '"> ' + f[3].unit + '</span></label>';
+        else h += '<div class="set-row"><span>' + f[2] + '</span><div class="seg" role="radiogroup">' + f[3].map(function (o) { return '<button type="button" role="radio" data-f="' + f[0] + '" data-v="' + JSON.stringify(o[0]).replace(/"/g, '&quot;') + '" aria-checked="' + (v === o[0]) + '" class="' + (v === o[0] ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div></div>';
+      });
+      return h + '<button type="button" class="linkbtn" data-def-reset="' + k + '">Revenir aux valeurs d’origine</button></div>';
+    }
+    function mountDefs() {
+      ['route', 'az', 'print'].forEach(function (k) {
+        var host = sec(k === 'print' ? 'print' : k), old = $('[data-def="' + k + '"]', page);
+        if (old) old.outerHTML = defCard(k); else host.insertAdjacentHTML('afterbegin', defCard(k));
+      });
+    }
+    // une catégorie Impression, placée avant Hors connexion
+    var nav = $('.set-nav', page), offBtn = $('[data-cat="offline"]', nav);
+    nav.insertBefore((function () { var b = document.createElement('button'); b.type = 'button'; b.className = 'set-cat'; b.dataset.cat = 'print'; b.innerHTML = ic('printer') + '<span>Impression</span>'; return b; })(), offBtn);
+    var ps = document.createElement('section'); ps.className = 'set-sec'; ps.dataset.sec = 'print'; ps.hidden = true; ps.innerHTML = '<h2>Impression</h2><div class="set-c"></div>';
+    $('.set-body', page).insertBefore(ps, $('[data-sec="offline"]', page));
+    CATS.splice(4, 0, { k: 'print', t: 'Impression', i: 'printer' });
+    // les réglages du tracé ouvert gardent leur place, sous un titre clair
+    ['route', 'az'].forEach(function (k) { var c = $('.set-card:not(.set-def)', sec(k)); if (c) c.insertAdjacentHTML('afterbegin', '<h3>' + (k === 'route' ? 'Itinéraire ouvert' : 'Azimuts ouverts') + '</h3>'); });
+    mountDefs();
+    page.addEventListener('change', function (e) {
+      var inp = e.target.closest('.set-def [data-f]'); if (!inp) return;
+      var k = inp.closest('.set-def').dataset.def, f = inp.dataset.f;
+      if (inp.type === 'checkbox') D[k][f] = inp.checked;
+      else if (inp.type === 'number') { var n = parseFloat(inp.value); if (isFinite(n)) D[k][f] = Math.min(+inp.max, Math.max(+inp.min, n)); }
+      SM.saveDefaults(); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' });
+    });
+    page.addEventListener('click', function (e) {
+      var b = e.target.closest('.set-def .seg button[data-f]');
+      if (b) { var k = b.closest('.set-def').dataset.def; D[b.closest('.set-def').dataset.def][b.dataset.f] = JSON.parse(b.dataset.v); SM.saveDefaults(); $$('button[data-f="' + b.dataset.f + '"]', b.parentNode).forEach(function (x) { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' }); return; }
+      var r = e.target.closest('[data-def-reset]');
+      if (r) { var kk = r.dataset.defReset; Object.keys(SM.DEF_BASE[kk]).forEach(function (f) { D[kk][f] = SM.DEF_BASE[kk][f]; }); SM.saveDefaults(); mountDefs(); SM.toast('Valeurs d’origine rétablies.', { kind: 'ok' }); }
+    });
+  }
+
   SM.settings = { open: open, close: close, isOpen: function () { return !page.hidden; } };
 })();

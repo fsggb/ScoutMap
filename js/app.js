@@ -22,12 +22,25 @@
   var LIBT = { route: { one: 'itinéraire', many: 'Itinéraires', neu: 'Nouvel itinéraire' }, az: { one: 'parcours', many: 'Azimuts', neu: 'Nouveau parcours' } };
   var uidc = 0;
   function nid() { return Date.now() * 100 + (uidc++ % 100); }
+  /* Valeurs par défaut des nouveaux tracés, réglables dans Réglages (enregistrées sur l'appareil). */
+  var DEF_BASE = {
+    route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
+    az: { unit: 'deg', ref: 'true', decl: 0 },
+    print: { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
+  };
+  var DEF = (function () {
+    var d = JSON.parse(JSON.stringify(DEF_BASE));
+    try { var s = JSON.parse(localStorage.getItem('scoutmap.defaults') || 'null'); if (s) Object.keys(d).forEach(function (k) { if (s[k] && typeof s[k] === 'object') Object.keys(d[k]).forEach(function (f) { if (s[k][f] !== undefined && typeof s[k][f] === typeof d[k][f]) d[k][f] = s[k][f]; }); }); } catch (e) { /* valeurs d'usine */ }
+    return d;
+  })();
+  function saveDefaults() { try { localStorage.setItem('scoutmap.defaults', JSON.stringify(DEF)); } catch (e) { /* ignoré */ } }
   function freshRoute(prev, n) {
-    return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: prev ? prev.opt : 'fastest', loop: true, freeOrder: prev ? prev.freeOrder : true,
-      maxOn: false, maxKm: prev ? prev.maxKm : 10, avoidMotorway: prev ? prev.avoidMotorway : true, noBack: prev ? prev.noBack : true, snapChurch: prev ? prev.snapChurch : true, flagNat: prev ? prev.flagNat : true, wps: [] };
+    var r = DEF.route;
+    return { id: nid(), name: 'Itinéraire ' + n, color: ROUTE_PAL[(n - 1) % ROUTE_PAL.length], opt: r.opt, loop: r.loop, freeOrder: r.freeOrder,
+      maxOn: r.maxOn, maxKm: r.maxKm, avoidMotorway: r.avoidMotorway, noBack: r.noBack, snapChurch: r.snapChurch, flagNat: r.flagNat, wps: [] };
   }
   function freshAz(prev, n) {
-    return { id: nid(), name: 'Azimuts ' + n, color: AZ_PAL[(n - 1) % AZ_PAL.length], pts: [], unit: prev ? prev.unit : 'deg', ref: prev ? prev.ref : 'true', decl: prev ? prev.decl : 0 };
+    return { id: nid(), name: 'Azimuts ' + n, color: AZ_PAL[(n - 1) % AZ_PAL.length], pts: [], unit: prev ? prev.unit : DEF.az.unit, ref: prev ? prev.ref : DEF.az.ref, decl: prev ? prev.decl : DEF.az.decl };
   }
   function freshMeas(prev, n) {
     return { id: nid(), name: 'Mesure ' + n, color: MEAS_PAL[(n - 1) % MEAS_PAL.length], mode: prev ? prev.mode : 'dist', pts: [] };
@@ -40,7 +53,7 @@
   var S = {
     name: '', pid: 0, mode: null, rail: 'route', panelOpen: true,
     ver: 5, base: 'scan25', ov: { contour: false, shade: false, slope: false, cadastre: false, hiking: true, lidar: false },
-    detail: 'auto', speed: 5, profileSrc: 'route', dockOpen: true, dockH: 230,
+    detail: 'auto', speed: DEF.route.speed, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true }, grid: { type: 'none' },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
     gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 3, size: 18, fontColor: '#12142b', dash: false },
@@ -3630,7 +3643,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, forceUpdate: forceUpdate, version: '2.0.0', build: SITE_V,
+    traceSig: traceSig, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, version: '2.0.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
