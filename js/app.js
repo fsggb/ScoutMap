@@ -3503,17 +3503,18 @@
       btn.classList.toggle('orient', !!(typeof CMP !== 'undefined' && CMP.orient));
       if (watchId !== null && follow && typeof CMP !== 'undefined') btn.title = CMP.orient ? 'Arrêter le suivi de ma position' : (CMP.live ? 'Orienter la carte dans ma direction' : 'Arrêter le suivi de ma position');
     }
-    function stop() { if (watchId !== null) { try { watchId(); } catch (e) { /* déjà arrêté */ } } watchId = null; follow = false; gLoc.clearLayers(); circ = dot = null; prevFix = null; setOrient(false); compassOff(); paint(); }
+    function stop() { if (watchId !== null) { try { watchId(); } catch (e) { /* déjà arrêté */ } } watchId = null; follow = false; gLoc.clearLayers(); circ = dot = null; prevFix = null; CMP.why = false; setOrient(false); compassOff(); paint(); }
     /* ---- Direction (boussole du téléphone) et carte orientée, comme l'application Cartes IGN :
        1er appui : position, carte au nord ; 2e appui (téléphone avec boussole) : la carte tourne pour suivre la direction du téléphone ;
        3e appui : arrêt. Le bouton « N » remet le nord en haut ; faire glisser la carte la remet aussi au nord. */
-    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false }, prevFix = null;
+    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false }, prevFix = null;
     function bearingOf(a, b) { var r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
     function screenAngle() { return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0); }
     function onOrient(e) {
       var h = null;
       if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;   // iPhone : cap magnétique direct
-      else if (e.absolute !== false && typeof e.alpha === 'number') h = 360 - e.alpha;                                  // Android : orientation absolue
+      else if ((e.type === 'deviceorientationabsolute' || e.absolute === true) && typeof e.alpha === 'number' && e.alpha !== null) h = 360 - e.alpha;   // Android : orientation absolue (par rapport au nord)
+      else if (e.type === 'deviceorientation' && CMP.src === 'cmp') return;                                             // relatif : ignoré quand l'absolu fonctionne
       if (h === null) return;
       h = (h + screenAngle() + 360) % 360;
       // lissage (moyenne circulaire) : la flèche ne tremble pas
@@ -3521,11 +3522,28 @@
       CMP.live = true; CMP.src = 'cmp'; paintHeading();
     }
     function compassOn() {
-      if (CMP.on || typeof window.DeviceOrientationEvent === 'undefined') return Promise.resolve(false);
-      var go = function () { CMP.on = true; window.addEventListener('ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation', onOrient, true); return true; };
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') { var ios = /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent) && 'ontouchend' in document; return DeviceOrientationEvent.requestPermission().then(function (r) { return r === 'granted' || !ios ? go() : false; }, function () { return ios ? false : go(); }); }   // iPhone : accord demandé (au toucher)
+      if (CMP.on) return Promise.resolve(true);
+      if (typeof window.DeviceOrientationEvent === 'undefined') { CMP.status = 'absent'; return Promise.resolve(false); }
+      // les deux événements sont écoutés : certains Android n'envoient que « deviceorientation » (avec absolute = true), d'autres que la version absolue
+      var go = function () {
+        CMP.on = true; CMP.status = 'attente';
+        window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true);
+        setTimeout(function () { if (CMP.on && !CMP.live) CMP.status = 'muet'; }, 2500);   // aucun signal : pas de boussole (ordinateur) ou capteurs bloqués
+        return true;
+      };
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {   // iPhone / iPad : accord demandé au toucher
+        var ios = /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent) && 'ontouchend' in document;
+        return DeviceOrientationEvent.requestPermission().then(function (r) { if (r === 'granted' || !ios) return go(); CMP.status = 'refus'; return false; }, function () { if (ios) { CMP.status = 'refus'; return false; } return go(); });
+      }
       return Promise.resolve(go());
     }
+    // explication quand la carte ne peut pas suivre la direction du téléphone
+    function compassWhy() {
+      if (CMP.status === 'refus') return 'Boussole refusée : sur iPhone, Réglages › Safari › « Mouvement et orientation », puis rechargez la page.';
+      if (CMP.status === 'absent' || CMP.status === 'muet') return isMobile() ? 'Aucune boussole ne répond : vérifiez que les capteurs de mouvement sont autorisés pour ce site (Chrome : ⋮ › Paramètres › Paramètres des sites › Capteurs de mouvement).' : 'Pas de boussole sur un ordinateur : la direction apparaîtra quand vous marcherez (téléphone conseillé).';
+      return 'La boussole s’initialise : réessayez dans un instant.';
+    }
+    window.SMCompass = { test: function () { return compassOn().then(function () { return new Promise(function (ok) { setTimeout(function () { ok(CMP.live ? 'ok' : compassWhy()); }, 1500); }); }); }, state: function () { return { live: CMP.live, status: CMP.status, heading: CMP.h }; } };
     function compassOff() { if (!CMP.on) return; CMP.on = false; CMP.live = false; CMP.h = null; window.removeEventListener('deviceorientationabsolute', onOrient, true); window.removeEventListener('deviceorientation', onOrient, true); }
     var raf = 0;
     function paintHeading() {
@@ -3601,6 +3619,16 @@
       if (!navigator.geolocation || !window.SMGeo) { toast('La localisation n’est pas disponible sur cet appareil.'); return; }
       if (watchId !== null) {
         if (follow && !CMP.orient && CMP.live) { setOrient(true); if (dot) map.panTo(dot.getLatLng(), { animate: true }); toast('Carte orientée dans votre direction. Touchez « N » pour remettre le nord en haut.'); return; }
+        // 2e appui sans boussole active : on la (re)demande (le toucher permet l'accord sur iPhone) ; sinon on explique pourquoi, sans arrêter le suivi
+        if (follow && !CMP.orient && !CMP.why) {
+          compassOn().then(function () {
+            setTimeout(function () {
+              if (CMP.live) { setOrient(true); toast('Carte orientée dans votre direction. Touchez « N » pour remettre le nord en haut.'); }
+              else { CMP.why = true; toast(compassWhy(), { kind: 'warn' }); paint(); }
+            }, 1200);
+          });
+          return;
+        }
         if (follow) { stop(); toast('Suivi de votre position arrêté.'); return; }
         follow = true; paint(); if (dot) map.panTo(dot.getLatLng(), { animate: true }); return;
       }
