@@ -86,7 +86,7 @@
     return v || (/^[0-9a-f]{32}$/i.test(SCAN25_BUILD) ? SCAN25_BUILD : '') || 'hub';   // « hub » : tuiles demandées au serveur ScoutHub (clé IGN gardée côté serveur), sans connexion nécessaire
   }
   var SCAN25_OK = /^(hub|[0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i;
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat', 'esri', 'cassini', 'cassiniroi', 'carte1950', 'photo1950'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });

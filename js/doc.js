@@ -140,7 +140,7 @@
     var cards = [
       { k: 'roadmap', on: PRM.roadmap, ok: sheetOk, t: W().sheet, th: sheetOk ? thumbRoadmap(items) : '', cap: W().sheetCap, hide: S.mode === 'game' },
       { k: 'maps', on: PRM.maps, ok: tilesOk && !big, t: W().maps, th: thumbMaps(items, pl), cap: big ? 'Zone trop étendue pour des cartes détaillées à cette échelle (environ ' + big + ' feuilles). Choisissez une échelle plus petite, ou la carte générale.' : tilesOk ? (n + ' feuille' + (n > 1 ? 's' : '') + ' ' + PRM.paper + ' à l’échelle 1 : ' + SM.sp(PRM.tscale) + ', le moins possible : ' + W().cover) : '' },
-      { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : '' }
+      { k: 'onesheet', on: PRM.onesheet, ok: tilesOk, t: 'Carte générale', th: thumbOne(items), cap: tilesOk && fit ? 'Toute la zone sur une seule feuille, ' + (fit.scale > PRM.tscale ? 'à une échelle plus petite (environ 1 : ' + SM.sp(fit.scale) + ') : pratique comme vue d’ensemble, moins détaillée.' : 'à l’échelle 1 : ' + SM.sp(fit.scale) + '.') : '' }
     ];
     var nsep = S.mode === 'game' ? (S.game.calques || []).filter(function (l) { return l.sep; }).length : 0;
     if (nsep) cards.push({ k: 'calq', on: PRM.calq, ok: true, t: 'Calques à part', th: '<div class="th-cal">' + (S.game.calques || []).filter(function (l) { return l.sep; }).map(function (l) { return '<i>' + esc(l.name) + '</i>'; }).join('') + '</div>', cap: nsep + ' feuille' + (nsep > 1 ? 's' : '') + ' sans fond de carte, une par calque, à la même échelle : à superposer ou à coller.' });
@@ -152,7 +152,7 @@
     $('#pdf-set').innerHTML =
       '<label>Papier ' + seg('paper', [['A4', 'A4'], ['A3', 'A3']], PRM.paper) + '</label>' +
       '<label class="' + (PRM.maps ? '' : 'off') + '">Échelle ' + seg('tscale', (S.mode === 'game' ? [[5000, '1 : 5 000']] : []).concat([[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']]), PRM.tscale) + '</label>' +
-      '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>';
+      (S.mode === 'game' ? '' : '<label class="' + (PRM.maps || PRM.onesheet ? '' : 'off') + '">Tracé sur les cartes ' + seg('line', [['1', 'Affiché'], ['0', 'Points seulement']], PRM.line ? '1' : '0') + '</label>');
     var any = (PRM.roadmap && sheetOk) || (PRM.maps && tilesOk) || (PRM.onesheet && tilesOk) || (PRM.calq && nsep > 0);
     $('#pdf-ok').disabled = !any; $('#pdf-empty').hidden = items.length > 0;
   }

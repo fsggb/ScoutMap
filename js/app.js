@@ -87,7 +87,7 @@
     return v || (/^[0-9a-f]{32}$/i.test(SCAN25_BUILD) ? SCAN25_BUILD : '') || 'hub';   // « hub » : tuiles demandées au serveur ScoutHub (clé IGN gardée côté serveur), sans connexion nécessaire
   }
   var SCAN25_OK = /^(hub|[0-9a-f]{32}|https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)$/i;
-  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
+  if (['plan', 'ortho', 'otm', 'osm', 'osmfr', 'cyclosm', 'etat', 'esri', 'cassini', 'cassiniroi', 'carte1950', 'photo1950'].indexOf(S.base) < 0 && !(S.base === 'scan25' && SCAN25_OK.test(scan25Src()))) S.base = 'otm';
   if (TYPES.indexOf(S.rail) >= 0 && S.mode && S.rail !== S.mode) S.rail = S.mode;
   if (!S.game.shapes) S.game.shapes = [];
   S.layers.forEach(function (l) { if (l.type === 'game' && !l.data.shapes) l.data.shapes = []; });
@@ -322,8 +322,8 @@
           var im = document.createElement('img'); im.alt = '';
           var viaRelay = function () {   // secours : lots demandés au serveur ScoutHub
             s25Fetch(co.z + so, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
-              var m = (e && e.message) || 'échec'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer';
-              if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + m + ').'); } done(new Error(m), im);
+              var m = (e && e.message) || 'échec'; if (window.console) console.warn('SCAN 25 :', m);
+              if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } done(new Error(m), im);
             });
           };
           if (!S25P.ok) { viaRelay(); return im; }
@@ -344,7 +344,7 @@
       var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
       var G = L.GridLayer.extend({ createTile: function (co, done) {
         var im = document.createElement('img'), n = 0; im.alt = '';
-        var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('SCAN 25 : tuiles indisponibles (' + msg + ').'); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
+        var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
         var go = function () {
           var req = c.hub
             ? hubApi().then(function (api) {
@@ -353,7 +353,7 @@
             : fetch(c.url + '?z=' + (co.z + so) + '&x=' + co.x + '&y=' + co.y);
           req.then(function (r) { return r.json(); }).then(function (j) {
             running--; pump();
-            if (!j.d) { var m = j.err || j.error || 'réponse vide'; if (m === 'Action inconnue.') m = 'mise à jour Code.gs de ScoutHub à redéployer'; if (/HTTP 40[134]|Session|session|non configur|invalide|inconnue|redéployer/.test(m) || ++n >= 3) return fail(m); queue.push(go); pump(); return; }
+            if (!j.d) { var m = j.err || j.error || 'réponse vide'; if (window.console) console.warn('SCAN 25 :', m); if (/HTTP 40[134]|Session|session|non configur|invalide|inconnue|redéployer/.test(m) || ++n >= 3) return fail(m); queue.push(go); pump(); return; }
             im.onload = function () { done(null, im); }; im.onerror = function () { fail('image illisible'); }; im.src = 'data:image/jpeg;base64,' + j.d;
           }).catch(function (e) { running--; pump(); if (++n < 3) setTimeout(function () { queue.push(go); pump(); }, 700 * n); else fail((e && e.message) || 'serveur injoignable'); });
         };
@@ -948,6 +948,7 @@
   function updateHint() {
     var el = $('#toolhint'), r = S.rail;
     if (!S.mode || VIEWER || ($('#home') && !$('#home').hidden)) { el.hidden = true; return; }
+    el.classList.toggle('is-game', r === 'game');
     if (r === 'game' && window.SM && SM.game) {
       el.hidden = false; $('#hint-ic').innerHTML = '<use href="#i-flag"/>';
       $('#hint-txt').textContent = SM.game.hint(); $('#hint-btn').textContent = SM.game.hintBtn(); $('#hint-btn').hidden = !SM.game.hintBtn();
@@ -3681,7 +3682,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,

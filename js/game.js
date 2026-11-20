@@ -540,6 +540,7 @@
     if (S.mode !== 'game' || RT.tool !== 'game' || typing() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.body.classList.contains('doc-open') || document.querySelector('dialog[open]')) return;
     if (e.key === 'Enter' && DR) { e.preventDefault(); if (finishable()) finishDraft(); }
+    else if (e.key === 'Backspace' && DR && DR.pts && DR.pts.length) { e.preventDefault(); e.stopImmediatePropagation(); DR.pts.pop(); if (!DR.pts.length) cancelDraft(); else drawDraft(); }
     else if (e.key === 'Escape') { if (GT !== 'select') { PRE = null; setGT('select'); } }
     else if (!e.shiftKey && KEYS[e.key.toLowerCase()]) { PRE = null; setGT(KEYS[e.key.toLowerCase()]); }
   });
@@ -554,8 +555,9 @@
   }
   function setGT(t) {
     if (S.mode === 'game' && RT.tool !== 'game') SM.setRail('game');          // après la réouverture d'un jeu, les outils doivent toujours fonctionner
-    cancelDraft(); GT = t; if (t !== 'select' && t !== 'stamp') setTab('tools'); if (t !== 'stamp') { STAMP = null; renderThemes(); } if (t === 'select' || t === 'stamp') PRE = null;
+    cancelDraft(); GT = t; if (t !== 'select') SELID = null; if (t !== 'select' && t !== 'stamp') setTab('tools'); if (t !== 'stamp') { STAMP = null; renderThemes(); } if (t === 'select' || t === 'stamp') PRE = null;
     map.getContainer().classList.toggle('gt-select', t === 'select');
+    if (t !== 'select' && SM.isMobile && SM.isMobile() && SM.closePanel) SM.closePanel();
     render(); SM.persist();
   }
 
@@ -888,7 +890,7 @@
     if (hero && !window.SM_ART && themeById(D().theme)) { loadArt().then(function () { teamPlace(id, hero); }).catch(function () { /* hors ligne */ }); return; }
     var h = heroFor(t);
     STAMP = hero ? { i: h.i, l: 'Base ' + t.name, col: '', art: true, hero: true, team: id } : { i: 'flag', l: 'Départ ' + t.name, col: t.color, flag: true, team: id };
-    PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane(); SM.toast(hero ? 'Cliquez sur la carte (ou cliquez-étirez) pour poser la base de ' + t.name + '.' : 'Cliquez sur la carte pour poser un départ de ' + t.name + '.');
+    PRE = null; if (S.mode !== 'game') SM.setMode('game'); setGT('stamp'); renderThemes(); renderPane();
   }
   function teamsInit() {
     var box = $('#gteams'); if (!box) return;
@@ -973,7 +975,7 @@
       var el = STAMP, keep = $('#gs-keep').checked, s = newStamp(el, p);
       if (mm) s.mm = mm;
       S.vis.game = true; SM.ensureVisible('game'); insertShape(s);
-      if (!keep) setGT('select');                       // l'outil se relâche après chaque pose (sauf « poser plusieurs fois de suite »)
+      if (!keep) { setGT('select'); SELID = s.id; }     // l'outil se relâche après chaque pose (sauf « poser plusieurs fois de suite ») ; l'élément posé est sélectionné
       SM.persist(); render(); SM.renderLayerList();
     });
   }
@@ -1063,7 +1065,7 @@
         else if (step === 3) body = '<div class="gwz-cols"><div><h2>Effets sur la carte</h2><p class="gwz-sub">Facultatif : donnez un style à la carte. L’aperçu à droite se met à jour tout de suite. Rien n’est appliqué par défaut, et vous pourrez tout régler plus tard dans l’onglet Effets.</p><div class="gfx-grid" id="gw-fx"></div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
-          (step === 3 ? '<button type="button" class="btn-ghost" id="gwz-skip">Passer cette étape</button>' : '') + (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
+          (step < 3 ? '<button type="button" class="btn-primary" id="gwz-next">Suivant</button>' : '<button type="button" class="btn-primary" id="gwz-go">Créer le grand jeu</button>');
         ov.innerHTML = '<div class="gwz-top"><b>Nouveau grand jeu</b><ol class="gwz-steps">' + STEPS.map(function (n, k) { return '<li class="' + (k + 1 === step ? 'on' : k + 1 < step ? 'done' : '') + '"><i>' + (k + 1) + '</i>' + n + '</li>'; }).join('') + '</ol></div><div class="gwz-body">' + body + '</div><div class="gwz-foot">' + foot + '</div>';
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.th = b.dataset.th; pick.base = null; $$('[data-th]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('click', function () { pick.sc = +b.dataset.sc; $$('[data-sc]', ov).forEach(function (x) { x.classList.toggle('on', x === b); }); refreshBase(); preview(); }); });
@@ -1073,7 +1075,7 @@
         $$('[data-th]', ov).forEach(function (b) { b.addEventListener('dblclick', dbl); });
         $$('[data-sc]', ov).forEach(function (b) { b.addEventListener('dblclick', dbl); });
         var gb = $('#gw-base', ov); if (gb) gb.addEventListener('change', function () { pick.base = gb.value; preview(); });
-        $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); });
+        $('#gwz-cancel', ov).addEventListener('click', function () { killMap(); ov.remove(); document.body.classList.remove('gw-open'); setTab('tools'); renderThemes(); if (!D().shapes.length && !D().theme && SM.showHome) SM.showHome(true); });
         var bk = $('#gwz-back', ov); if (bk) bk.addEventListener('click', function () { step--; draw(); });
         var nx = $('#gwz-next', ov); if (nx) nx.addEventListener('click', function () { if (step === 1 && !pick.name.trim()) { var n3 = $('#gw-name', ov); if (n3) { n3.focus(); n3.classList.add('bad'); SM.toast('Donnez d’abord un nom au jeu.'); } return; } step++; draw(); });
         var fxh = $('#gw-fx', ov);
@@ -1085,7 +1087,7 @@
         var skip = $('#gwz-skip', ov); if (skip) skip.addEventListener('click', function () { pick.fx = {}; var g2 = $('#gwz-go', ov); if (g2) g2.click(); });
         var go = $('#gwz-go', ov);
         if (go) go.addEventListener('click', function () {
-          killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; } setScale(pick.sc); applyTheme(pick.th); D().fx = Object.assign({}, pick.fx); delete D().parch; applyParch();
+          killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; if (!S.name) { S.name = D().name; var pn = $('#proj-name'); if (pn) pn.value = S.name; } } setScale(pick.sc); applyTheme(pick.th); D().fx = Object.assign({}, pick.fx); delete D().parch; applyParch();
           var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
           setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
         });
@@ -1101,8 +1103,8 @@
     var pal = $('#gpalette'), src = $('#gtools-src'); if (!pal || !src) return;
     var g = document.createElement('div'); g.className = 'gtools'; g.id = 'gtools';
     $$('button', src).forEach(function (b) { b.title = TOOLTIPS[b.dataset.gt] || b.title; b.setAttribute('aria-label', TOOLTIPS[b.dataset.gt] || ''); g.appendChild(b); });
-    var rp = document.createElement('button'); rp.type = 'button'; rp.id = 'gkeep-btn'; rp.title = 'Répéter : poser plusieurs fois de suite le même élément'; rp.setAttribute('aria-label', rp.title);
-    rp.innerHTML = '<svg class="ic"><use href="#i-loop"/></svg><span>Répéter</span>';
+    var rp = document.createElement('button'); rp.type = 'button'; rp.id = 'gkeep-btn'; rp.title = 'Poser plusieurs fois de suite le même élément'; rp.setAttribute('aria-label', rp.title);
+    rp.innerHTML = '<svg class="ic"><use href="#i-loop"/></svg><span>Plusieurs</span>';
     rp.addEventListener('click', function () { var c = $('#gs-keep'); c.checked = !c.checked; rp.classList.toggle('on', c.checked); });
     var sp = document.createElement('i'); sp.className = 'gpal-sep'; g.appendChild(sp); g.appendChild(rp);
     src.remove(); pal.appendChild(g);
@@ -1125,7 +1127,7 @@
     bar.innerHTML = [['elements', 'Icônes', 'g-stamp'], ['teams', 'Équipes', 'people'], ['zones', 'Terrains', 'g-polygon'], ['lines', 'Lignes', 'g-line'], ['images', 'Images', 'upload']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '"><svg class="ic"><use href="#i-' + x[2] + '"/></svg><span>' + x[1] + '</span></button>'; }).join('');
     var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher un élément (château, drapeau…)" aria-label="Chercher un élément" autocomplete="off">';
     var guide = document.createElement('div'); guide.className = 'gguide'; guide.id = 'gguide'; guide.hidden = true;
-    guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton « Partager », à droite de la carte)</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
+    guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton « Partage » de la barre latérale (en bas sur téléphone))</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
     var wrap = document.createElement('div'); wrap.className = 'gposer'; var cont = document.createElement('div'); cont.className = 'gposer-c';
     while (tp.firstChild) cont.appendChild(tp.firstChild);
     cont.insertBefore(search, cont.firstChild); cont.insertBefore(guide, cont.firstChild);
@@ -1225,13 +1227,13 @@
   }
   function show(el, on) { if (el) el.hidden = !on; }
   var NAMES = { '#ffffff': 'Blanc', '#000000': 'Noir', '#c0262d': 'Rouge', '#e8590c': 'Orange', '#e0a800': 'Jaune', '#2f9e44': 'Vert', '#0e7490': 'Turquoise', '#2563eb': 'Bleu', '#000761': 'Bleu marine', '#7a3db8': 'Violet', '#d6336c': 'Rose', '#12142b': 'Noir', '#c6a24e': 'Or', '#d97706': 'Orange', '#1a7f37': 'Vert' };
-  function colorName(c) { return NAMES[String(c).toLowerCase()] || String(c).toUpperCase(); }
+  function colorName(c) { return NAMES[String(c).toLowerCase()] || 'Couleur personnalisée'; }
   function renderPane() {
     if (!$('#gtools')) return;
     $$('#gtools button[data-gt]').forEach(function (b) { b.classList.toggle('on', b.dataset.gt === GT); });
     var s = selShape(), src = s || STY, kind = s ? s.kind : (GT !== 'select' ? GT : null);
     if ($('#gtabs') && !$('#gtabs .on')) setTab(GTAB);
-    $('#gs-target').textContent = s ? 'Sélection : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Style : ' + KINDS[kind].label.toLowerCase() + 's' : 'Style par défaut');
+    $('#gs-target').textContent = s ? 'Sélection : ' + KINDS[s.kind].label.toLowerCase() : (kind ? 'Prochains ' + KINDS[kind].label.toLowerCase() + 's' : 'Couleurs des prochains dessins');
     var filled = !kind || kind === 'polygon' || kind === 'rect' || kind === 'circle' || kind === 'text', isT = kind === 'text';
     $$('#gstyle [data-for]').forEach(function (r) {
       var f = r.dataset.for, on = true;
@@ -1408,7 +1410,7 @@
       case 'circle': return n === 0 ? 'Cercle : cliquez le centre.' : 'Cliquez pour fixer le rayon.';
       case 'arrow': return n === 0 ? 'Flèche : cliquez le départ.' : 'Cliquez la pointe de la flèche.';
       case 'cross': return 'Cliquez pour poser une croix.';
-      case 'stamp': return STAMP ? 'Cliquez pour poser « ' + STAMP.l + ' » (autant de fois que vous voulez) · Échap : terminer.' : '';
+      case 'stamp': return STAMP ? ($('#gs-keep') && $('#gs-keep').checked ? 'Cliquez pour poser « ' + STAMP.l + ' » autant de fois que vous voulez · Échap : terminer.' : 'Cliquez sur la carte pour poser « ' + STAMP.l + ' » (cliquer-étirer : choisir sa taille).') : '';
       case 'text': return 'Cliquez pour poser une zone de texte, puis tapez-la directement sur la carte.';
     }
     return '';
