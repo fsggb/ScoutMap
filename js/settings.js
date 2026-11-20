@@ -45,8 +45,17 @@
     '<div class="set-card"><h3>Notifications</h3><p>Les messages de l’application apparaissent un instant puis se rangent dans le bouton <b>Notifications</b> de la barre latérale, où on les retrouve.</p>' +
     '<button type="button" class="btn-ghost sm" id="set-ntf-test">' + ic('bell') + 'Essayer une notification</button></div>' +
     '<div class="set-card"><h3>Bouton Retour</h3><p>Le bouton Retour du navigateur ou du téléphone ne fait plus quitter ScoutMap : il ferme l’aperçu, la fenêtre ou le menu ouvert, sinon il ramène à l’accueil. Pour quitter, fermez l’onglet.</p></div>' +
-    '<div class="set-card"><h3>Ma position et boussole</h3><p>Un appui sur le bouton de position affiche votre point, la carte au nord. Sur téléphone, un deuxième appui fait tourner la carte dans la direction où vous regardez (comme l’application Cartes IGN) ; le bouton <b>N</b> remet le nord en haut. Un troisième appui arrête le suivi.</p></div>';
+    '<div class="set-card"><h3>Ma position et boussole</h3><p>Un appui sur le bouton de position affiche votre point, la carte au nord. Sur téléphone, un deuxième appui fait tourner la carte dans la direction où vous regardez (comme l’application Cartes IGN) ; le bouton <b>N</b> remet le nord en haut. Un troisième appui arrête le suivi.</p>' +
+    '<button type="button" class="btn-ghost sm" id="set-cmp-test">' + ic('compass') + 'Tester la boussole de cet appareil</button><p class="set-hint" id="set-cmp-res"></p></div>';
   $('#set-update', page).addEventListener('click', function () { if (SM.forceUpdate) SM.forceUpdate(); });
+  $('#set-cmp-test', page).addEventListener('click', function () {
+    var r = $('#set-cmp-res', page); r.textContent = 'Test en cours : tenez le téléphone à plat et tournez-le doucement…';
+    if (!window.SMCompass) { r.textContent = 'Boussole indisponible dans cette version.'; return; }
+    SMCompass.test().then(function (res) {
+      var st = SMCompass.state();
+      r.innerHTML = res === 'ok' ? '<span class="ok">✓ Boussole active : direction ' + Math.round(st.heading) + '° (nord = 0°).</span>' : SM.esc(res);
+    });
+  });
   $('#set-ntf-test', page).addEventListener('click', function () { SM.toast('Voici une notification : elle va se ranger dans le bouton Notifications.'); });
 
   // 3. hors connexion
