@@ -225,10 +225,9 @@
       if (shown || document.visibilityState === 'hidden') return;
       fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
         var m = /js\/app\.js\?v=([0-9a-f]{6,})/.exec(t); if (!m || m[1] === SITE_V || shown) return; shown = true;
-        var b = document.createElement('div'); b.id = 'upd-banner'; b.setAttribute('role', 'status');
-        b.innerHTML = '<span>Une nouvelle version de ScoutMap est disponible.</span><button type="button">Mettre à jour</button><button type="button" class="x" aria-label="Plus tard">×</button>';
-        b.querySelector('button').addEventListener('click', forceUpdate); b.querySelector('.x').addEventListener('click', function () { b.remove(); });
-        document.body.appendChild(b);
+        var act = { label: 'Mettre à jour', fn: forceUpdate };
+        setNote('update', 'Une nouvelle version de ScoutMap est disponible.', 'info', act);
+        toast('Une nouvelle version de ScoutMap est disponible.', { kind: 'info', action: act });
       }).catch(function () { /* hors ligne : on réessaiera */ });
     }
     setTimeout(check, 8000); setInterval(check, 10 * 60 * 1000);
@@ -716,10 +715,52 @@
   });
 
   // ---------- Utilitaires UI ----------
-  var toastT;
-  function toast(msg) {
-    var t = $('#toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 3400);
+  /* Notifications : une carte apparaît (comme sur un téléphone), puis se rétrécit et rentre dans le bouton Notifications,
+     où elle reste consultable (liste « Récentes »). opt : { kind: 'info'|'ok'|'warn'|'bad', action: { label, fn }, sticky: true } */
+  var NHIST = NHIST || [], NUNREAD = NUNREAD || 0;   // (déclarées ainsi : une notification peut arriver avant cette ligne)
+  function ntfHost() {
+    var h = document.getElementById('ntf-host');
+    if (!h) { h = document.createElement('div'); h.id = 'ntf-host'; h.setAttribute('aria-live', 'polite'); document.body.appendChild(h); }
+    return h;
+  }
+  function ntfKind(msg) { return /impossible|erreur|échec|indisponible|injoignable|refus/i.test(msg) ? 'bad' : /attention|trop |manque|hors connexion/i.test(msg) ? 'warn' : /enregistr|terminé|copié|prêt|installée|de retour/i.test(msg) ? 'ok' : 'info'; }
+  function ntfStow(card) {
+    if (!card || card._gone) return; card._gone = true; clearTimeout(card._t);
+    var bell = document.getElementById('rail-notif'), r = card.getBoundingClientRect(), b = bell && bell.getBoundingClientRect();
+    var done = function () { if (card.parentNode) card.parentNode.removeChild(card); if (bell) { bell.classList.remove('ntf-pulse'); void bell.offsetWidth; bell.classList.add('ntf-pulse'); } };
+    if (!b || !b.width || !card.animate || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { card.classList.add('out'); setTimeout(done, 250); return; }
+    var dx = b.left + b.width / 2 - (r.left + r.width / 2), dy = b.top + b.height / 2 - (r.top + r.height / 2);
+    var a = card.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1, borderRadius: '14px' },
+      { transform: 'translate(' + dx * 0.35 + 'px,' + dy * 0.35 + 'px) scale(.55)', opacity: 0.9, borderRadius: '22px', offset: 0.45 },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.06)', opacity: 0.15, borderRadius: '50%' }
+    ], { duration: 650, easing: 'cubic-bezier(.5,0,.75,.2)', fill: 'forwards' });
+    a.onfinish = done;
+  }
+  function toast(msg, opt) {
+    msg = String(msg == null ? '' : msg); if (!msg) return;
+    opt = opt || {};
+    var kind = opt.kind || ntfKind(msg), host = ntfHost();
+    // le même message déjà affiché : on relance simplement son minuteur
+    var same = Array.prototype.filter.call(host.children, function (c) { return c._msg === msg && !c._gone; })[0];
+    if (same) { clearTimeout(same._t); if (!same._sticky) same._t = setTimeout(function () { ntfStow(same); }, 4200); return; }
+    NHIST.unshift({ text: msg, kind: kind, t: Date.now() }); if (NHIST.length > 40) NHIST.length = 40;
+    NUNREAD++; renderNotes();
+    var card = document.createElement('div'); card.className = 'ntf ntf-' + kind; card.setAttribute('role', kind === 'bad' ? 'alert' : 'status'); card._msg = msg; card._sticky = !!opt.sticky;
+    card.innerHTML = '<span class="ntf-ic">' + ic(kind === 'ok' ? 'check' : kind === 'info' ? 'bell' : 'alert') + '</span><span class="ntf-t"></span>' +
+      (opt.action ? '<button type="button" class="ntf-a"></button>' : '') + '<button type="button" class="ntf-x" aria-label="Ranger dans les notifications">' + ic('x') + '</button>';
+    card.querySelector('.ntf-t').textContent = msg;
+    if (opt.action) { var ab = card.querySelector('.ntf-a'); ab.textContent = opt.action.label; ab.addEventListener('click', function () { ntfStow(card); opt.action.fn(); }); }
+    card.querySelector('.ntf-x').addEventListener('click', function () { ntfStow(card); });
+    card.addEventListener('mouseenter', function () { clearTimeout(card._t); });
+    card.addEventListener('mouseleave', function () { if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, 2000); });
+    host.appendChild(card);
+    requestAnimationFrame(function () { card.classList.add('in'); });
+    // trois cartes au plus à l'écran : la plus ancienne se range
+    var live = Array.prototype.filter.call(host.children, function (c) { return !c._gone; });
+    if (live.length > 3) ntfStow(live[0]);
+    if (!opt.sticky) card._t = setTimeout(function () { ntfStow(card); }, Math.min(9000, 3200 + msg.length * 25));
+    return card;
   }
   function pin(label, cls, wrap) {
     return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
@@ -796,15 +837,27 @@
     applyPanel(); updateHint();
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
-  var NOTES = {};
-  function setNote(key, text, kind) { if (text) NOTES[key] = { text: text, kind: kind || 'warn' }; else delete NOTES[key]; renderNotes(); }
+  var NOTES = NOTES || {};
+  function setNote(key, text, kind, action) { if (text) NOTES[key] = { text: text, kind: kind || 'warn', action: action || null }; else delete NOTES[key]; renderNotes(); }
+  function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function renderNotes() {
-    var ks = Object.keys(NOTES), ul = $('#notes-list'), b = $('#notif-badge');
-    if (b) { b.hidden = !ks.length; b.textContent = String(ks.length); }
+    var ks = Object.keys(NOTES || {}), ul = $('#notes-list'), b = $('#notif-badge');
+    if (SUB === 'notif' && S.panelOpen) NUNREAD = 0;
+    var n = ks.length + NUNREAD;
+    if (b) { b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
     if (!ul) return;
-    ul.innerHTML = ks.map(function (k) { var n = NOTES[k]; return '<li class="note-' + n.kind + '">' + ic('alert') + '<span>' + esc(n.text) + '</span></li>'; }).join('');
+    ul.innerHTML = ks.map(function (k) { var n = NOTES[k]; return '<li class="note-' + n.kind + '">' + ic(n.kind === 'info' ? 'bell' : 'alert') + '<span>' + esc(n.text) + '</span>' + (n.action ? '<button type="button" class="btn-primary sm" data-note-act="' + esc(k) + '">' + esc(n.action.label) + '</button>' : '') + '</li>'; }).join('');
     $('#notes-empty').hidden = !!ks.length;
+    var rl = $('#ntf-recent');
+    if (rl) {
+      rl.innerHTML = NHIST.map(function (h) { return '<li class="ntf-row ntf-' + h.kind + '"><time>' + hhmm(h.t) + '</time><span>' + esc(h.text) + '</span></li>'; }).join('');
+      $('#ntf-recent-box').hidden = !NHIST.length;
+    }
   }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-note-act]'); if (a) { var n = NOTES[a.dataset.noteAct]; if (n && n.action) n.action.fn(); return; }
+    if (e.target.closest('#ntf-clear')) { NHIST = []; NUNREAD = 0; renderNotes(); }
+  });
   function setMode(m) {
     if (m === S.mode) { showHome(false); return; }
     if (SIM.open) simClose(true);
