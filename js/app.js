@@ -761,15 +761,37 @@
     msg = String(msg == null ? '' : msg); if (!msg) return;
     opt = opt || {};
     var kind = opt.kind || ntfKind(msg), host = ntfHost();
+    /* Trois niveaux : « important » (ce qui change le tracé ou demande une vérification : point sans chemin, tunnel, vol d'oiseau,
+       distance dépassée…) reste affiché jusqu'à ce qu'on le ferme ; « discret » (simple information : point posé sur l'église…)
+       passe vite ; le niveau normal entre les deux. */
+    var level = opt.level || (opt.sticky ? 'normal' : kind === 'bad' ? 'important' : 'normal');
+    if (level === 'important' && kind === 'info') kind = 'warn';
     // le même message déjà affiché : on relance simplement son minuteur
     var same = Array.prototype.filter.call(host.children, function (c) { return c._msg === msg && !c._gone; })[0];
     if (same) { clearTimeout(same._t); if (!same._sticky) same._t = setTimeout(function () { ntfStow(same); }, 4200); return; }
-    NHIST.unshift({ text: msg, kind: kind, t: Date.now() }); if (NHIST.length > 40) NHIST.length = 40;
+    NHIST.unshift({ text: msg, kind: kind, t: Date.now(), level: level }); if (NHIST.length > 40) NHIST.length = 40;
     NUNREAD++; renderNotes();
-    var card = document.createElement('div'); card.className = 'ntf ntf-' + kind; card.setAttribute('role', kind === 'bad' ? 'alert' : 'status'); card._msg = msg; card._sticky = !!opt.sticky;
-    card.innerHTML = '<span class="ntf-ic">' + ic(kind === 'ok' ? 'check' : kind === 'info' ? 'bell' : 'alert') + '</span><span class="ntf-t"></span>' +
+    var card = document.createElement('div'); card.className = 'ntf ntf-' + kind + ' ntf-' + level; card.setAttribute('role', level === 'important' ? 'alert' : 'status'); card._msg = msg; card._sticky = !!opt.sticky || level === 'important';
+    card.innerHTML = '<span class="ntf-ic">' + ic(kind === 'ok' ? 'check' : kind === 'info' ? 'bell' : 'alert') + '</span><span class="ntf-t">' + (level === 'important' ? '<b class="ntf-lv">À vérifier</b>' : '') + '<span></span></span>' +
       (opt.action ? '<button type="button" class="ntf-a"></button>' : '') + '<button type="button" class="ntf-x" aria-label="Ranger dans les notifications">' + ic('x') + '</button>';
-    card.querySelector('.ntf-t').textContent = msg;
+    card.querySelector('.ntf-t > span').textContent = msg;
+    // glisser la carte vers la droite (ou la gauche) la fait disparaître, comme sur un téléphone ; elle reste dans la liste
+    (function swipe() {
+      var x0 = null, y0 = 0, dx = 0, pid = null;
+      card.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) return; x0 = e.clientX; y0 = e.clientY; dx = 0; pid = e.pointerId; card.style.transition = 'none'; clearTimeout(card._t); });
+      card.addEventListener('pointermove', function (e) {
+        if (x0 === null || e.pointerId !== pid) return; dx = e.clientX - x0;
+        if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(e.clientY - y0)) { try { card.setPointerCapture(pid); } catch (er) { /* ignoré */ } e.preventDefault(); }
+        card.style.transform = 'translateX(' + dx + 'px)'; card.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 260));
+      });
+      function end() {
+        if (x0 === null) return; x0 = null; card.style.transition = '';
+        if (Math.abs(dx) > 70) { card._gone = true; clearTimeout(card._t); card.style.transform = 'translateX(' + (dx > 0 ? 420 : -420) + 'px)'; card.style.opacity = '0'; setTimeout(function () { if (card.parentNode) card.parentNode.removeChild(card); }, 220); return; }
+        card.style.transform = ''; card.style.opacity = '';
+        if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, 2500);
+      }
+      card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+    })();
     if (opt.action) { var ab = card.querySelector('.ntf-a'); ab.textContent = opt.action.label; ab.addEventListener('click', function () { ntfStow(card); opt.action.fn(); }); }
     card.querySelector('.ntf-x').addEventListener('click', function () { ntfStow(card); });
     card.addEventListener('mouseenter', function () { clearTimeout(card._t); });
@@ -779,7 +801,7 @@
     // trois cartes au plus à l'écran : la plus ancienne se range
     var live = Array.prototype.filter.call(host.children, function (c) { return !c._gone; });
     if (live.length > 3) ntfStow(live[0]);
-    if (!opt.sticky) card._t = setTimeout(function () { ntfStow(card); }, Math.min(9000, 3200 + msg.length * 25));
+    if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, level === 'discret' ? 2200 : Math.min(9000, 3200 + msg.length * 25));
     return card;
   }
   function pin(label, cls, wrap) {
@@ -858,7 +880,14 @@
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
   var NOTES = NOTES || {};
-  function setNote(key, text, kind, action) { if (text) NOTES[key] = { text: text, kind: kind || 'warn', action: action || null }; else delete NOTES[key]; renderNotes(); }
+  // Une alerte sur le tracé (tunnel, route nationale, vol d'oiseau…) qui apparaît ou change est aussi montrée tout de suite, en notification importante.
+  var NOTE_LOUD = { nat: 1, off: 1, tunnel: 1 };
+  function setNote(key, text, kind, action) {
+    var prev = NOTES[key] && NOTES[key].text;
+    if (text) NOTES[key] = { text: text, kind: kind || 'warn', action: action || null }; else delete NOTES[key];
+    renderNotes();
+    if (text && !prev && NOTE_LOUD[key]) toast(text, { kind: kind || 'warn', level: 'important' });
+  }
   function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function renderNotes() {
     var ks = Object.keys(NOTES || {}), ul = $('#notes-list'), b = $('#notif-badge');
@@ -918,7 +947,8 @@
       if (RT.tool === 'pan' && TYPES.indexOf(S.rail) >= 0) setTool(S.rail); else togglePanel();
     });
   });
-  $('#rail-toggle').addEventListener('click', togglePanel);
+  // bouton Panneau : depuis Notifications, Tracés ou Partage, il ramène d'abord aux outils du travail en cours ; sinon il ouvre ou ferme le panneau
+  $('#rail-toggle').addEventListener('click', function () { if (SUB && S.panelOpen) { showSub(null); return; } togglePanel(); });
   $('#panel-close').addEventListener('click', function () { S.panelOpen = false; applyPanel(); persist(); });
 
   // ---------- Accueil : choix du type de travail ----------
@@ -1414,7 +1444,7 @@
       if (L.latLng(w.lat, w.lon).distanceTo(L.latLng(res.lat, res.lon)) < 8) return ensureAnchor(w);
       w.orig = o; w.moved = true; w.lat = res.lat; w.lon = res.lon; w.place = undefined;
       renderRouteMarkers(); renderWpList(); computeRoute(); persist(); fillPlaces(S.route);
-      toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.');
+      toast('Point placé sur ' + res.what + '. Clic droit sur le point pour le remettre où vous avez cliqué.', { kind: 'info', level: 'discret' });
       if (res.offtrail) ensureAnchor(w);
     }).catch(function () {});
   }
@@ -1724,7 +1754,7 @@
       if (r.d <= 40) { if (w.anchor) { delete w.anchor; renderRouteMarkers(); computeRoute(); persist(); } return; }
       w.anchor = { lat: r.lat, lon: r.lon, d: Math.round(r.d) };
       renderRouteMarkers(); renderWpList(); computeRoute(); persist();
-      toast('Point hors sentier : il est relié en pointillés au chemin le plus proche (' + G.fmtDist(r.d) + ').');
+      toast('Point hors sentier : il est relié à vol d’oiseau (pointillés) au chemin le plus proche, à ' + G.fmtDist(r.d) + '.', { kind: 'warn', level: 'important' });
     });
   }
   function snapPoint(w) {
@@ -1748,7 +1778,7 @@
       var moved = [];
       rs.forEach(function (r, k) { if (r) { var x = cands[k]; if (r.anchor) { x.anchor = r.anchor; moved.push(r.what); } else { if (!x.orig) x.orig = { lat: x.lat, lon: x.lon }; x.lat = r.lat; x.lon = r.lon; x.place = undefined; x.moved = true; moved.push(r.what); } } });
       if (!moved.length) { var msg = 'Je n’arrive pas à trouver de chemin proche de ces points (à moins de 2,5 km) : rapprochez-les d’une route ou d’un chemin.'; setRouteStatus(msg, true); toast(msg); return; }
-      toast('Aucun chemin direct : point placé sur ' + moved[0] + '.');
+      toast('Aucun chemin trouvé depuis le point cliqué : il a été déplacé sur ' + moved[0] + '.', { kind: 'warn', level: 'important' });
       renderRouteMarkers(); renderWpList(); persist(); fillPlaces(S.route); computeRoute();
     });
     return true;
@@ -1851,7 +1881,7 @@
     clearRouteLines(); RT.route = res;
     drawRoute(); setRouteStatus('');
     renderSteps(); renderRouteStats(); renderGauge(); renderNatWarn(); renderBackWarn(); renderLayerList(); loadNature();
-    if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.');
+    if (first && overMax() && !wasOver) toast('Distance maximale dépassée (' + G.fmtDist(res.dist) + ' pour ' + G.fmtDist(S.route.maxKm * 1000) + ') : le tracé reste modifiable.', { kind: 'warn', level: 'important' });
     S.profileSrc = 'route'; refreshProfile(); persist();
   }
   // Repère les passages repris (même chemin parcouru deux fois) : échantillons tous les ~10 m, voisins à moins de 15 m, séparés par au moins 120 m de parcours.
@@ -3507,7 +3537,7 @@
     /* ---- Direction (boussole du téléphone) et carte orientée, comme l'application Cartes IGN :
        1er appui : position, carte au nord ; 2e appui (téléphone avec boussole) : la carte tourne pour suivre la direction du téléphone ;
        3e appui : arrêt. Le bouton « N » remet le nord en haut ; faire glisser la carte la remet aussi au nord. */
-    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false }, prevFix = null;
+    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
     function bearingOf(a, b) { var r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
     function screenAngle() { return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0); }
     function onOrient(e) {
@@ -3551,7 +3581,7 @@
       raf = requestAnimationFrame(function () {
         raf = 0;
         var el = dot && dot.getElement(), cone = el && el.querySelector('.loc-cone');
-        if (cone) { cone.hidden = CMP.h === null; if (CMP.h !== null) cone.style.transform = 'rotate(' + CMP.h + 'deg)'; }
+        if (cone) { cone.hidden = CMP.h === null; if (CMP.h !== null) { var dc = ((CMP.h - CMP.cone + 540) % 360) - 180; CMP.cone += dc; cone.style.transform = 'rotate(' + CMP.cone + 'deg)'; } }
         if (CMP.orient && CMP.h !== null) setRot(-CMP.h);
       });
     }
@@ -3565,7 +3595,7 @@
       var d = ((deg - CMP.rot + 540) % 360) - 180; CMP.rot = CMP.rot + d;   // chemin le plus court (pas de tour complet à 0°/360°)
       rotWrap.style.transform = CMP.rot ? 'rotate(' + CMP.rot + 'deg)' : '';
       map._smRot = CMP.rot;
-      var nb = $('#north-btn'); if (nb) { nb.hidden = !CMP.rot && !CMP.orient; nb.firstElementChild.style.transform = 'rotate(' + CMP.rot + 'deg)'; }
+      var nb = $('#north-btn'); if (nb) { nb.firstElementChild.style.transform = 'rotate(' + CMP.rot + 'deg)'; nb.classList.toggle('on', CMP.orient); }
     }
     // tuiles : on charge aussi les coins (la vue tournée dépasse le rectangle de la carte)
     L.GridLayer.prototype._getTiledPixelBounds = function (center) {
@@ -3588,10 +3618,27 @@
       map.fire('moveend');
       paint();
     }
-    var nb0 = document.createElement('button'); nb0.type = 'button'; nb0.id = 'north-btn'; nb0.hidden = true; nb0.title = 'Remettre le nord en haut'; nb0.setAttribute('aria-label', 'Remettre le nord en haut');
+    /* Bouton boussole, toujours visible avec les boutons de la carte (comme Google Maps ou Cartes IGN) :
+       carte au nord → un appui oriente la carte dans la direction du téléphone (et démarre la position si besoin) ;
+       carte orientée → un appui remet le nord en haut. L'aiguille montre toujours où est le nord. */
+    var nb0 = document.createElement('button'); nb0.type = 'button'; nb0.id = 'north-btn';
     nb0.innerHTML = '<span class="nb-needle"><i></i><b>N</b></span>';
-    btn.parentNode.insertBefore(nb0, btn);
-    nb0.addEventListener('click', function () { setOrient(false); toast('Carte orientée au nord.'); });
+    btn.parentNode.insertBefore(nb0, btn.nextSibling);
+    function nbTitle() { nb0.title = CMP.orient ? 'Boussole : remettre le nord en haut' : 'Boussole : orienter la carte dans ma direction'; nb0.setAttribute('aria-label', nb0.title); }
+    nbTitle();
+    nb0.addEventListener('click', function () {
+      if (CMP.orient) { setOrient(false); toast('Carte orientée au nord.', { level: 'discret' }); nbTitle(); return; }
+      if (watchId === null) { firstFix = true; follow = true; watchId = SMGeo.subscribe(onFix, onErr); }
+      follow = true; CMP.why = false;
+      compassOn().then(function () {
+        setTimeout(function () {
+          if (CMP.live) { setOrient(true); if (dot) map.panTo(dot.getLatLng(), { animate: true }); toast('Carte orientée dans votre direction.', { level: 'discret' }); }
+          else toast(compassWhy(), { kind: 'warn', level: 'important' });
+          nbTitle(); paint();
+        }, 1200);
+      });
+      paint();
+    });
     // glisser la carte tournée : retour au nord, carte libre (on reprend la main)
     map.getContainer().addEventListener('touchmove', function (e) { if (CMP.orient && e.touches && e.touches.length === 1) { setOrient(false); follow = false; paint(); } }, { passive: true });
     map.getContainer().addEventListener('mousedown', function () { if (CMP.orient) { setOrient(false); follow = false; paint(); } });
@@ -3607,7 +3654,7 @@
       if (!CMP.live && prevFix && SMGeo.dist(prevFix[0], prevFix[1], c[0], c[1]) > Math.max(8, acc / 2)) { CMP.h = bearingOf(prevFix, c); CMP.src = 'gps'; paintHeading(); prevFix = c; }
       else if (!prevFix) prevFix = c;
       if (CMP.orient && follow) { map.panTo(c, { animate: true, duration: 0.5 }); return; }
-      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(Math.max(25000, acc * 12), c[0])), { animate: true }); toast(pos.coarse ? 'Position approximative (≈ ' + Math.round(acc) + ' m) : sur ordinateur, elle vient du réseau. Sur téléphone, en extérieur, elle sera bien plus précise.' : 'Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.'); }
+      if (firstFix) { firstFix = false; map.setView(c, Math.max(map.getZoom(), zoomFor(Math.max(25000, acc * 12), c[0])), { animate: true }); toast(pos.coarse ? 'Position approximative (≈ ' + Math.round(acc) + ' m) : sur ordinateur, elle vient du réseau. Sur téléphone, en extérieur, elle sera bien plus précise.' : 'Position trouvée (précision ≈ ' + Math.round(acc) + ' m). Elle se met à jour quand vous bougez.', { level: 'discret' }); }
       else if (follow && !map.getBounds().pad(-0.3).contains(c)) map.panTo(c, { animate: true, duration: 0.6 });      // la carte ne bouge que si le point approche du bord
     }
     function onErr(code) {
@@ -3629,12 +3676,16 @@
           });
           return;
         }
-        if (follow) { stop(); toast('Suivi de votre position arrêté.'); return; }
+        if (follow) { stop(); toast('Suivi de votre position arrêté.', { level: 'discret' }); return; }
         follow = true; paint(); if (dot) map.panTo(dot.getLatLng(), { animate: true }); return;
       }
-      toast('Recherche de votre position…'); firstFix = true; follow = true;
+      toast('Recherche de votre position…', { level: 'discret' }); firstFix = true; follow = true;
       watchId = SMGeo.subscribe(onFix, onErr);
-      compassOn().then(function () { paint(); });   // (au toucher : l'iPhone demande l'accord pour la boussole)
+      compassOn().then(function () {
+        paint();
+        // sur téléphone, si la boussole reste muette, on le dit tout de suite (capteurs de mouvement désactivés pour le site, accord refusé)
+        setTimeout(function () { if (watchId !== null && !CMP.live && isMobile() && !CMP.warned) { CMP.warned = true; toast(compassWhy(), { kind: 'warn', level: 'important' }); } }, 3500);
+      });   // (au toucher : l'iPhone demande l'accord pour la boussole)
       paint();
     });
     // un déplacement manuel de la carte (souris ou doigt) libère la carte, mais le point continue de bouger
