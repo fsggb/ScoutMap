@@ -3616,6 +3616,25 @@
   // ---------- Liens d'action : la carte se prépare depuis l'adresse (utilisé par ChatGDB et par n'importe quel lien) ----------
   // ?lieu=Lyon | ?centre=45.76,4.83&zoom=12 | ?fond=ortho | ?couches=contour,hiking
   // ?itineraire=Lyon|Villeurbanne|45.7,4.9&boucle=1&titre=Sortie
+  // Raccourcis de l'application installée (manifest.webmanifest) : ?nouveau=route|az|game · ?ouvrir=horsconnexion|bibliotheque
+  (function appShortcuts() {
+    var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
+    var nv = P.get('nouveau'), ov = P.get('ouvrir');
+    if (!nv && !ov) return;
+    setTimeout(function () {
+      if (nv && TYPES.indexOf(nv) >= 0) newProject(nv);
+      else if (ov === 'horsconnexion') { if (window.SM && SM.settings) SM.settings.open('offline'); }
+      else if (ov === 'bibliotheque') { showHome(false); if (!S.mode) setRail('route'); showSub('library'); }
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignoré */ }
+    }, 300);
+  })();
+  // Application installée sur ordinateur : un fichier .gpx, .kml ou un PDF ScoutMap ouvert « avec ScoutMap » arrive ici
+  if ('launchQueue' in window && window.launchQueue && launchQueue.setConsumer) {
+    launchQueue.setConsumer(function (params) {
+      if (!params || !params.files || !params.files.length) return;
+      Promise.all(params.files.map(function (h) { return h.getFile(); })).then(function (fs) { openFiles(fs); }).catch(function () { toast('Ouverture du fichier impossible.'); });
+    });
+  }
   (function urlActions() {
     var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
     if (!['lieu', 'centre', 'fond', 'couches', 'itineraire'].some(function (k) { return P.has(k); })) return;
