@@ -55,8 +55,9 @@
     if (main.indexOf(S.base) < 0 && LAYERS[S.base]) main.push(S.base);   // fond choisi dans la bibliothèque : reste visible ici
     main.forEach(function (k) { h += baseBtn(k, sc, lat, BASE_MAIN_LBL[k]); });
     h += '</div>';
-    if (!viewer) h += '<button type="button" class="base-more" data-more="1">' + (baseMore ? 'Masquer les autres fonds' : 'Tous les fonds de carte…') + '</button>';
-    if (baseMore && !viewer) {
+    var tous = baseMore || S.mode === 'game';   // dans le grand jeu, tous les fonds sont montrés directement
+    if (!viewer && S.mode !== 'game') h += '<button type="button" class="base-more" data-more="1">' + (baseMore ? 'Masquer les autres fonds' : 'Tous les fonds de carte…') + '</button>';
+    if (tous && !viewer) {
       BASEGROUPS.forEach(function (g) {
         var ks = g[1].filter(function (k) { return LAYERS[k] && !LAYERS[k].hidden && BASE_MAIN.indexOf(k) < 0; });
         if (!ks.length) return;
@@ -167,7 +168,7 @@
       if (sg === 'spot') { addSpot(p); return; }
       if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
       else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
-      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
+      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; afterRoute(function () { return snapToChurch(nw); }).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
     else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }

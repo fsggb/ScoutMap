@@ -120,6 +120,27 @@
   }
   // point atteint depuis a en suivant un azimut magnétique (degrés) sur une distance (m)
   function fromMagAz(a, az, dist) { return destination(a, (az + declination(a[0], a[1]) + 360) % 360, dist); }
+  /* Lever et coucher du soleil (algorithme astronomique classique, précision de l'ordre de la minute), en heure locale de la France
+     (heure d'été du dernier dimanche de mars au dernier dimanche d'octobre). Renvoie des minutes depuis minuit, ou null (soleil jamais levé / couché). */
+  function sunTimes(lat, lon, date) {
+    var d = date instanceof Date ? date : new Date(date || Date.now());
+    var Y = d.getFullYear(), M = d.getMonth() + 1, D = d.getDate();
+    var N = Math.floor(275 * M / 9) - Math.floor((M + 9) / 12) * (1 + Math.floor((Y - 4 * Math.floor(Y / 4) + 2) / 3)) + D - 30, rad = Math.PI / 180;
+    function calc(rising) {
+      var lng = lon / 15, t = N + ((rising ? 6 : 18) - lng) / 24, Mm = 0.9856 * t - 3.289;
+      var L = Mm + 1.916 * Math.sin(Mm * rad) + 0.02 * Math.sin(2 * Mm * rad) + 282.634; L = (L % 360 + 360) % 360;
+      var RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad; RA = (RA % 360 + 360) % 360; RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90; RA /= 15;
+      var sd = 0.39782 * Math.sin(L * rad), cd = Math.cos(Math.asin(sd)), cH = (Math.cos(90.833 * rad) - sd * Math.sin(lat * rad)) / (cd * Math.cos(lat * rad));
+      if (cH > 1 || cH < -1) return null;
+      var H = (rising ? 360 - Math.acos(cH) / rad : Math.acos(cH) / rad) / 15, T = H + RA - 0.06571 * t - 6.622, UT = ((T - lng) % 24 + 24) % 24;
+      return UT * 60;
+    }
+    function lastSunday(y, m) { var x = new Date(Date.UTC(y, m + 1, 0)); return x.getUTCDate() - x.getUTCDay(); }
+    var dd = Date.UTC(Y, M - 1, D), ete = dd >= Date.UTC(Y, 2, lastSunday(Y, 2)) && dd < Date.UTC(Y, 9, lastSunday(Y, 9)), off = ete ? 120 : 60;
+    var a = calc(true), b = calc(false);
+    return { lever: a == null ? null : Math.round((a + off) % 1440), coucher: b == null ? null : Math.round((b + off) % 1440), ete: ete };
+  }
+  function fmtMin(m) { if (m == null) return '—'; m = ((Math.round(m) % 1440) + 1440) % 1440; return ('0' + Math.floor(m / 60)).slice(-2) + ' h ' + ('0' + (m % 60)).slice(-2); }
   function fmtAz(v, unit) {
     var u = UNITS[unit], x = ((v % u.full) + u.full) % u.full;
     return x.toFixed(u.dec) + u.label;
@@ -231,7 +252,7 @@
   global.Geo = {
     R: R, haversine: haversine, bearing: bearing, destination: destination, cumDist: cumDist, pathLength: pathLength,
     resample: resample, areaM2: areaM2, formatCoord: formatCoord, UNITS: UNITS, trueToUnit: trueToUnit,
-    unitToTrue: unitToTrue, declination: declination, magAz: magAz, fromMagAz: fromMagAz, fmtAz: fmtAz, fmtDist: fmtDist, fmtDur: fmtDur, fmtArea: fmtArea,
+    unitToTrue: unitToTrue, declination: declination, sunTimes: sunTimes, fmtMin: fmtMin, magAz: magAz, fromMagAz: fromMagAz, fmtAz: fmtAz, fmtDist: fmtDist, fmtDur: fmtDur, fmtArea: fmtArea,
     esc: esc, trkXml: trkXml, wptXml: wptXml, gpxDoc: gpxDoc, parseGpx: parseGpx, parseKml: parseKml, parseGeoJson: parseGeoJson
   };
 })(window);

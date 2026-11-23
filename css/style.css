@@ -1735,3 +1735,21 @@ body[data-pt=pointeur] .pin:not(.search)::after{content:attr(data-l);position:ab
 body[data-pt=point] .pin:not(.search){width:14px;height:14px;font-size:0;border-width:2.5px;background:var(--pc)!important;margin:7px}
 body[data-pt] .pin-wrap.sel .pin:not(.search){transform:none}
 
+
+.mask-lbl span{display:inline-block;transform:translate(-50%,6px);white-space:nowrap;padding:3px 10px;border-radius:999px;background:#fff;border:1px solid #8a7a4a;color:#5b4d22;font:700 11.5px Inter,system-ui,sans-serif}
+.home-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+
+/* Notifications et bulles d'aide : toutes en clair, sur le même modèle (carte blanche, filet or) */
+.toolhint{background:rgba(255,255,255,.96)!important;color:var(--ink)!important;border:1px solid var(--line-2);border-left:4px solid var(--gold);border-radius:14px!important;box-shadow:0 8px 28px rgba(0,7,97,.16)!important}
+.toolhint .ic{color:var(--gold-d)!important}
+.toolhint .btn-gold,.toolhint button{background:var(--gold-l)!important;color:var(--navy)!important;border:1px solid var(--gold)!important}
+.ntf-info .ntf-ic{background:var(--gold-l);color:var(--gold-d)}
+.ntf-a{background:var(--gold-l)!important;color:var(--navy)!important;border:1px solid var(--gold)!important}
+.notes .note-info{background:#fafbfe;color:var(--ink);border:1px solid var(--line)}
+
+/* grand jeu : le panneau garde la même largeur (il ne s'élargit plus tout seul) */
+.app.wide{grid-template-columns:72px 350px 1fr}.app.wide.nopanel{grid-template-columns:72px 0 1fr}
+.app.wide .gstamps{grid-template-columns:repeat(4,1fr)}
+.gwz-name{margin:0 0 18px}.gwz-name h2{margin:0 0 8px}
+.gwz-name input{width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid var(--line-2);border-radius:12px;font:inherit;font-size:16px}
+.gwz-name input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-l)}.gwz-name input.bad{border-color:var(--danger)}

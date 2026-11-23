@@ -270,6 +270,7 @@
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
       <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="route-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau tracé</button><button type="button" class="btn-ghost" id="route-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
       <div class="seg full" id="route-mode"><button type="button" data-v="oneway">Aller simple</button><button type="button" data-v="loop">Boucle</button></div>
+      <label class="field" id="mask-field"><span>Carte (épreuve à la boussole, sans carte)</span><select id="route-mask"><option value="off">Carte visible</option><option value="zone">Carte masquée sous la zone des azimuts</option><option value="all">Toute la carte masquée</option></select></label>
       <label class="field"><span>Optimisation</span><select id="route-opt"><option value="fastest">Le plus rapide</option><option value="shortest">Le plus court</option></select></label>
       <div class="group">
         <div class="group-h">
@@ -528,7 +529,6 @@
     <div class="home-grid">
       <button type="button" class="home-card" id="home-open"><span class="hc-ic"><svg class="ic"><use href="#i-upload"/></svg></span><b>Ouvrir un fichier</b><small>Une page web enregistrée (.html) ou une trace GPX, KML, GeoJSON.</small></button>
       <button type="button" class="home-card" data-start="route"><span class="hc-ic"><svg class="ic"><use href="#i-route"/></svg></span><b>Créer un itinéraire</b><small>Parcours ou boucle à pied, profil d’altitude, feuille de route.</small></button>
-      <button type="button" class="home-card" data-start="az"><span class="hc-ic"><svg class="ic"><use href="#i-compass"/></svg></span><b>Créer des azimuts</b><small>Course d’orientation : azimuts, contre-azimuts, distances.</small></button>
       <button type="button" class="home-card" data-start="game"><span class="hc-ic"><svg class="ic"><use href="#i-flag"/></svg></span><b>Créer un grand jeu</b><small>Zones, flèches, croix et textes de couleur sur la carte.</small></button>
     </div>
     <div class="home-tutos"><span>Tutoriels vidéo</span>

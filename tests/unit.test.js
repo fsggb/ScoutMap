@@ -156,3 +156,12 @@ test('Préparation à plusieurs : fusion des modifications faites en même temps
   assert.equal(SMMerge.merge3({ a: 1 }, { a: 2 }, { a: 3 }).a, 3);
   assert.equal(JSON.stringify(SMMerge.merge3(null, { a: 2 }, { a: 3 })), '{"a":3}', 'sans état commun : la version reçue');
 });
+
+test('Soleil : lever et coucher en France (heure légale)', () => {
+  const { Geo } = load(['geo.js']);
+  const t = (d) => Geo.sunTimes(45.76, 4.83, new Date(d + 'T12:00:00'));
+  const ete = t('2026-06-21'), hiv = t('2026-12-21');
+  assert.ok(ete.ete && !hiv.ete, 'heure d’été en juin, pas en décembre');
+  assert.ok(Math.abs(ete.lever - (6 * 60 + 5)) < 20 && Math.abs(ete.coucher - (21 * 60 + 35)) < 20, 'Lyon 21 juin : lever ~6 h 05, coucher ~21 h 35 (obtenu ' + Geo.fmtMin(ete.lever) + ' / ' + Geo.fmtMin(ete.coucher) + ')');
+  assert.ok(Math.abs(hiv.lever - (8 * 60 + 20)) < 15 && Math.abs(hiv.coucher - (17 * 60)) < 15, 'Lyon 21 décembre : lever ~8 h 20, coucher ~17 h 00 (obtenu ' + Geo.fmtMin(hiv.lever) + ' / ' + Geo.fmtMin(hiv.coucher) + ')');
+});

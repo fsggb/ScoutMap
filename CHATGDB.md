@@ -7,7 +7,7 @@ maj: 2026-11-23
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.4.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.5.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
 
 ## Nouveautés de la version 2
 - Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
@@ -33,6 +33,7 @@ Après « ouvrir » Cartes IGN, ChatGDB utilise `api_commandes`, `api_inspecter`
 - `route.add` {query (lieu) ou coords (texte, tous formats, lien Google Maps) ou lat + lon, mode: chemin | droite | azimut, nom, at} ; `route.add_azimuth` {azimut en degrés, distance en mètres, nom} ; `route.mode` {index, mode} ; `route.tool` {mode} ; `route.remove` {index} ; `route.rename_point` {index, nom} ; `route.loop` {boucle} ; `route.reverse` ; `route.options` {optimisation: rapide | court, distance_max_km} ; `route.clear`.
 - `route.result` : attend le calcul et renvoie la distance (m), la durée (s), les points, les azimuts et contre-azimuts.
 - `library.list` (tracés du navigateur, avec leur id) ; `library.open` {id} ; `library.show` {id, visible} (affiche un tracé en plus, de sa couleur).
+- `route.analyse` {depart HH:MM, date, allure_kmh, pauses_min} : distance, dénivelé, durée de marche, heure d'arrivée, marge avant le coucher du soleil et alertes (plus de 40 km, dénivelé, nuit) ; `info.sun` {query | lat+lon, date} : lever et coucher du soleil (heure de France).
 - `view.place` {query, zoom} ; `view.center` {lat, lon, zoom} ; `view.scale` {echelle} ; `view.fit` ; `map.base` {fond} ; `map.layers` {afficher, masquer} ; `map.grid` {type: none | l93 | km | utm | ll | game}.
 - `print.open` (ouvre la fenêtre d'impression pour la personne) ; `share.link` (lien du travail complet).
 - `embed.spec` {ids (bibliothèque, facultatif ; sinon le travail en cours), titre, legende, profil} : renvoie la balise artefact de type app à recopier telle quelle (elle contient la commande `embed.show` : aucune donnée dans l'adresse, comme pour les applications Craft). L'artefact montre seulement la carte avec les tracés choisis, chacun de sa couleur, et une légende (nom et distance). Rien n'est modifié dans le navigateur de la personne.

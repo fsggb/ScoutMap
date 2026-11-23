@@ -154,6 +154,7 @@
       ],
       print: [
         ['paper', 'seg', 'Papier', [['A4', 'A4'], ['A3', 'A3']]],
+        ['sharp', 'seg', 'Netteté des cartes imprimées', [['auto', 'Automatique'], ['1', 'Rapide'], ['2', 'Maximale']]],
         ['tscale', 'seg', 'Échelle des cartes', [[10000, '1 : 10 000'], [25000, '1 : 25 000'], [50000, '1 : 50 000']]],
         ['line', 'seg', 'Tracé sur les cartes de l’itinéraire', [[false, 'Points seulement'], [true, 'Affiché']]],
         ['roadmap', 'check', 'Feuille de route'],

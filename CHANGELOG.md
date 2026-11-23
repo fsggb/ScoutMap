@@ -3,6 +3,34 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.5.0 — 25 novembre 2026
+
+### Vitesse
+- **Itinéraire** : le tracé apparaît dès que le point est posé (moins d'une seconde au lieu de quatre) ; la recherche du village ou de l'église, qui faisait une trentaine de requêtes avant le calcul, passe après le tracé et en demande beaucoup moins.
+- **Cartes d'impression** : le chargement des cartes IGN est mesuré (4 feuilles : 245 tuiles en 22 s en netteté « Rapide », 701 tuiles en 78 s en « Maximale »). **Réglages › Impression › Netteté des cartes imprimées** : Automatique (maximale jusqu'à 3 feuilles A4 ou 2 feuilles A3, rapide au-delà), Rapide ou Maximale. Aucune limitation « anti-abus » ne ralentit les cartes : seule la quantité de tuiles compte.
+- **SCAN 25** : une tuile sans données (hors de la carte) ne déclenche plus la fausse alerte « SCAN 25 momentanément indisponible » ni le secours lent ; l'alerte n'apparaît qu'après plusieurs échecs sans aucune réussite.
+
+### Azimuts
+- **Épreuve sans carte** : sous le choix du mode, « Carte (épreuve à la boussole, sans carte) » : carte visible, **masquée sous la zone des azimuts**, ou **toute la carte masquée**. Le masque s'imprime aussi sur les cartes.
+- Le bouton « Créer des azimuts » de l'accueil est retiré : les azimuts se font dans l'itinéraire (outil Azimut).
+- Menus : doublons retirés (Enregistrer en PDF, Retirer le dernier point, Installer l'application dans Aide, échelles 1 : 2 000 et 1 : 1 000, lien vers la Géoplateforme).
+
+### Recherche
+- Les **liens courts Google Maps** (maps.app.goo.gl…) s'ouvrent : le serveur ScoutHub lit l'adresse complète (un navigateur ne peut pas la lire lui-même depuis un autre site). Seules les adresses de Google Maps sont suivies.
+
+### Grand jeu
+- Le thème **« Thème libre »** est nommé clairement ; le nom du jeu est un titre comme « Choisissez le thème du jeu » ; double-clic sur un thème pour continuer.
+- **Le fond de carte choisi à l'assistant est bien appliqué** (avant, il était perdu avec le thème libre ou quand il différait de celui du thème).
+- **Palette** : les éléments du thème d'abord, puis **tous les autres thèmes en dessous, fermés**. Le panneau des fonds de carte montre **tous les fonds** directement.
+- Le panneau latéral du grand jeu **garde la même largeur** (il ne s'élargit plus).
+- **Les éléments suivent le terrain** : tracés, croix, flèches et textes rétrécissent quand on dézoome et grossissent quand on zoome, comme les icônes. Les contours (bordures des lignes illustrées, routes, murs…) sont **moins épais** et le trait par défaut passe de 3 à 2.
+
+### Notifications
+- Notifications et bulles d'aide du grand jeu **toutes en clair** (carte blanche, filet or), plus de bleu foncé.
+
+### Pour ChatGDB
+- Nouvelles commandes : `route.analyse` (distance, dénivelé, durée de marche, heure d'arrivée comparée au coucher du soleil, alertes) et `info.sun` (lever et coucher du soleil, heure de France).
+
 ## 2.4.0 — 24 novembre 2026
 
 Une seule version pour tout ce lot (partage, pilotage, points, grand jeu).

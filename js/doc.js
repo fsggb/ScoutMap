@@ -57,7 +57,7 @@
   function config() {
     return { type: 'combo', title: multiPick() ? '' : PRM.title, paper: PRM.paper, items: pickables(), showLine: PRM.line, roadmap: PRM.roadmap, maps: PRM.maps, onesheet: PRM.onesheet, calq: PRM.calq,
       overview: true, profile: true, notes: true,
-      tiles: { scale: PRM.tscale, corridor: 6, margin: 5, overlap: 10, sharp: 'auto', index: true, paper: PRM.paper, orient: 'auto', mix: true } };
+      tiles: { scale: PRM.tscale, corridor: 6, margin: 5, overlap: 10, sharp: PRM.sharp == null ? 'auto' : PRM.sharp, index: true, paper: PRM.paper, orient: 'auto', mix: true } };
   }
   // ----- Vignettes de la première fenêtre (dessinées à partir des vraies données)
   function lonlat(items) { return geomLines(items, true).filter(function (l) { return l && l.length; }); }
@@ -229,6 +229,8 @@
   }
   // ---------- Cartes statiques (aperçu et impression) ----------
   function closeMaps() { docMaps.forEach(function (m) { try { m.remove(); } catch (e) { /* déjà retirée */ } }); docMaps = []; }
+  // netteté des cartes d'ensemble (une seule carte par feuille de route) : maximale pour le SCAN 25
+  function ovOff() { var b = SM.LAYERS[S.base]; return b && b.scan ? 2 : Math.max(1, SM.wantOff()); }
   function makeMap(el, wpx, hpx, off, o) {
     o = o || {};
     el.style.width = wpx + 'px'; el.style.height = hpx + 'px';
@@ -237,7 +239,7 @@
     if (SM.grid) SM.grid.addTo(m);
     if (o.nobase) { m._ready = Promise.resolve(); docMaps.push(m); return m; }
     m._ready = new Promise(function (res) {
-      var bl = SM.LAYERS[o.base || S.base], base = SM.tile(o.base || S.base, bl && bl.scan ? 2 : off, { keepBuffer: 4 }).addTo(m), done = false;   // SCAN 25 : toujours la meilleure définition
+      var base = SM.tile(o.base || S.base, off, { keepBuffer: 4 }).addTo(m), done = false;
       function fin() { if (!done) { done = true; (SM.hikeDraw ? SM.hikeDraw(m) : Promise.resolve()).then(function () { return SM.waterDraw ? SM.waterDraw(m) : null; }).then(res, res); } }
       // Prête quand toutes les tuiles sont chargées (les tuiles en erreur sont relancées par SM.tile), au plus 25 s.
       var t0 = Date.now();
@@ -275,6 +277,7 @@
           it.res.line.forEach(function (p) { pts.push(p); });
         }
         d.wps.forEach(function (p, i) { if (!o.noMarkers) L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
+        if (SM.maskFor) { var mk = SM.maskFor(d, m); if (mk) mk.addTo(m); }   // épreuve sans carte : le masque s'imprime aussi
         (d.spots || []).forEach(function (q, i) { if (!o.noMarkers) L.marker([q.lat, q.lon], { icon: SM.pin('P' + (i + 1), 'spot'), interactive: false, zIndexOffset: 950 }).addTo(m); pts.push([q.lat, q.lon]); });
       }
     });
@@ -454,7 +457,7 @@
       }
       if (pl) {
         var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length, base: S.base, noLine: !c.showLine,
-          off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
+          off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 3 : 2) ? 2 : 1) : +prm.sharp, z0: SM.zoomFor(prm.scale, pl.lat0),
           title: c.title ? (groups.length > 1 && gi[0] ? c.title + ' – ' + gi[0].name : c.title) : (gi.length === 1 ? gi[0].name : (S.name || 'Parcours')) };
         if (pl.pages.length > 1) step('Planche d’assemblage…', function () { return indexSheet(pl, gi, o); }, gk, 'map', lab);
         pl.pages.forEach(function (pg) { step('Carte F' + pg.n + ' sur ' + o.total + '…', function () { return pageSheet(pl, pg, gi, o); }, gk, 'map', lab); });
@@ -591,7 +594,7 @@
     $('#doc').hidden = false; document.body.classList.add('doc-open'); $('.doc-scroll').scrollTop = 0;
     origTitle = origTitle || document.title;
     var o = { P: P, pm: prm.margin, paper: prm.paper, scale: prm.scale, total: pl.pages.length,
-      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (prm.paper === 'A4' && pl.pages.length <= 6 ? 2 : 1) : +prm.sharp,
+      base: S.base, noLine: !c.showLine, off: prm.sharp === 'auto' ? (pl.pages.length <= (prm.paper === 'A4' ? 3 : 2) ? 2 : 1) : +prm.sharp,
       z0: SM.zoomFor(prm.scale, pl.lat0), title: c.title || (items.length === 1 ? items[0].name : (S.name || 'Parcours')) };
     setBusy(true, 'Préparation des feuilles…');
     var chain = Promise.resolve();
@@ -713,7 +716,7 @@
       if (over() > 1 && sv) ph = Math.max(60, ph - over());
       if (over() > 1) mh = Math.max(150, mh - over());
       apply();
-      var m = makeMap(ov, cw0, mh, Math.max(1, SM.wantOff())), b = boundsOf(drawItems(m, [it]));
+      var m = makeMap(ov, cw0, mh, ovOff()), b = boundsOf(drawItems(m, [it]));
       if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
       L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
       if (sv && p) {
@@ -778,7 +781,7 @@
         apply(); sq = { mh: mh, ph: ph };
       })();
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, Math.max(1, SM.wantOff()));
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, sq.mh, ovOff());
         var pts = drawItems(m, [it]), b = boundsOf(pts); mp = m; bnd = b;
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 }); else m.setView(SM.map.getCenter(), SM.map.getZoom(), { animate: false });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);
@@ -807,7 +810,7 @@
       sheet.innerHTML = h + foot();
       var ov = $('#dov' + uid, sheet);
       if (ov) {
-        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), Math.max(1, SM.wantOff()));
+        var cwpx = Math.floor(cw * MM), m = makeMap(ov, cwpx, Math.round(Math.min(cwpx * 0.42, 80 * MM)), ovOff());
         var b = boundsOf(drawItems(m, [it]));
         if (b) m.fitBounds(b, { animate: false, padding: [30, 30], maxZoom: 16 });
         L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(m);

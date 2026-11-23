@@ -30,7 +30,7 @@
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
     points: { style: 'pastille' },
-    print: { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
+    print: { sharp: 'auto', paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {
     var d = JSON.parse(JSON.stringify(DEF_BASE));
@@ -60,7 +60,7 @@
     detail: 'auto', speed: DEF.route.speed, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true }, grid: { type: 'none' },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
-    gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 3, size: 18, fontColor: '#12142b', dash: false },
+    gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 2, size: 18, fontColor: '#12142b', dash: false },
     tracks: [], view: { c: [46.6, 2.5], z: 5.6 }
   };
   try {

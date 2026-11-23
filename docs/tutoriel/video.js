@@ -94,9 +94,10 @@ const SCENARIOS = {
   },
   az: async () => {
     await intro('Les azimuts', 'Course d’orientation à la boussole');
-    await click('.home-card[data-start=az]', 1200);
+    await startRoute();
     await view(45.8992, 6.1294, 15);
-    await say('« Créer des azimuts » ouvre l’itinéraire avec l’outil Azimut déjà choisi.', 2800);
+    await say('Les azimuts se font dans l’itinéraire : choisissez l’outil Azimut dans la barre flottante.', 2800);
+    await click('#rbar [data-rt=az]', 700);
     await say('Cliquez le point de départ, puis chaque point suivant : chaque tronçon est une ligne droite.', 2800);
     await clickMap(45.8992, 6.1294); await clickMap(45.9035, 6.1405, 900); await clickMap(45.9072, 6.1362, 900);
     await say('Chaque tronçon affiche l’azimut en degrés (nord magnétique, déclinaison déjà comptée), et la distance.', 3600);
@@ -104,17 +105,20 @@ const SCENARIOS = {
     await page.evaluate(() => { const a = document.querySelector('#raim'); a && a.scrollIntoView({ block: 'center' }); });
     await type('#raim-az', '200'); await type('#raim-d', '250'); await click('#raim-add', 1200);
     await say('Le contre-azimut (pour revenir) est donné dans la liste des points.', 2800);
+    await say('Pour une épreuve sans carte : « Carte masquée sous la zone des azimuts » cache la carte (aussi à l’impression).', 3400);
+    await page.evaluate(() => { const m = document.querySelector('#route-mask'); m && m.scrollIntoView({ block: 'center' }); }); await wait(500);
+    await page.selectOption('#route-mask', 'zone'); await wait(1800);
     await say('Chemin, Droite et Azimut se mélangent : un morceau d’azimut au milieu d’un itinéraire est possible.', 3400);
     await click('#route-pdf', 900); await say('La feuille de route imprimée reprend les azimuts, contre-azimuts et distances.', 3200);
   },
   game: async () => {
     await intro('Le grand jeu', 'Zones, bases, éléments et partage en direct');
     await click('.home-card[data-start=game]', 1500);
-    await say('L’assistant commence par le thème du jeu : Moyen Âge, Pirates, Résistance… ou Libre.', 3200);
-    await page.evaluate(() => { const b = [...document.querySelectorAll('button,.gth,[data-theme]')].find((x) => /Libre/.test(x.textContent || '')); b && b.scrollIntoView({ block: 'center' }); });
+    await say('L’assistant commence par le nom et le thème du jeu : Moyen Âge, Pirates, Résistance… ou thème libre.', 3200);
+    await page.evaluate(() => { const b = [...document.querySelectorAll('button,.gth,[data-theme]')].find((x) => /libre/i.test(x.textContent || '')); b && b.scrollIntoView({ block: 'center' }); });
     await wait(900);
-    await say('Le thème Libre donne accès à toute la bibliothèque : 323 éléments de tous les thèmes.', 3200);
-    await page.evaluate(() => { const b = [...document.querySelectorAll('button,.gth,[data-theme]')].find((x) => /Libre/.test(x.textContent || '')); b && b.click(); });
+    await say('Le thème libre donne accès à toute la bibliothèque : 323 éléments de tous les thèmes.', 3200);
+    await page.evaluate(() => { const b = [...document.querySelectorAll('button,.gth,[data-theme]')].find((x) => /libre/i.test(x.textContent || '')); b && b.click(); });
     await wait(600);
     await page.evaluate(() => { SM.S.game.theme = 'perso'; SM.S.game.themeLocked = true; if (SM.game.closeWizard) SM.game.closeWizard(); SM.persist(); SM.game.render(); });   // fin de l'assistant (thème Libre)
     await wait(1200);
