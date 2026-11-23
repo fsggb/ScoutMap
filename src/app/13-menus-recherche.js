@@ -26,6 +26,7 @@
   }
   function setDirect(i, on) {
     var w = S.route.wps[i]; if (!w) return; if (on) w.direct = true; else delete w.direct;
+    if (on === 'az') w.az = true; else delete w.az;
     renderRouteMarkers(); renderWpList(); computeRoute(); persist();
   }
   function routePtMenu(i) {
@@ -34,7 +35,12 @@
       { t: 'Renommer…', i: 'edit', a: function () { renameWp(i); } },
       { t: 'Supprimer ce point', i: 'trash', k: 'Suppr', danger: true, a: function () { removeWp(i); } }
     ];
-    if (i > 0) m.unshift(d.wps[i].direct ? { t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } } : { t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
+    if (i > 0) {
+      var wi = d.wps[i], cur = wi.az ? 'az' : wi.direct ? 'direct' : 'route';
+      if (cur !== 'az') m.unshift({ t: 'Rejoindre en azimut (boussole) depuis le point précédent', i: 'compass', a: function () { setDirect(i, 'az'); } });
+      if (cur !== 'direct') m.unshift({ t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
+      if (cur !== 'route') m.unshift({ t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } });
+    }
     if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
     if (i === 0 && n >= 3 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });

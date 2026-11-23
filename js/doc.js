@@ -294,6 +294,8 @@
     function row(idx, leg) {
       var back = idx >= n, i = back ? 0 : idx, w = d.wps[i];
       var place = w.place && w.name && w.name !== w.place ? 'près de ' + w.place + ' · ' : '';
+      if (!back && idx > 0 && w.az && d.wps[i - 1]) { var mz = G.magAz([d.wps[i - 1].lat, d.wps[i - 1].lon], [w.lat, w.lon]); place = 'Azimut ' + mz.az + '° (contre-azimut ' + mz.back + '°) · ' + place; }
+      else if (!back && idx > 0 && w.direct) place = 'En ligne droite · ' + place;
       rows.push({ lab: back ? 'A' : SM.lblOf(d, idx), cls: idx === 0 ? 'start' : (back || (idx === n - 1 && !loop)) ? 'end' : 'via',
         name: SM.nameOf(d, i) + (back ? ' (retour)' : ''), sub: place + G.formatCoord('wgs', w.lat, w.lon), leg: leg, cum: cum,
         alt: prof ? altAt(prof, cum * ratio) : null, d: cum * ratio });

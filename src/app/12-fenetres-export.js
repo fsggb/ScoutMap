@@ -163,7 +163,10 @@
     if (RT.tool === 'route') {
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
       if (e.originalEvent && e.originalEvent.shiftKey && S.route.wps.length) { placeAs('direct', p); return; }
-      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
+      var sg = segOf();
+      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
+      else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
+      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
     else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }

@@ -103,6 +103,23 @@
     if (ref === 'mag') d += decl;
     return ((d % 360) + 360) % 360;
   }
+  /* Déclinaison magnétique estimée (degrés, positive vers l'est), pour lire les azimuts à la boussole sans réglage.
+     Modèle simple ajusté sur la France métropolitaine en 2026 (environ 0° à la pointe de Bretagne, +2° à Paris, +3,5° en Alsace
+     et sur la Côte d'Azur), avec la dérive annuelle (+0,17° par an). Précision de l'ordre du degré en France : c'est moins
+     que l'erreur de lecture d'une boussole de randonnée. Hors de France, la valeur reste indicative. */
+  function declination(lat, lon, when) {
+    var y = (when instanceof Date ? when : new Date()).getFullYear() + (when instanceof Date ? when : new Date()).getMonth() / 12;
+    var d = 2.0 + 0.30 * (lon - 2.35) + 0.17 * (y - 2026);
+    return Math.max(-15, Math.min(15, d));
+  }
+  // azimut magnétique (degrés entiers, 0 à 359) d'un tronçon a → b, et son contre-azimut
+  function magAz(a, b) {
+    var t = bearing(a, b), dc = declination((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    var m = Math.round((t - dc + 720) % 360) % 360;
+    return { az: m, back: (m + 180) % 360, dist: haversine(a, b), decl: dc };
+  }
+  // point atteint depuis a en suivant un azimut magnétique (degrés) sur une distance (m)
+  function fromMagAz(a, az, dist) { return destination(a, (az + declination(a[0], a[1]) + 360) % 360, dist); }
   function fmtAz(v, unit) {
     var u = UNITS[unit], x = ((v % u.full) + u.full) % u.full;
     return x.toFixed(u.dec) + u.label;
@@ -214,7 +231,7 @@
   global.Geo = {
     R: R, haversine: haversine, bearing: bearing, destination: destination, cumDist: cumDist, pathLength: pathLength,
     resample: resample, areaM2: areaM2, formatCoord: formatCoord, UNITS: UNITS, trueToUnit: trueToUnit,
-    unitToTrue: unitToTrue, fmtAz: fmtAz, fmtDist: fmtDist, fmtDur: fmtDur, fmtArea: fmtArea,
+    unitToTrue: unitToTrue, declination: declination, magAz: magAz, fromMagAz: fromMagAz, fmtAz: fmtAz, fmtDist: fmtDist, fmtDur: fmtDur, fmtArea: fmtArea,
     esc: esc, trkXml: trkXml, wptXml: wptXml, gpxDoc: gpxDoc, parseGpx: parseGpx, parseKml: parseKml, parseGeoJson: parseGeoJson
   };
 })(window);

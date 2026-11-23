@@ -98,7 +98,7 @@
     var A = [a.lat, a.lon], B = [b.lat, b.lon], d = G.haversine(A, B), n = Math.max(1, Math.min(80, Math.round(d / 40))), line = [];
     for (var k = 0; k <= n; k++) line.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n]);
     var dur = d / (5 / 3.6);
-    return { line: line, dist: d, dur: dur, direct: true, portion: { start: pf(a), end: pf(b), distance: d, duration: dur, steps: [] }, relaxed: false };
+    return { line: line, dist: d, dur: dur, direct: true, az: !!b.az, portion: { start: pf(a), end: pf(b), distance: d, duration: dur, steps: [] }, relaxed: false };
   }
   function fetchLeg(a, b, via, relaxed) {
     var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, relaxed ? 'r' : 't', pf(a), via ? pf(via) : '', pf(b)].join('|');
@@ -139,7 +139,7 @@
       if (l.directIn) directs.push({ from: i0, to: i0 + l.directIn });
       for (var k = st; k < ln.length; k++) line.push(ln[k]);
       bounds.push(line.length - 1); dist += l.dist; dur += l.dur; portions.push(l.portion);
-      if (l.direct) directs.push({ from: bounds[bounds.length - 2], to: bounds[bounds.length - 1] });
+      if (l.direct) directs.push({ from: bounds[bounds.length - 2], to: bounds[bounds.length - 1], az: !!l.az });
     });
     return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds, directs: directs, tunnel: legs.some(function (l) { return l.relaxed; }) };
   }
@@ -271,7 +271,8 @@
   function insertOnRoute(p) {
     var r = RT.route, s = nearestSegment(r.line, p), leg = legOfSeg(r, s);
     var dir = (r.directs || []).some(function (u) { return s >= u.from && s < u.to; });   // le point cliqué sur un tronçon en ligne droite est lui aussi en ligne droite
-    addWp(p, null, Math.min(leg + 1, S.route.wps.length), dir);
+    var at = Math.min(leg + 1, S.route.wps.length), nx = S.route.wps[at];
+    addWp(p, null, at, dir ? (nx && nx.az ? 'az' : 'direct') : (segOf() === 'route' ? null : segOf()));
   }
   // Segment du tracé le plus proche d'un point (distance au segment, pas au sommet : un clic près d'une jonction ne change pas de tronçon).
   function nearestSegment(line, p) {
