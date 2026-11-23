@@ -1,8 +1,22 @@
-# Tutoriel vidéo ScoutMap
+# Tutoriels vidéo de ScoutMap
 
-La vidéo `assets/tuto-scoutmap.mp4` (bouton « ? » de l'application, menu Aide > Tutoriel vidéo) est générée par script :
+Quatre vidéos sous-titrées (sans voix) : `assets/tuto-global.mp4`, `tuto-route.mp4`, `tuto-az.mp4`, `tuto-game.mp4`, avec leurs affiches `assets/tuto-poster-*.png`. Elles s'ouvrent depuis l'accueil (« Tutoriels vidéo ») et le menu Aide.
 
-- `tuto.js` : scénario Playwright joué sur le site déployé, avec curseur visible. Chaque phrase de la voix de synthèse (Piper, voix française `fr_FR-siwis-medium`) démarre au moment de l'action correspondante ; les attentes de chargement sont repérées (`CUTS`) pour être coupées.
-- `compose.py` : montage ffmpeg : affiche de titre (`assets/tuto-poster.png`), vidéo capturée sans les coupes, pistes audio placées aux bons instants.
+## Les refaire après un changement d'interface
 
-Pour refaire la vidéo après un changement d'interface : modifier les textes / actions dans `tuto.js`, relancer (nécessite Playwright, Piper et ffmpeg), monter avec `compose.py`, puis remplacer `assets/tuto-scoutmap.mp4`.
+Elles sont générées par `video.js` : un vrai navigateur joue le scénario sur l'application locale (curseur visible, une phrase affichée en bas à chaque étape), enregistre l'écran, puis ffmpeg produit le MP4.
+
+```
+npm i -D playwright && npx playwright install chromium     # une fois
+node docs/tutoriel/video.js global      # ou route, az, game, tout
+```
+
+- Les scénarios sont dans l'objet `SCENARIOS` de `video.js` : une étape = `say('phrase', durée)` puis une action (`click`, `clickMap`, `type`, `view`…). Pour modifier une vidéo, modifier ses phrases et ses actions.
+- Si un élément de l'interface a changé de nom, le script le signale (« étape manquée … ») et continue : corriger le sélecteur.
+- Il faut un accès au réseau (fonds de carte IGN, calcul d'itinéraire).
+
+`tuto.js`, `cards.js` et `compose.py` sont l'ancienne méthode (voix de synthèse Piper) : conservés pour mémoire, plus utilisés.
+
+## Présentation
+
+Une présentation Google (« ScoutMap – Tutoriel de prise en main (FSGGB) ») reprend les mêmes sujets en diapositives, pour une formation en groupe.

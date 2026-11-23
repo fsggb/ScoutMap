@@ -28,6 +28,9 @@ Une seule version pour tout ce lot (partage, pilotage, points, grand jeu).
 ### Corrections
 - Le travail partagé ne se duplique plus dans la bibliothèque à chaque mise à jour.
 
+### Tutoriels
+- Les quatre **tutoriels vidéo** (global, itinéraire, azimuts, grand jeu) sont refaits à jour, sous-titrés, et générés par script (`docs/tutoriel/video.js`) : ils se refont en une commande après un changement d'interface. Ils pèsent 8 Mo au lieu de 29 Mo. Une **présentation Google** (« ScoutMap – Tutoriel de prise en main (FSGGB) ») reprend les mêmes sujets pour une formation en groupe.
+
 ## 2.3.0 — 23 novembre 2026
 
 ### Préparation à plusieurs en direct
