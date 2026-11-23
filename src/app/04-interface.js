@@ -159,7 +159,7 @@
     RT.tool = t;
     var c = map.getContainer();
     c.classList.toggle('tool-draw', t !== 'pan' && t !== 'game'); c.classList.toggle('tool-pan', t === 'pan'); c.classList.toggle('tool-game', t === 'game');
-    renderRouteMarkers(); renderAz(); updateHint(); updateEditUi();
+    renderRouteMarkers(); renderAz(); updateHint(); updateEditUi(); syncRbar();
     if (window.SM && SM.game && SM.game.onTool) SM.game.onTool(t);
   }
   // Verrou : en mode Édition (stylo) un clic sur la carte pose un point ; verrouillé (cadenas), la carte ne fait que se déplacer.
@@ -173,7 +173,35 @@
     });
   }
   $$('[data-edit]').forEach(function (b) { b.addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); }); });
+  /* Barre d'outils flottante de l'itinéraire (comme celle du grand jeu) : Déplacer, puis la façon de rejoindre le point suivant
+     (Chemin par les sentiers, Ligne droite à vol d'oiseau, Azimut à la boussole). On peut mélanger les trois dans un même itinéraire. */
+  function segOf() { return S.route.seg === 'direct' || S.route.seg === 'az' ? S.route.seg : 'route'; }
+  function syncRbar() {
+    var bar = $('#rbar'); if (!bar) return;
+    var on = S.mode === 'route' && S.rail === 'route' && !VIEWER && !!($('#home') && $('#home').hidden) && !SUB;
+    bar.hidden = !on; if (!on) return;
+    var cur = RT.tool === 'pan' ? 'pan' : segOf();
+    $$('#rbar [data-rt]').forEach(function (b) { b.classList.toggle('on', b.dataset.rt === cur); b.setAttribute('aria-pressed', b.dataset.rt === cur ? 'true' : 'false'); });
+    var aim = $('#raim'); if (aim) aim.hidden = segOf() !== 'az' || RT.tool === 'pan';
+    var dn = $('#raim-decl'); if (dn) { var c = map.getCenter(), dc = G.declination(c.lat, c.lng); dn.textContent = 'Azimuts en degrés, pour une boussole (nord magnétique). Déclinaison estimée ici : ' + (dc >= 0 ? '+' : '−') + Math.abs(dc).toFixed(1).replace('.', ',') + '°, déjà comptée.'; }
+  }
+  $$('#rbar [data-rt]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.rt;
+      if (t === 'pan') { setTool('pan'); return; }
+      S.route.seg = t; persist();
+      if (RT.tool !== 'route') setTool('route'); else { syncRbar(); updateHint(); }
+      if (t === 'az' && S.route.wps.length) toast('Azimut : le prochain point sera relié en ligne droite, avec son azimut et sa distance. Vous pouvez aussi le placer par azimut et distance dans le panneau.', { level: 'discret' });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || S.mode !== 'route' || RT.tool !== 'route' || e.defaultPrevented) return;
+    var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (document.querySelector('dialog[open]') || document.body.classList.contains('doc-open')) return;
+    setTool('pan');
+  });
   function updateRailMode() {
+    syncRbar();
     var info = MODE_INFO[S.mode || 'route'];
     $('#rail-mode-l').textContent = info.label; $('#rail-mode use').setAttribute('href', '#i-' + info.icon);
   }
@@ -185,7 +213,7 @@
     $$('[data-set]').forEach(function (d) { d.hidden = d.dataset.set !== S.mode; });
     if (SUB === 'notif') renderNotes();
     if (SUB === 'library') renderMyLayers();
-    applyPanel(); updateHint();
+    applyPanel(); updateHint(); syncRbar();
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
   var NOTES = NOTES || {};
@@ -265,7 +293,7 @@
     var h = $('#home'); if (!h) return;
     h.hidden = !show;
     if (show) { if (window.SM && SM.game && SM.game.closeWizard) SM.game.closeWizard(); renderHome(); if (SIM.open) simClose(true); closePops(); hideCtx(); map.closePopup(); }
-    updateHint();
+    updateHint(); syncRbar();
   }
   function startType(t) {
     if (!$('#home').hidden) { newProject(t); return; }
@@ -276,6 +304,9 @@
   function hintText() {
     var r = S.rail, n = S.route.wps.length;
     if (r === 'route') {
+      var sg = segOf();
+      if (n >= 1 && sg === 'az') return 'Azimut : cliquez le point suivant (ligne droite avec azimut et distance) · Échap : terminer.';
+      if (n >= 1 && sg === 'direct') return 'Ligne droite : cliquez le point suivant (à vol d’oiseau) · Échap : terminer.';
       if (S.route.loop) return n === 0 ? 'Boucle : cliquez sur la carte pour poser le départ.' : 'Ajoutez des points de passage : le retour au départ est automatique.';
       if (n === 0) return 'Cliquez sur la carte pour poser le départ (A).';
       if (n === 1) return 'Cliquez pour poser l’arrivée.';
@@ -299,7 +330,12 @@
     if (RT.tool === 'pan') { $('#hint-txt').textContent = 'Mode déplacement : la carte se déplace sans poser de point.'; $('#hint-btn').textContent = 'Reprendre le tracé'; }
     else { $('#hint-txt').textContent = hintText(); $('#hint-btn').textContent = 'Terminer'; }
   }
-  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () { newProject(b.dataset.start); }); });
+  // « Créer des azimuts » : un itinéraire dont l'outil Azimut est choisi (azimuts, lignes droites et chemins se mélangent)
+  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () {
+    var t = b.dataset.start;
+    if (t === 'az') { newProject('route'); S.route.seg = 'az'; S.route.loop = false; syncRouteUi(); setTool('route'); persist(); toast('Azimuts : cliquez le point de départ, puis chaque point suivant. Chaque tronçon affiche son azimut (degrés, boussole), son contre-azimut et sa distance.', { level: 'discret' }); return; }
+    newProject(t);
+  }); });
   $('#home-open').addEventListener('click', function () { $('#file-gpx').click(); });
   $('.brand').addEventListener('click', function (e) { if (VIEWER) return; e.preventDefault(); showHome(true); });
   $('#proj-rows').addEventListener('click', function (e) {

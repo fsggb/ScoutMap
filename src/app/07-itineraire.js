@@ -36,11 +36,12 @@
   function overMax() { return !!(RT.route && S.route.maxOn && S.route.maxKm > 0 && RT.route.dist > S.route.maxKm * 1000); }
 
   var routeLine = null, routeCasing = null;
+  // mode : true ou 'direct' (ligne droite), 'az' (ligne droite avec azimut), sinon par les chemins
   function addWp(p, name, idx, direct) {
     ensureVisible('route');
     var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
     var at = idx == null ? S.route.wps.length : idx;
-    if (direct) o.direct = true;
+    if (at > 0 && (direct === true || direct === 'direct' || direct === 'az')) { o.direct = true; if (direct === 'az') o.az = true; }
     S.route.wps.splice(at, 0, o);
     renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
     fillPlaces(S.route);
@@ -230,6 +231,13 @@
   function renderRouteMarkers() {
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
+    // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
+    var ew0 = RT.route ? [] : effWps();
+    ew0.forEach(function (q, k) {
+      if (!k || !q.az || (k === ew0.length - 1 && loopOf(S.route) && q === S.route.wps[0])) return;
+      var a = [ew0[k - 1].lat, ew0[k - 1].lon], b = [q.lat, q.lon], m = G.magAz(a, b);
+      routeLinks.push(L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], { interactive: false, icon: L.divIcon({ className: 'az-label', html: '<span>' + m.az + '° · ' + G.fmtDist(m.dist) + '</span>', iconSize: [0, 0] }) }).addTo(gRoute));
+    });
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
@@ -238,7 +246,8 @@
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
         var q = m.getLatLng(), old = S.route.wps[i]; S.route.wps[i] = { lat: q.lat, lon: q.lng, name: old.name };
-        if (old.direct) S.route.wps[i].direct = true;                      // un point déplacé reste en ligne droite
+        if (old.direct) S.route.wps[i].direct = true;                      // un point déplacé reste en ligne droite (ou en azimut)
+        if (old.az) S.route.wps[i].az = true;
         renderWpList(); computeRoute(); persist(); fillPlaces(S.route); ensureAnchor(S.route.wps[i]); reorderFree(S.route.wps[i]);
       });
       m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
@@ -247,13 +256,19 @@
     });
     renderWpList(); applySel();
   }
+  // façon de rejoindre le point i depuis le précédent, telle qu'affichée dans la liste
+  function legNote(w, i) {
+    var p = w[i], q = w[i - 1]; if (!p || !q) return '';
+    if (p.az) { var m = G.magAz([q.lat, q.lon], [p.lat, p.lon]); return ' · azimut ' + m.az + '° (contre ' + m.back + '°) · ' + G.fmtDist(m.dist); }
+    return p.direct ? ' · en ligne droite' : '';
+  }
   function renderWpList() {
     var d = S.route, w = d.wps, loop = loopOf(d);
     $('#wps-empty').hidden = w.length > 0;
     $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
       return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || p.place || '') + '" placeholder="' + esc(titleOf(d, i)) + '" aria-label="Nom du point (village ou hameau par défaut)">' +
-        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (p.direct && i > 0 ? ' · en ligne droite' : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (i > 0 ? legNote(w, i) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
     applySel();
   }
@@ -294,7 +309,7 @@
     renderRouteMarkers(); computeRoute(); persist(); select('route', to, true);
     toast('Ordre de passage modifié : les points sont renumérotés.');
   }
-  function normDirect() { var w = S.route.wps; if (w[0] && w[0].direct) delete w[0].direct; }
+  function normDirect() { var w = S.route.wps; if (w[0]) { delete w[0].direct; delete w[0].az; } }
   function removeWp(i) { S.route.wps.splice(i, 1); normDirect(); if (SEL && SEL.k === 'route') SEL = null; renderRouteMarkers(); computeRoute(); persist(); }
   function reverseRoute() {
     var w = S.route.wps; if (w.length < 2) { toast('Posez au moins deux points pour inverser le sens.'); return; }
@@ -340,7 +355,8 @@
       out.push(L.polyline(seg, { color: '#fff', weight: 10 * scale, opacity: 1, lineCap: 'butt', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: '#fff', weight: 8 * scale, opacity: .9, lineCap: 'round', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: col, weight: 5 * scale, opacity: 1, dashArray: (1 * scale) + ' ' + (7 * scale), lineCap: 'round', interactive: false }).addTo(group));
-      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: '<span style="--c:' + col + '" title="En ligne droite : ' + G.fmtDist(d) + '">' + Math.round(((brg % 360) + 360) % 360) + '°</span>' }) }).addTo(group));
+      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: u.az ? (function (m) { return '<span class="is-az" style="--c:' + col + '" title="Azimut à la boussole ' + m.az + '° (contre-azimut ' + m.back + '°), ' + G.fmtDist(m.dist) + '">' + m.az + '° · ' + G.fmtDist(m.dist) + '</span>'; })(G.magAz(a, b))
+        : '<span style="--c:' + col + '" title="En ligne droite : ' + G.fmtDist(d) + '">' + Math.round(((brg % 360) + 360) % 360) + '°</span>' }) }).addTo(group));
     });
     return out;
   }
@@ -390,3 +406,15 @@
       });
     }, 250);
   }
+  // Placer le point suivant par azimut (degrés, boussole) et distance, depuis le dernier point de l'itinéraire
+  $('#raim-add').addEventListener('click', function () {
+    var w = S.route.wps, az = parseFloat(String($('#raim-az').value).replace(',', '.')), d = parseFloat(String($('#raim-d').value).replace(',', '.'));
+    if (!w.length) { toast('Posez d’abord le point de départ sur la carte.', { kind: 'warn' }); return; }
+    if (!isFinite(az) || az < 0 || az > 360) { toast('Azimut : un nombre de degrés entre 0 et 360.', { kind: 'warn' }); return; }
+    if (!isFinite(d) || d <= 0 || d > 50000) { toast('Distance : un nombre de mètres (jusqu’à 50 km).', { kind: 'warn' }); return; }
+    var last = w[w.length - 1], p = G.fromMagAz([last.lat, last.lon], az % 360, d);
+    addWp(p, null, null, 'az'); $('#raim-d').value = ''; $('#raim-d').focus();
+    panToIfHidden(L.latLng(p[0], p[1]));
+  });
+  $('#raim-d').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#raim-add').click(); } });
+

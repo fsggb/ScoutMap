@@ -266,7 +266,7 @@
     </section>
 
     <section class="pane" data-pane="route" hidden>
-      <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2><button class="edit-toggle" data-edit type="button"></button></div>
+      <div class="pane-head"><h2 class="pane-title">Itinéraire à pied</h2></div>
       <div class="layer-head"><input id="route-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom de l’itinéraire"></div>
       <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="route-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau tracé</button><button type="button" class="btn-ghost" id="route-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
       <div class="seg full" id="route-mode"><button type="button" data-v="oneway">Aller simple</button><button type="button" data-v="loop">Boucle</button></div>
@@ -281,6 +281,11 @@
       <h3 class="sub sub-row">Points, dans l’ordre de passage <span class="count" id="wp-count"></span><button class="ibtn" id="wps-toggle" type="button" aria-label="Réduire la liste des points"></button></h3>
       <ol class="wps" id="wps"></ol>
       <p class="empty" id="wps-empty">Cliquez sur la carte pour poser le départ, puis les étapes.</p>
+      <fieldset class="aim" id="raim" hidden><legend>Placer le point suivant par azimut et distance</legend>
+        <div class="two"><label class="field"><span>Azimut (°)</span><input id="raim-az" type="number" min="0" max="360" step="1" placeholder="0–360"></label><label class="field"><span>Distance (m)</span><input id="raim-d" type="number" min="1" step="any" placeholder="ex. 250"></label></div>
+        <button type="button" class="btn-ghost block" id="raim-add"><svg class="ic"><use href="#i-target"/></svg>Placer depuis le dernier point</button>
+        <p class="note" id="raim-decl"></p>
+      </fieldset>
       <p class="note" id="wps-help">Cliquez un point pour le sélectionner (surbrillance sur la carte), <kbd>Suppr</kbd> pour le retirer, glissez la poignée pour changer l’ordre de passage.</p>
       <hr class="pane-sep">
       <div class="btnrow">
@@ -298,7 +303,7 @@
     </section>
 
     <section class="pane" data-pane="az" hidden>
-      <div class="pane-head"><h2 class="pane-title">Azimuts</h2><button class="edit-toggle" data-edit type="button"></button></div>
+      <div class="pane-head"><h2 class="pane-title">Azimuts</h2></div>
       <div class="layer-head"><input id="az-name" class="layer-name" type="text" maxlength="60" aria-label="Nom du calque" placeholder="Nom du tracé"></div>
       <div class="btnrow lib-bar"><button type="button" class="btn-ghost" id="az-new"><svg class="ic"><use href="#i-plus"/></svg>Nouveau tracé</button><button type="button" class="btn-ghost" id="az-lib"><svg class="ic"><use href="#i-layers"/></svg>Bibliothèque</button></div>
       <p class="help">Posez des points : chaque segment donne l’azimut, la distance et le cumul. Cliquez sur le premier point pour fermer le circuit.</p>
@@ -400,6 +405,15 @@
   <main class="stage">
     <div class="mapwrap" id="mapwrap">
       <div id="map" aria-label="Carte"></div>
+      <nav class="gpalette rpalette" id="rbar" aria-label="Outils de l’itinéraire" hidden>
+        <div class="gtools">
+          <button type="button" data-rt="pan" title="Déplacer la carte sans poser de point (Échap)"><svg class="ic"><use href="#i-hand"/></svg><span>Déplacer</span></button>
+          <i class="gpal-sep"></i>
+          <button type="button" data-rt="route" title="Chemin : relie le point au précédent par les routes et sentiers"><svg class="ic"><use href="#i-route"/></svg><span>Chemin</span></button>
+          <button type="button" data-rt="direct" title="Ligne droite : relie le point au précédent à vol d’oiseau"><svg class="ic"><use href="#i-g-line"/></svg><span>Droite</span></button>
+          <button type="button" data-rt="az" title="Azimut : ligne droite avec l’azimut à la boussole (degrés, nord magnétique), le contre-azimut et la distance"><svg class="ic"><use href="#i-compass"/></svg><span>Azimut</span></button>
+        </div>
+      </nav>
       <nav class="gpalette" id="gpalette" aria-label="Outils de dessin" hidden><input type="checkbox" id="gs-keep" hidden></nav>
 
       <div class="searchcard" id="searchcard" role="search">

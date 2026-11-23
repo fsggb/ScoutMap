@@ -128,3 +128,12 @@ test('Boussole : cap du téléphone à plat, incliné, droit et au-delà (jamais
   for (const beta of [30, 60, 90, 120]) { near(h(0, beta, 0), 0, 'incliné ' + beta + '° vers le nord'); near(h(270, beta, 0), 90, 'incliné ' + beta + '° vers l’est'); }
   near(h(0, 0, 0, 90), 90, 'écran en paysage');
 });
+
+test('Azimuts magnétiques : déclinaison estimée et aller-retour azimut ↔ point', () => {
+  const { Geo } = load(['geo.js']);
+  const d = Geo.declination(48.85, 2.35, new Date(2026, 0, 1));
+  assert.ok(d > 1 && d < 3, 'Paris 2026 : environ +2° (obtenu ' + d + ')');
+  const a = [45.76, 4.83], b = Geo.fromMagAz(a, 90, 300), m = Geo.magAz(a, b);
+  assert.equal(m.az, 90); assert.equal(m.back, 270);
+  assert.ok(Math.abs(m.dist - 300) < 1, 'distance 300 m');
+});

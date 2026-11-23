@@ -3,6 +3,16 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.1.0 — 23 novembre 2026
+
+### Itinéraire et azimuts réunis
+- **Barre d'outils flottante** dans l'itinéraire, comme celle du grand jeu : **Déplacer** (la carte bouge sans poser de point), puis la façon de rejoindre le point suivant : **Chemin** (par les routes et sentiers), **Droite** (à vol d'oiseau) ou **Azimut**.
+- On peut **mélanger** les trois dans un même itinéraire : un morceau en azimut au milieu d'un itinéraire, par exemple. Clic droit sur un point pour changer la façon de le rejoindre.
+- **Azimut** : ligne droite avec l'azimut à la boussole, **en degrés et par rapport au nord magnétique** (la déclinaison est estimée automatiquement, sans réglage), le contre-azimut et la distance. Affichés sur la carte, dans la liste des points et sur la feuille de route imprimée.
+- **Placer le point suivant par azimut et distance** (outil Azimut) : le point est posé depuis le dernier, en tenant compte de la déclinaison.
+- « Créer des azimuts » à l'accueil ouvre un itinéraire avec l'outil Azimut. Les anciens travaux d'azimuts s'ouvrent comme avant.
+- **Plus de bouton Édition / Verrouillé** : l'outil Déplacer le remplace. Un nouvel itinéraire commence directement en pose de points ; un itinéraire rouvert s'ouvre en Déplacer, pour ne pas ajouter de point par mégarde. Échap termine la pose de points.
+
 ## 2.0.1 — 23 novembre 2026
 
 ### Corrections

@@ -1684,3 +1684,9 @@ body.gw-open .pane[data-pane="game"]{pointer-events:none;opacity:.4}
 
 /* plus de bouton « application en cours » dans la barre latérale (Itinéraire / Azimuts / Grand jeu) : on choisit le type de travail à l’accueil ; le bouton Panneau ramène aux outils */
 #rail-mode{display:none!important}
+
+/* barre d'outils de l'itinéraire (Déplacer, Chemin, Ligne droite, Azimut) */
+.gpalette.rpalette .gtools button span{display:block!important;font-size:9.5px;max-width:52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.direct-lbl span.is-az{white-space:nowrap}
+.rpalette .gtools button{width:52px}
+@media (max-width:860px){.rpalette .gtools button{width:44px}}

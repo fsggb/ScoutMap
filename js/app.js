@@ -850,7 +850,7 @@
     RT.tool = t;
     var c = map.getContainer();
     c.classList.toggle('tool-draw', t !== 'pan' && t !== 'game'); c.classList.toggle('tool-pan', t === 'pan'); c.classList.toggle('tool-game', t === 'game');
-    renderRouteMarkers(); renderAz(); updateHint(); updateEditUi();
+    renderRouteMarkers(); renderAz(); updateHint(); updateEditUi(); syncRbar();
     if (window.SM && SM.game && SM.game.onTool) SM.game.onTool(t);
   }
   // Verrou : en mode Édition (stylo) un clic sur la carte pose un point ; verrouillé (cadenas), la carte ne fait que se déplacer.
@@ -864,7 +864,35 @@
     });
   }
   $$('[data-edit]').forEach(function (b) { b.addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); }); });
+  /* Barre d'outils flottante de l'itinéraire (comme celle du grand jeu) : Déplacer, puis la façon de rejoindre le point suivant
+     (Chemin par les sentiers, Ligne droite à vol d'oiseau, Azimut à la boussole). On peut mélanger les trois dans un même itinéraire. */
+  function segOf() { return S.route.seg === 'direct' || S.route.seg === 'az' ? S.route.seg : 'route'; }
+  function syncRbar() {
+    var bar = $('#rbar'); if (!bar) return;
+    var on = S.mode === 'route' && S.rail === 'route' && !VIEWER && !!($('#home') && $('#home').hidden) && !SUB;
+    bar.hidden = !on; if (!on) return;
+    var cur = RT.tool === 'pan' ? 'pan' : segOf();
+    $$('#rbar [data-rt]').forEach(function (b) { b.classList.toggle('on', b.dataset.rt === cur); b.setAttribute('aria-pressed', b.dataset.rt === cur ? 'true' : 'false'); });
+    var aim = $('#raim'); if (aim) aim.hidden = segOf() !== 'az' || RT.tool === 'pan';
+    var dn = $('#raim-decl'); if (dn) { var c = map.getCenter(), dc = G.declination(c.lat, c.lng); dn.textContent = 'Azimuts en degrés, pour une boussole (nord magnétique). Déclinaison estimée ici : ' + (dc >= 0 ? '+' : '−') + Math.abs(dc).toFixed(1).replace('.', ',') + '°, déjà comptée.'; }
+  }
+  $$('#rbar [data-rt]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.rt;
+      if (t === 'pan') { setTool('pan'); return; }
+      S.route.seg = t; persist();
+      if (RT.tool !== 'route') setTool('route'); else { syncRbar(); updateHint(); }
+      if (t === 'az' && S.route.wps.length) toast('Azimut : le prochain point sera relié en ligne droite, avec son azimut et sa distance. Vous pouvez aussi le placer par azimut et distance dans le panneau.', { level: 'discret' });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || S.mode !== 'route' || RT.tool !== 'route' || e.defaultPrevented) return;
+    var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (document.querySelector('dialog[open]') || document.body.classList.contains('doc-open')) return;
+    setTool('pan');
+  });
   function updateRailMode() {
+    syncRbar();
     var info = MODE_INFO[S.mode || 'route'];
     $('#rail-mode-l').textContent = info.label; $('#rail-mode use').setAttribute('href', '#i-' + info.icon);
   }
@@ -876,7 +904,7 @@
     $$('[data-set]').forEach(function (d) { d.hidden = d.dataset.set !== S.mode; });
     if (SUB === 'notif') renderNotes();
     if (SUB === 'library') renderMyLayers();
-    applyPanel(); updateHint();
+    applyPanel(); updateHint(); syncRbar();
   }
   // ----- Alertes : une liste unique (au lieu de bandeaux dans le panneau), avec un compteur sur le bouton
   var NOTES = NOTES || {};
@@ -956,7 +984,7 @@
     var h = $('#home'); if (!h) return;
     h.hidden = !show;
     if (show) { if (window.SM && SM.game && SM.game.closeWizard) SM.game.closeWizard(); renderHome(); if (SIM.open) simClose(true); closePops(); hideCtx(); map.closePopup(); }
-    updateHint();
+    updateHint(); syncRbar();
   }
   function startType(t) {
     if (!$('#home').hidden) { newProject(t); return; }
@@ -967,6 +995,9 @@
   function hintText() {
     var r = S.rail, n = S.route.wps.length;
     if (r === 'route') {
+      var sg = segOf();
+      if (n >= 1 && sg === 'az') return 'Azimut : cliquez le point suivant (ligne droite avec azimut et distance) · Échap : terminer.';
+      if (n >= 1 && sg === 'direct') return 'Ligne droite : cliquez le point suivant (à vol d’oiseau) · Échap : terminer.';
       if (S.route.loop) return n === 0 ? 'Boucle : cliquez sur la carte pour poser le départ.' : 'Ajoutez des points de passage : le retour au départ est automatique.';
       if (n === 0) return 'Cliquez sur la carte pour poser le départ (A).';
       if (n === 1) return 'Cliquez pour poser l’arrivée.';
@@ -990,7 +1021,12 @@
     if (RT.tool === 'pan') { $('#hint-txt').textContent = 'Mode déplacement : la carte se déplace sans poser de point.'; $('#hint-btn').textContent = 'Reprendre le tracé'; }
     else { $('#hint-txt').textContent = hintText(); $('#hint-btn').textContent = 'Terminer'; }
   }
-  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () { newProject(b.dataset.start); }); });
+  // « Créer des azimuts » : un itinéraire dont l'outil Azimut est choisi (azimuts, lignes droites et chemins se mélangent)
+  $$('[data-start]').forEach(function (b) { b.addEventListener('click', function () {
+    var t = b.dataset.start;
+    if (t === 'az') { newProject('route'); S.route.seg = 'az'; S.route.loop = false; syncRouteUi(); setTool('route'); persist(); toast('Azimuts : cliquez le point de départ, puis chaque point suivant. Chaque tronçon affiche son azimut (degrés, boussole), son contre-azimut et sa distance.', { level: 'discret' }); return; }
+    newProject(t);
+  }); });
   $('#home-open').addEventListener('click', function () { $('#file-gpx').click(); });
   $('.brand').addEventListener('click', function (e) { if (VIEWER) return; e.preventDefault(); showHome(true); });
   $('#proj-rows').addEventListener('click', function (e) {
@@ -1366,11 +1402,12 @@
   function overMax() { return !!(RT.route && S.route.maxOn && S.route.maxKm > 0 && RT.route.dist > S.route.maxKm * 1000); }
 
   var routeLine = null, routeCasing = null;
+  // mode : true ou 'direct' (ligne droite), 'az' (ligne droite avec azimut), sinon par les chemins
   function addWp(p, name, idx, direct) {
     ensureVisible('route');
     var o = { lat: p[0], lon: p[1] }; if (name) o.name = name;
     var at = idx == null ? S.route.wps.length : idx;
-    if (direct) o.direct = true;
+    if (at > 0 && (direct === true || direct === 'direct' || direct === 'az')) { o.direct = true; if (direct === 'az') o.az = true; }
     S.route.wps.splice(at, 0, o);
     renderRouteMarkers(); computeRoute(); persist(); select('route', at, true);
     fillPlaces(S.route);
@@ -1560,6 +1597,13 @@
   function renderRouteMarkers() {
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
+    // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
+    var ew0 = RT.route ? [] : effWps();
+    ew0.forEach(function (q, k) {
+      if (!k || !q.az || (k === ew0.length - 1 && loopOf(S.route) && q === S.route.wps[0])) return;
+      var a = [ew0[k - 1].lat, ew0[k - 1].lon], b = [q.lat, q.lon], m = G.magAz(a, b);
+      routeLinks.push(L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], { interactive: false, icon: L.divIcon({ className: 'az-label', html: '<span>' + m.az + '° · ' + G.fmtDist(m.dist) + '</span>', iconSize: [0, 0] }) }).addTo(gRoute));
+    });
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
@@ -1568,7 +1612,8 @@
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
         var q = m.getLatLng(), old = S.route.wps[i]; S.route.wps[i] = { lat: q.lat, lon: q.lng, name: old.name };
-        if (old.direct) S.route.wps[i].direct = true;                      // un point déplacé reste en ligne droite
+        if (old.direct) S.route.wps[i].direct = true;                      // un point déplacé reste en ligne droite (ou en azimut)
+        if (old.az) S.route.wps[i].az = true;
         renderWpList(); computeRoute(); persist(); fillPlaces(S.route); ensureAnchor(S.route.wps[i]); reorderFree(S.route.wps[i]);
       });
       m.on('click', function () { if (i === 0 && closable) closeLoop(); select('route', i, true); });
@@ -1577,13 +1622,19 @@
     });
     renderWpList(); applySel();
   }
+  // façon de rejoindre le point i depuis le précédent, telle qu'affichée dans la liste
+  function legNote(w, i) {
+    var p = w[i], q = w[i - 1]; if (!p || !q) return '';
+    if (p.az) { var m = G.magAz([q.lat, q.lon], [p.lat, p.lon]); return ' · azimut ' + m.az + '° (contre ' + m.back + '°) · ' + G.fmtDist(m.dist); }
+    return p.direct ? ' · en ligne droite' : '';
+  }
   function renderWpList() {
     var d = S.route, w = d.wps, loop = loopOf(d);
     $('#wps-empty').hidden = w.length > 0;
     $('#wp-count').textContent = w.length ? '(' + w.length + ')' : '';
     $('#wps').innerHTML = w.map(function (p, i) {
       return '<li data-i="' + i + '"><span class="grip" draggable="true" title="Glisser pour changer l’ordre de passage">' + ic('grip') + '</span><span class="badge ' + clsOf(d, i) + '">' + lblOf(d, i) + '</span><div class="wp-main"><input class="wp-name" data-i="' + i + '" value="' + esc(p.name || p.place || '') + '" placeholder="' + esc(titleOf(d, i)) + '" aria-label="Nom du point (village ou hameau par défaut)">' +
-        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (p.direct && i > 0 ? ' · en ligne droite' : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
+        '<small>' + esc(titleOf(d, i)) + (p.place && p.name && p.name !== p.place ? ' · près de ' + esc(p.place) : '') + (i > 0 ? legNote(w, i) : '') + ' · ' + esc(fmtP([p.lat, p.lon])) + '</small></div><button class="ibtn danger" data-del="' + i + '" title="Retirer ce point (Suppr)" aria-label="Retirer">' + ic('x') + '</button></li>';
     }).join('') + (loop ? '<li class="ret"><span class="badge start">A</span><span>Arrivée : retour au départ</span></li>' : '');
     applySel();
   }
@@ -1624,7 +1675,7 @@
     renderRouteMarkers(); computeRoute(); persist(); select('route', to, true);
     toast('Ordre de passage modifié : les points sont renumérotés.');
   }
-  function normDirect() { var w = S.route.wps; if (w[0] && w[0].direct) delete w[0].direct; }
+  function normDirect() { var w = S.route.wps; if (w[0]) { delete w[0].direct; delete w[0].az; } }
   function removeWp(i) { S.route.wps.splice(i, 1); normDirect(); if (SEL && SEL.k === 'route') SEL = null; renderRouteMarkers(); computeRoute(); persist(); }
   function reverseRoute() {
     var w = S.route.wps; if (w.length < 2) { toast('Posez au moins deux points pour inverser le sens.'); return; }
@@ -1670,7 +1721,8 @@
       out.push(L.polyline(seg, { color: '#fff', weight: 10 * scale, opacity: 1, lineCap: 'butt', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: '#fff', weight: 8 * scale, opacity: .9, lineCap: 'round', interactive: false }).addTo(group));
       out.push(L.polyline(seg, { color: col, weight: 5 * scale, opacity: 1, dashArray: (1 * scale) + ' ' + (7 * scale), lineCap: 'round', interactive: false }).addTo(group));
-      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: '<span style="--c:' + col + '" title="En ligne droite : ' + G.fmtDist(d) + '">' + Math.round(((brg % 360) + 360) % 360) + '°</span>' }) }).addTo(group));
+      out.push(L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'direct-lbl', iconSize: [0, 0], html: u.az ? (function (m) { return '<span class="is-az" style="--c:' + col + '" title="Azimut à la boussole ' + m.az + '° (contre-azimut ' + m.back + '°), ' + G.fmtDist(m.dist) + '">' + m.az + '° · ' + G.fmtDist(m.dist) + '</span>'; })(G.magAz(a, b))
+        : '<span style="--c:' + col + '" title="En ligne droite : ' + G.fmtDist(d) + '">' + Math.round(((brg % 360) + 360) % 360) + '°</span>' }) }).addTo(group));
     });
     return out;
   }
@@ -1720,6 +1772,18 @@
       });
     }, 250);
   }
+  // Placer le point suivant par azimut (degrés, boussole) et distance, depuis le dernier point de l'itinéraire
+  $('#raim-add').addEventListener('click', function () {
+    var w = S.route.wps, az = parseFloat(String($('#raim-az').value).replace(',', '.')), d = parseFloat(String($('#raim-d').value).replace(',', '.'));
+    if (!w.length) { toast('Posez d’abord le point de départ sur la carte.', { kind: 'warn' }); return; }
+    if (!isFinite(az) || az < 0 || az > 360) { toast('Azimut : un nombre de degrés entre 0 et 360.', { kind: 'warn' }); return; }
+    if (!isFinite(d) || d <= 0 || d > 50000) { toast('Distance : un nombre de mètres (jusqu’à 50 km).', { kind: 'warn' }); return; }
+    var last = w[w.length - 1], p = G.fromMagAz([last.lat, last.lon], az % 360, d);
+    addWp(p, null, null, 'az'); $('#raim-d').value = ''; $('#raim-d').focus();
+    panToIfHidden(L.latLng(p[0], p[1]));
+  });
+  $('#raim-d').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#raim-add').click(); } });
+
   /* ==== src/app/08-calcul-itineraire.js : calcul de l'itinéraire par tronçons (Géoplateforme), secours, alertes ==== */
   // ----- Calcul par tronçons (un appel par couple de repères) : aucun nombre maximal d'étapes, et un seul tronçon à recalculer quand on déplace un point.
   // ----- Secours : un point tombé au milieu d'un champ (ou loin de tout chemin) est ramené sur le village ou hameau à moins de 100 m, sinon sur le chemin le plus proche.
@@ -1820,7 +1884,7 @@
     var A = [a.lat, a.lon], B = [b.lat, b.lon], d = G.haversine(A, B), n = Math.max(1, Math.min(80, Math.round(d / 40))), line = [];
     for (var k = 0; k <= n; k++) line.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n]);
     var dur = d / (5 / 3.6);
-    return { line: line, dist: d, dur: dur, direct: true, portion: { start: pf(a), end: pf(b), distance: d, duration: dur, steps: [] }, relaxed: false };
+    return { line: line, dist: d, dur: dur, direct: true, az: !!b.az, portion: { start: pf(a), end: pf(b), distance: d, duration: dur, steps: [] }, relaxed: false };
   }
   function fetchLeg(a, b, via, relaxed) {
     var key = [S.route.opt, S.route.avoidMotorway ? 1 : 0, relaxed ? 'r' : 't', pf(a), via ? pf(via) : '', pf(b)].join('|');
@@ -1861,7 +1925,7 @@
       if (l.directIn) directs.push({ from: i0, to: i0 + l.directIn });
       for (var k = st; k < ln.length; k++) line.push(ln[k]);
       bounds.push(line.length - 1); dist += l.dist; dur += l.dur; portions.push(l.portion);
-      if (l.direct) directs.push({ from: bounds[bounds.length - 2], to: bounds[bounds.length - 1] });
+      if (l.direct) directs.push({ from: bounds[bounds.length - 2], to: bounds[bounds.length - 1], az: !!l.az });
     });
     return { line: line, dist: dist, dur: dur, portions: portions, bounds: bounds, directs: directs, tunnel: legs.some(function (l) { return l.relaxed; }) };
   }
@@ -1993,7 +2057,8 @@
   function insertOnRoute(p) {
     var r = RT.route, s = nearestSegment(r.line, p), leg = legOfSeg(r, s);
     var dir = (r.directs || []).some(function (u) { return s >= u.from && s < u.to; });   // le point cliqué sur un tronçon en ligne droite est lui aussi en ligne droite
-    addWp(p, null, Math.min(leg + 1, S.route.wps.length), dir);
+    var at = Math.min(leg + 1, S.route.wps.length), nx = S.route.wps[at];
+    addWp(p, null, at, dir ? (nx && nx.az ? 'az' : 'direct') : (segOf() === 'route' ? null : segOf()));
   }
   // Segment du tracé le plus proche d'un point (distance au segment, pas au sommet : un clic près d'une jonction ne change pas de tronçon).
   function nearestSegment(line, p) {
@@ -2899,7 +2964,10 @@
     if (RT.tool === 'route') {
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
       if (e.originalEvent && e.originalEvent.shiftKey && S.route.wps.length) { placeAs('direct', p); return; }
-      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p); else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
+      var sg = segOf();
+      if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
+      else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
+      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
     else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }
@@ -2961,6 +3029,7 @@
   }
   function setDirect(i, on) {
     var w = S.route.wps[i]; if (!w) return; if (on) w.direct = true; else delete w.direct;
+    if (on === 'az') w.az = true; else delete w.az;
     renderRouteMarkers(); renderWpList(); computeRoute(); persist();
   }
   function routePtMenu(i) {
@@ -2969,7 +3038,12 @@
       { t: 'Renommer…', i: 'edit', a: function () { renameWp(i); } },
       { t: 'Supprimer ce point', i: 'trash', k: 'Suppr', danger: true, a: function () { removeWp(i); } }
     ];
-    if (i > 0) m.unshift(d.wps[i].direct ? { t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } } : { t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
+    if (i > 0) {
+      var wi = d.wps[i], cur = wi.az ? 'az' : wi.direct ? 'direct' : 'route';
+      if (cur !== 'az') m.unshift({ t: 'Rejoindre en azimut (boussole) depuis le point précédent', i: 'compass', a: function () { setDirect(i, 'az'); } });
+      if (cur !== 'direct') m.unshift({ t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
+      if (cur !== 'route') m.unshift({ t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } });
+    }
     if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
     if (i === 0 && n >= 3 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });
@@ -3778,7 +3852,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.1', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.1.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
