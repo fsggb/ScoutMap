@@ -164,6 +164,7 @@
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
       if (e.originalEvent && e.originalEvent.shiftKey && S.route.wps.length) { placeAs('direct', p); return; }
       var sg = segOf();
+      if (sg === 'spot') { addSpot(p); return; }
       if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
       else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
       else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }

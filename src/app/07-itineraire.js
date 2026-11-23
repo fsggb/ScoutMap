@@ -227,8 +227,40 @@
     S.route.loop = true; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist();
     toast('Boucle fermée : le tracé revient au point de départ.');
   }
-  var routeLinks = [];
+  var routeLinks = [], spotMarkers = [];
+  // Points seuls : des repères isolés (poste de secours, point de rendez-vous…), non reliés au chemin
+  function addSpot(p, name) {
+    ensureVisible('route'); S.route.spots = S.route.spots || [];
+    if (S.route.spots.length >= 200) { toast('Deux cents points seuls au plus.', { kind: 'warn' }); return null; }
+    var o = { id: nid(), lat: p[0], lon: p[1] }; if (name) o.name = String(name).slice(0, 60);
+    S.route.spots.push(o); renderRouteMarkers(); persist(); return o;
+  }
+  function removeSpot(id) { S.route.spots = (S.route.spots || []).filter(function (x) { return x.id !== id; }); renderRouteMarkers(); persist(); }
+  function renderSpots() {
+    spotMarkers.forEach(function (m) { gRoute.removeLayer(m); }); spotMarkers = [];
+    var sp = S.route.spots || [];
+    sp.forEach(function (q, i) {
+      var m = L.marker([q.lat, q.lon], { draggable: !VIEWER && !EDITLOCK, icon: pin('P' + (i + 1), 'spot'), zIndexOffset: 950 }).addTo(gRoute);
+      m.bindTooltip(esc(q.name || 'Point ' + (i + 1)), { direction: 'top', offset: [0, -14] });
+      m.on('dragend', function () { var c = m.getLatLng(); q.lat = c.lat; q.lng = undefined; delete q.lng; q.lon = c.lng; renderRouteMarkers(); persist(); });
+      m.on('contextmenu', function (e) { L.DomEvent.stop(e); showCtx(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { t: 'Renommer…', i: 'edit', a: function () { var inp = $('#spots input[data-id="' + q.id + '"]'); if (inp) { showSub(null); inp.focus(); inp.select(); } } },
+        { t: 'Copier les coordonnées', i: 'copy', a: function () { copyCoords([q.lat, q.lon]); } },
+        { t: 'Supprimer ce point', i: 'trash', danger: true, a: function () { removeSpot(q.id); } }]); });
+      spotMarkers.push(m);
+    });
+    var box = $('#spots-box'); if (!box) return; box.hidden = !sp.length; $('#spot-count').textContent = sp.length ? '(' + sp.length + ')' : '';
+    $('#spots').innerHTML = sp.map(function (q, i) {
+      return '<li><span class="badge via spot">P' + (i + 1) + '</span><div class="wp-main"><input class="wp-name" data-id="' + q.id + '" value="' + esc(q.name || '') + '" placeholder="Point ' + (i + 1) + '" aria-label="Nom du point seul"><small>' + esc(fmtP([q.lat, q.lon])) + '</small></div><button class="ibtn danger" data-del="' + q.id + '" title="Retirer ce point" aria-label="Retirer">' + ic('x') + '</button></li>';
+    }).join('');
+  }
+  (function spotEvents() {
+    var ul = $('#spots'); if (!ul) return;
+    ul.addEventListener('input', function (e) { var i = e.target.closest('.wp-name'); if (!i) return; var q = (S.route.spots || []).filter(function (x) { return String(x.id) === i.dataset.id; })[0]; if (q) { if (i.value.trim()) q.name = i.value.trim().slice(0, 60); else delete q.name; persist(); } });
+    ul.addEventListener('click', function (e) { var d = e.target.closest('[data-del]'); if (d) removeSpot(+d.dataset.del); });
+  })();
   function renderRouteMarkers() {
+    renderSpots();
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
@@ -241,7 +273,7 @@
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
-      var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
+      var m = L.marker([p.lat, p.lon], { draggable: !VIEWER && !EDITLOCK, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {

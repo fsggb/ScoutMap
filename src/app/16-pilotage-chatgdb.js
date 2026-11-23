@@ -22,6 +22,7 @@
       var d = S.route, w = d.wps;
       return {
         nom: d.name, boucle: loopOf(d), outil: segOf() === 'az' ? 'azimut' : segOf() === 'direct' ? 'droite' : 'chemin',
+        points_seuls: (d.spots || []).map(function (q, i) { return { id: q.id, nom: q.name || 'P' + (i + 1), lat: +q.lat.toFixed(6), lon: +q.lon.toFixed(6) }; }),
         points: w.map(function (p, i) {
           var o = { index: i, repere: lblOf(d, i), nom: nameOf(d, i), lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6) };
           if (i > 0) { o.rejoint = legMode(p); if (p.az) { var m = G.magAz([w[i - 1].lat, w[i - 1].lon], [p.lat, p.lon]); o.azimut = m.az; o.contre_azimut = m.back; o.distance_m = Math.round(m.dist); } }
@@ -90,11 +91,15 @@
         run: function (p) { var b = String(p.fond || ''); if (!LAYERS[b] || !LAYERS[b].base) throw new Error('fond inconnu : ' + b); S.base = b; buildTiles(); applyLayers(); persist(); return { fond: b }; } },
       { id: 'map.layers', label: 'Afficher ou masquer des couches (courbes de niveau, ombrage, sentiers…)', location: 'Affichage', params: { afficher: OVERS.join(', '), masquer: 'idem' },
         run: function (p) { [].concat(p.afficher || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = true; }); [].concat(p.masquer || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = false; }); applyLayers(); persist(); return { couches: OVERS.filter(function (k) { return S.ov[k]; }) }; } },
+      { id: 'app.point_style', label: 'Apparence des points posés sur la carte', location: 'Réglages', params: { forme: 'pastille | croix | pointeur | point' },
+        run: function (p) { var f = String(p.forme || ''); if (['pastille', 'croix', 'pointeur', 'point'].indexOf(f) < 0) throw new Error('forme : pastille, croix, pointeur ou point'); DEF.points.style = f; saveDefaults(); applyPointStyle(); return { forme: f }; } },
       { id: 'map.grid', label: 'Grille sur la carte (aucune, kilométrique, carroyage bleu, UTM, lat/long, jeu)', location: 'Affichage', params: { type: 'none | l93 | km | utm | ll | game' },
         run: function (p) { var t = String(p.type || 'none'); if (['none', 'l93', 'km', 'utm', 'll', 'game'].indexOf(t) < 0) throw new Error('grille inconnue : ' + t); S.grid = { type: t }; if (SM.grid) SM.grid.apply(); persist(); return { grille: t }; } },
       { id: 'route.add', label: 'Ajouter un point à l’itinéraire (lieu, coordonnées ou lien), relié par chemin, en ligne droite ou en azimut', location: 'Itinéraire',
         params: { query: 'lieu (ou coords, ou lat+lon)', mode: 'chemin | droite | azimut', nom: 'texte (facultatif)', at: 'position (facultatif, à la fin par défaut)' },
         run: function (p) { return addPoint({ lat: p.lat, lon: p.lon, coords: p.coords, query: p.query, name: p.nom, at: p.at }, p.mode); } },
+      { id: 'route.add_spot', label: 'Poser un point seul (repère isolé, non relié au chemin)', location: 'Itinéraire', params: { query: 'lieu (ou coords, ou lat+lon)', nom: 'texte (facultatif)' },
+        run: function (p) { needRoute(); return where(p).then(function (g) { var o = addSpot([g.lat, g.lon], p.nom || g.name); return o ? { id: o.id, lat: g.lat, lon: g.lon, nom: o.name || '' } : null; }); } },
       { id: 'route.add_azimuth', label: 'Ajouter le point suivant par azimut (degrés, boussole) et distance depuis le dernier point', location: 'Itinéraire', params: { azimut: '0 à 360', distance: 'mètres', nom: 'texte (facultatif)' },
         run: function (p) {
           needRoute(); var w = S.route.wps; if (!w.length) throw new Error('posez d’abord le point de départ (route.add)');
@@ -119,8 +124,10 @@
       { id: 'route.result', label: 'Attendre le calcul et donner le résultat (distance, durée, points, azimuts)', location: 'Itinéraire', run: function () { return settle(); } },
       { id: 'print.open', label: 'Ouvrir la fenêtre d’impression (la personne choisit et imprime)', location: 'Fichier', run: function () { if (!SM.openPdf) throw new Error('impression indisponible'); SM.openPdf(); return 'fenêtre d’impression ouverte'; } },
       { id: 'share.link', label: 'Lien qui ouvre ce travail complet dans ScoutMap', location: 'Fichier', run: function () { return projLink().then(function (u) { return { lien: u }; }); } },
+      { id: 'embed.show', label: 'Passer cette page en vue partielle : la carte seule avec les tracés donnés, chacun de sa couleur (lecture seule, rien n’est enregistré)', location: 'Artefact',
+        params: { donnees: 'travail ScoutMap (objet, produit par embed.spec)', titre: 'texte', legende: 'true | false', profil: 'true | false' }, run: function (p) { return embedShow(p); } },
       { id: 'embed.spec', label: 'Vue partielle pour un artefact ChatGDB : seulement la carte et les tracés choisis, chacun de sa couleur, avec une légende',
-        location: 'Artefact', params: { ids: 'identifiants de la bibliothèque (facultatif ; sinon le travail en cours)', titre: 'texte (facultatif)', fond: 'fond de carte (facultatif)', legende: 'true | false', profil: 'true | false' },
+        location: 'Artefact', params: { ids: 'identifiants de la bibliothèque (facultatif ; sinon le travail en cours)', titre: 'texte (facultatif)', legende: 'true | false', profil: 'true | false' },
         run: function (p) { return embedSpec(p); } }
     ];
     function commands() { return CMDS.map(function (c) { return { id: c.id, label: c.label, location: c.location, params: c.params || {} }; }); }
@@ -154,15 +161,9 @@
       function slim(r) { return r && r.line ? Object.assign({}, r, { line: r.line.map(function (q) { return [Math.round(q[0] * 1e5) / 1e5, Math.round(q[1] * 1e5) / 1e5]; }), portions: [] }) : r; }
       if (main.res) main.res = slim(main.res); main.layers = main.layers.map(function (l) { return Object.assign({}, l, { res: slim(l.res) }); });
       delete main.game; delete main.tracks;
-      return projEncode(main).then(function (code) {
-        var q = { vue: 'carte', donnees: code };
-        if (p.titre) q.titre = String(p.titre).slice(0, 80);
-        if (p.fond) q.fond = String(p.fond);
-        if (p.legende === false || p.legende === 'false') q.legende = '0';
-        if (p.profil === true || p.profil === 'true') q.profil = '1';
-        var params = Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
-        return { app: 'Cartes IGN', params: params, artefact: '<artifact id="carte" type="app" title="' + esc(p.titre || 'Carte') + '">' + JSON.stringify({ app: 'Cartes IGN', params: params }) + '</artifact>', lien: APP_URL + '?' + params, taille: params.length };
-      });
+      var args = { donnees: main, titre: p.titre ? String(p.titre).slice(0, 80) : '', legende: !(p.legende === false || p.legende === 'false'), profil: p.profil === true || p.profil === 'true' };
+      var spec = { app: 'Cartes IGN', commandes: [{ commande: 'embed.show', parametres: args }] }, txt = JSON.stringify(spec);
+      return Promise.resolve({ artefact: '<artifact id="carte" type="app" title="' + esc(p.titre || 'Carte') + '">' + txt + '</artifact>', taille: txt.length });
     }
     return { commands: commands, execute: execute, request: request, inspect: inspect };
   })();
@@ -174,14 +175,16 @@
     request: function (m, p) { return PILOT.request(m, p); },
     version: function () { return SM.appVersion; }
   };
-  // Démarrage en vue partielle (?vue=carte) : la carte seule, en lecture, avec les tracés reçus dans l'adresse ; rien n'est enregistré.
-  function embedBoot() {
-    var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
-    document.body.classList.add('embed'); showHome(false); S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
-    if (P.get('profil') !== '1') { var dk = $('#dock'); if (dk) dk.classList.add('embed-off'); }
-    var code = P.get('donnees');
-    var ready = code ? projDecode(code) : Promise.resolve(null);
-    ready.then(function (o) {
+  // Vue partielle (commande embed.show, utilisée par les artefacts de ChatGDB) : la carte seule, en lecture, avec les tracés reçus.
+  // Comme pour la suite Craft, rien ne passe par l'adresse ; la page ne touche jamais au travail enregistré dans le navigateur.
+  function embedShow(P) {
+    VIEWER = true; NOSAVE = true; clearTimeout(saveTimer);   // plus aucun enregistrement dans cette page (ni l'enregistrement déjà en attente)
+    if (SIM.open) simClose(true);
+    document.body.classList.add('viewer', 'embed'); showHome(false); S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
+    var dk = $('#dock'); if (dk) dk.classList.toggle('embed-off', !P.profil);
+    var old = document.querySelector('.embed-legend'); if (old) old.parentNode.removeChild(old);
+    var ready = P.donnees && P.donnees.app === 'ScoutMap' ? Promise.resolve(P.donnees) : Promise.resolve(null);
+    return ready.then(function (o) {
       if (o) loadProject(o, null, { keepView: true });
       if (S.mode !== 'route' && S.mode !== 'az') setRail('route');
       setTool('pan'); S.panelOpen = false; $('#app').classList.add('nopanel');
@@ -189,8 +192,8 @@
       var used = [S.route.color]; S.layers.forEach(function (l) { if (l.type === 'route') { if (used.indexOf(l.data.color) >= 0) l.data.color = libColor('route', used); used.push(l.data.color); } });
       renderStored(); renderLayerList();
       var items = layersList(true).filter(function (l) { return !l.empty && (l.type === 'route' || l.type === 'az'); });
-      var titre = (P.get('titre') || '').trim();
-      if (P.get('legende') !== '0' && (items.length > 1 || titre)) {
+      var titre = String(P.titre || '').trim();
+      if (P.legende !== false && (items.length > 1 || titre)) {
         var lg = document.createElement('div'); lg.className = 'embed-legend';
         lg.innerHTML = (titre ? '<b class="el-t">' + esc(titre) + '</b>' : '') + items.map(function (l) { return '<span><i style="background:' + esc(l.color) + '"></i>' + esc(l.name) + (l.res && l.res.dist ? ' · ' + G.fmtDist(l.res.dist) : '') + '</span>'; }).join('');
         $('#mapwrap').appendChild(lg);
@@ -200,13 +203,14 @@
         items.forEach(function (l) { var x = layerBounds(l.key); if (x && x.isValid()) b = b ? b.extend(x) : L.latLngBounds(x.getSouthWest(), x.getNorthEast()); });
         if (b) fit(b, { padding: [40, 40], maxZoom: 16 });
       }, 400);
-    }).catch(function () { toast('Vue de carte illisible : les données de l’adresse sont incomplètes.', { kind: 'warn' }); });
+      return { tracés: items.length, titre: titre };
+    });
   }
   // Préparation à plusieurs (js/live.js) : applique la carte fusionnée sans changer d'outil, de vue ni de panneau
   function applyShared(o) {
     if (!o || o.app !== 'ScoutMap') return;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : 'route';
-    if (rail !== S.mode) { loadProject(o, null, { keepView: true }); return; }
+    if (rail !== S.mode) { var keepP = S.partage; loadProject(o, null, { keepView: true }); S.partage = keepP; if (keepP && keepP.pid) S.pid = keepP.pid; return; }
     if (typeof o.name === 'string' && o.name !== S.name) { S.name = o.name; $('#proj-name').value = S.name; }
     if (rail === 'route' && o.route) {
       var seg = S.route.seg; S.route = Object.assign(FRESH.route(null, 1), o.route); S.route.wps = o.route.wps || []; if (seg) S.route.seg = seg; else delete S.route.seg;

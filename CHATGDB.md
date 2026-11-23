@@ -7,7 +7,7 @@ maj: 2026-11-23
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.3.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.4.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
 
 ## Nouveautés de la version 2
 - Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
@@ -23,7 +23,8 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 - Deux points ne font jamais une boucle. Le profil d'altitude n'apparaît qu'avec un tracé calculé.
 - Pilotage par ChatGDB (section ci-dessous) et vue partielle de carte pour les artefacts.
 
-## Partage en direct (2.3)
+## Partage en direct (2.3 et 2.4)
+- Le chef peut verrouiller la modification (les co-administrateurs suivent sans modifier). Les cartes partagées sont compressées. Un travail partagé reste dans la bibliothèque avec la mention « Partage ».
 - Deux façons de partager : « Sur le terrain » (le chef dirige, les autres suivent) ou « Préparer à plusieurs » (tout le monde modifie la carte en même temps ; les modifications simultanées sont fusionnées, chacun garde ses ajouts). Partagé : le tracé ouvert et les tracés de la bibliothèque affichés avec lui.
 
 ## Pilotage par ChatGDB (canal de commandes, comme la suite Craft)
@@ -34,7 +35,8 @@ Après « ouvrir » Cartes IGN, ChatGDB utilise `api_commandes`, `api_inspecter`
 - `library.list` (tracés du navigateur, avec leur id) ; `library.open` {id} ; `library.show` {id, visible} (affiche un tracé en plus, de sa couleur).
 - `view.place` {query, zoom} ; `view.center` {lat, lon, zoom} ; `view.scale` {echelle} ; `view.fit` ; `map.base` {fond} ; `map.layers` {afficher, masquer} ; `map.grid` {type: none | l93 | km | utm | ll | game}.
 - `print.open` (ouvre la fenêtre d'impression pour la personne) ; `share.link` (lien du travail complet).
-- `embed.spec` {ids (bibliothèque, facultatif ; sinon le travail en cours), titre, fond, legende, profil} : renvoie la balise artefact de type app à recopier telle quelle. L'artefact montre seulement la carte avec les tracés choisis, chacun de sa couleur, et une légende (nom et distance). Rien n'est modifié dans le navigateur de la personne.
+- `embed.spec` {ids (bibliothèque, facultatif ; sinon le travail en cours), titre, legende, profil} : renvoie la balise artefact de type app à recopier telle quelle (elle contient la commande `embed.show` : aucune donnée dans l'adresse, comme pour les applications Craft). L'artefact montre seulement la carte avec les tracés choisis, chacun de sa couleur, et une légende (nom et distance). Rien n'est modifié dans le navigateur de la personne.
+- `route.add_spot` {query | coords | lat+lon, nom} : point seul (repère isolé) ; `app.point_style` {forme: pastille | croix | pointeur | point}.
 
 ## Fonctions
 - Fonds : Plan IGN, photographies aériennes ; couches : courbes de niveau, ombrage, pentes, cadastre.

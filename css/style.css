@@ -1695,6 +1695,7 @@ body.gw-open .pane[data-pane="game"]{pointer-events:none;opacity:.4}
 .embed #searchcard,.embed #coords,.embed .menubar,.embed #btn-edit,.embed #toolhint,.embed .dock.embed-off,.embed #rbar,.embed #gpalette{display:none!important}
 .embed .app{position:fixed!important;inset:0!important;display:block!important}
 .embed .stage{position:absolute!important;inset:0!important}
+.embed .rail,.embed .panel,.embed #north-btn{display:none!important}
 .embed-legend{position:absolute;left:10px;top:10px;z-index:800;display:flex;flex-direction:column;gap:4px;max-width:min(320px,70%);padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.95);border:1px solid var(--line-2);box-shadow:0 4px 16px rgba(0,7,97,.15);font-size:12.5px;color:var(--ink)}
 .embed-legend .el-t{font-family:Georgia,'Times New Roman',serif;font-size:14px;color:var(--navy);margin-bottom:2px}
 .embed-legend span{display:flex;align-items:center;gap:7px;min-width:0}
@@ -1703,3 +1704,34 @@ body.gw-open .pane[data-pane="game"]{pointer-events:none;opacity:.4}
 /* partage : second choix de lancement (préparation à plusieurs) */
 #live-panel .lv-big.lv-big2{margin-top:8px;background:#fff;color:#000761;border:1.5px solid #000761}
 #live-panel .lv-big.lv-big2 .ic{color:#000761}
+
+/* mention « Partage » dans la bibliothèque ; modification verrouillée par le chef */
+.lib-share{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--gold-l);color:var(--gold-d);font-size:10.5px;font-weight:700;vertical-align:1px}
+body.live-locked #rbar,body.live-locked #raim{display:none!important}
+body.live-locked .pane[data-pane=route] .btnrow,body.live-locked .pane[data-pane=route] #wps,body.live-locked .pane[data-pane=route] #route-mode{pointer-events:none;opacity:.55}
+
+/* téléphone : tous les menus de la barre du haut restent visibles (pas de défilement caché) */
+@media (max-width:560px){
+  .menubar{gap:0;padding:0 4px}
+  .menubar .brand-name,.menubar .proj-name{display:none}
+  .menubar .brand{margin-right:2px}
+  .menus{flex:1 1 auto;overflow:visible;gap:0}
+  .menus .menu-btn{padding:6px 5px;font-size:12.5px}
+  .menubar .mb-right{gap:2px}.menubar .mb-ic{width:30px;height:30px;padding:0}
+  #btn-pdf span{display:none}#btn-pdf{padding:0 9px}
+  #btn-tuto{display:none}   /* le menu Aide ouvre déjà les tutoriels */
+}
+
+/* apparence des points (Réglages › Général › Apparence des points) */
+body[data-pt=croix] .pin:not(.search),body[data-pt=pointeur] .pin:not(.search),body[data-pt=point] .pin:not(.search){--pc:var(--navy)}
+body[data-pt] .pin.start{--pc:#1a7f37}body[data-pt] .pin.end{--pc:#b4232c}body[data-pt] .pin.via{--pc:var(--navy)}body[data-pt] .pin.az{--pc:var(--gold-d)}body[data-pt] .pin.spot{--pc:#7a3db8}
+.pin.spot{background:#7a3db8}
+body[data-pt=croix] .pin:not(.search){position:relative;background:transparent!important;border:0;box-shadow:none;color:var(--pc);place-items:start end;font-size:11px;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
+body[data-pt=croix] .pin:not(.search)::before,body[data-pt=croix] .pin:not(.search)::after{content:"";position:absolute;left:50%;top:50%;background:var(--pc);box-shadow:0 0 0 1.5px #fff;border-radius:1px}
+body[data-pt=croix] .pin:not(.search)::before{width:22px;height:3.5px;margin:-1.75px 0 0 -11px}
+body[data-pt=croix] .pin:not(.search)::after{width:3.5px;height:22px;margin:-11px 0 0 -1.75px}
+body[data-pt=pointeur] .pin:not(.search){border:0;border-radius:50% 50% 50% 0;background:var(--pc)!important;transform:translateY(-8px) rotate(-45deg);color:transparent}
+body[data-pt=pointeur] .pin:not(.search)::after{content:attr(data-l);position:absolute;color:#fff;font-size:12px;transform:rotate(45deg)}
+body[data-pt=point] .pin:not(.search){width:14px;height:14px;font-size:0;border-width:2.5px;background:var(--pc)!important;margin:7px}
+body[data-pt] .pin-wrap.sel .pin:not(.search){transform:none}
+

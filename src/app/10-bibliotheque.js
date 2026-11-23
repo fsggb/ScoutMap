@@ -94,7 +94,7 @@
   function renderMyLayers() {
     var el = document.getElementById('lib-body'); if (!el) return;
     var game = S.mode === 'game';
-    if (!VIEWER) projAutosave();
+    if (!VIEWER && SUB === 'library') projAutosave();
     var list = libEntries();
     var h = '<button type="button" class="btn-primary block" data-a="new">' + ic('plus') + 'Nouveau tracé</button>' +
       '<p class="help">' + (game ? 'Vos grands jeux enregistrés dans ce navigateur. Cliquez pour en ouvrir un.' : 'Vos tracés enregistrés dans ce navigateur. Cliquez sur un tracé pour l’ouvrir ; l’œil l’affiche aussi sur la carte, avec le tracé en cours (ils s’impriment alors tous).') + '</p>';
@@ -108,7 +108,7 @@
       return '<li class="lrow lib-row' + (cur ? ' active' : '') + (on ? ' on' : '') + (LIBSEL[e.id] ? ' picked' : '') + '" data-pid="' + e.id + '">' +
         (cur || game ? '<span class="lib-cur">' + (cur ? 'En cours' : '') + '</span>' : '<button class="ibtn" data-a="vis" title="' + (on ? 'Retirer de la carte' : 'Afficher aussi sur la carte') + '" aria-label="Afficher sur la carte">' + ic(on ? 'eye' : 'eye-off') + '</button>') +
         (game ? '' : '<span class="lsw" style="background:' + esc(col) + '"></span>') +
-        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(libName(e)) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
+        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(libName(e)) + '</b>' + (e.partage ? '<span class="lib-share" title="' + (e.partage.fin ? 'Ancien partage en direct (terminé)' : 'Partage en direct en cours (' + esc(e.partage.role) + ')') + '">' + (e.partage.fin ? 'Partage terminé' : 'Partage') + '</span>' : '') + '<small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
         (cur ? '' : '<button class="ibtn danger" data-a="del" title="Supprimer ce tracé" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
     }).join('') : '<li class="pr-none">Aucun tracé enregistré pour le moment : tracez sur la carte, il apparaîtra ici tout seul.</li>') + '</ul>';
     h += '<button type="button" class="btn-ghost block" data-a="file">' + ic('upload') + 'Importer un PDF, GPX ou KML…</button>';

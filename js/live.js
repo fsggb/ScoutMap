@@ -14,7 +14,7 @@
   var COLORS = ['#c0262d', '#2563eb', '#1a7f37', '#d97706', '#7a3db8', '#0e7490', '#d6336c', '#a16207', '#4d7c0f', '#475569'];
   var ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789';
   var ONLINE = 45000, RECENT = 15 * 60000;   // « en ligne » : signe de vie il y a moins de 45 s ; « parti récemment » : moins de 15 min
-  var st = { prep: false, base: '', lastBy: 0, mode: 'game', room: null, key: null, ck: null, owner: false, admin: false, atok: null, psec: null, uid: null, name: '', share: true, geoErr: '', fix: null,
+  var st = { locked: false, prep: false, base: '', lastBy: 0, mode: 'game', room: null, key: null, ck: null, owner: false, admin: false, atok: null, psec: null, uid: null, name: '', share: true, geoErr: '', fix: null,
     remote: {}, markers: {}, chat: [], offset: 0, unread: 0, panelOpen: false, tab: 'chat', watch: null, lastSend: 0, timers: [], ws: null, carte: null, fini: true, essais: 0, lastGame: '', loaded: false, known: null, call: null, conn: 'ok', lastIn: Date.now(), nextTry: 0, rt: null, errs: [], out: {}, ping: null, decFail: 0, sync: { sent: 0, recv: 0 }, warned: {} };
   var gLive = L.layerGroup().addTo(map);
   try { st.name = localStorage.getItem('scoutmap.live.name') || ''; st.share = localStorage.getItem('scoutmap.live.share') !== '0'; } catch (e) { /* ignoré */ }
@@ -25,15 +25,26 @@
   function b64u(buf) { var s = '', u = new Uint8Array(buf); for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function unb64u(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
   function importKey(k) { return crypto.subtle.importKey('raw', unb64u(k), 'AES-GCM', false, ['encrypt', 'decrypt']); }
+  /* Données minimales : un message de plus de 600 octets (la carte, surtout) est compressé avant d'être chiffré (3 à 10 fois plus léger).
+     Le chiffrement marque les messages compressés par une donnée associée « z » (les anciens messages restent lisibles). */
+  var AADZ = new TextEncoder().encode('z');
+  function pipe(u8, stream) { return new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer().then(function (b) { return new Uint8Array(b); }); }
   function enc(obj) {
-    var iv = crypto.getRandomValues(new Uint8Array(12));
-    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, st.ck, new TextEncoder().encode(JSON.stringify(obj))).then(function (ct) {
-      var out = new Uint8Array(12 + ct.byteLength); out.set(iv); out.set(new Uint8Array(ct), 12); return b64u(out);
-    });
+    var iv = crypto.getRandomValues(new Uint8Array(12)), raw = new TextEncoder().encode(JSON.stringify(obj));
+    var zip = raw.length > 600 && typeof CompressionStream !== 'undefined' ? pipe(raw, new CompressionStream('deflate-raw')).catch(function () { return null; }) : Promise.resolve(null);
+    return zip.then(function (z) {
+      var alg = { name: 'AES-GCM', iv: iv }; if (z) alg.additionalData = AADZ;
+      return crypto.subtle.encrypt(alg, st.ck, z || raw);
+    }).then(function (ct) { var out = new Uint8Array(12 + ct.byteLength); out.set(iv); out.set(new Uint8Array(ct), 12); return b64u(out); });
   }
   function dec(str) {
-    var u = unb64u(str);
-    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, st.ck, u.slice(12)).then(function (b) { return JSON.parse(new TextDecoder().decode(b)); });
+    var u = unb64u(str), iv = u.slice(0, 12), body = u.slice(12);
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, st.ck, body).then(function (b) { return JSON.parse(new TextDecoder().decode(b)); }, function () {
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, additionalData: AADZ }, st.ck, body).then(function (b) {
+        if (typeof DecompressionStream === 'undefined') throw new Error('Ce navigateur ne sait pas lire ce partage : essayez avec un navigateur récent.');
+        return pipe(new Uint8Array(b), new DecompressionStream('deflate-raw')).then(function (r) { return JSON.parse(new TextDecoder().decode(r)); });
+      });
+    });
   }
   function colorOf(uid) { var h = 0; for (var i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0; return COLORS[h % COLORS.length]; }
   function initial(n) { return esc(String(n || '?').trim().charAt(0).toUpperCase() || '?'); }
@@ -44,7 +55,12 @@
   }
   function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function toast(m) { SM.toast(m); }
-  function canEdit() { return !!(st.owner || st.admin); }
+  function canEdit() { return !!(st.owner || (st.admin && !st.locked)); }
+  // verrou posé par la personne qui dirige : les co-administrateurs voient la carte mais ne peuvent plus la modifier
+  function applyLock() {
+    var on = !!st.locked && !st.owner && !!st.admin;
+    if (SM.setEditLock) SM.setEditLock(on);
+  }
   function linkOf() { return location.href.split('#')[0].split('?')[0] + '?direct=' + st.room + '#k=' + st.key; }
   function adminLink() { return linkOf() + '&a=' + st.atok; }
   function inviteLink() { return st.prep && st.atok ? location.href.split('#')[0].split('?')[0] + '?direct=' + st.room + '&prep=1#k=' + st.key + '&a=' + st.atok : linkOf(); }
@@ -69,7 +85,7 @@
         var m; try { m = JSON.parse(e.data); } catch (x) { return; }
         if (m.t === 'absent') { if (premier) { premier = false; st.fini = true; ws.close(); ko(new Error('Ce partage est terminé ou n’existe plus.')); } else finish('Le partage est terminé.'); return; }
         if (m.t === 'etat') {
-          st.essais = 0; st.conn = 'ok'; netUI(); st.offset = (m.maintenant || Date.now()) - Date.now(); st.owner = !!m.proprio; st.admin = !!m.admin && !m.proprio;
+          st.locked = !!m.verrou; st.essais = 0; st.conn = 'ok'; netUI(); st.offset = (m.maintenant || Date.now()) - Date.now(); st.owner = !!m.proprio; st.admin = !!m.admin && !m.proprio;
           if (m.admRefuse && !m.admin) { st.atok = null; toast('Lien administrateur refusé ou révoqué : vous suivez ' + quoi() + ' en lecture seule.'); }
           if (m.carte) st.carte = { d: m.carte, at: m.carteT };
           decodeAll(m.pos || {}).then(function () { if (SM.chat) SM.chat.load(m.chat || []); beat(true); if (SM.chat) SM.chat.resend(); });
@@ -77,6 +93,7 @@
           if (premier) { premier = false; ok(m); } else if (!st.owner) carteRecue();
           return;
         }
+        if (m.t === 'verrou') { var was = st.locked; st.locked = !!m.v; applyLock(); if (st.admin && !st.owner && was !== st.locked) toast(st.locked ? 'Le chef a verrouillé la modification : vous suivez la carte en lecture seule.' : 'Modification de nouveau autorisée.', { kind: 'info' }); if (st.owner) renderSettings(); return; }
         if (m.t === 'carte') { st.carte = { d: m.d, at: m.at }; carteRecue(); return; }
         if (m.t === 'pos') { decodeOne(m.u, m.d, m.at); return; }
         if (m.t === 'sanspos') { var gone = st.remote[m.u]; if (gone) gone.t = Math.min(gone.t, now() - ONLINE - 1); renderPeople(); return; }
@@ -173,6 +190,7 @@
   function carteRecue() {
     if (!st.loaded && !st.owner) { loadGame().catch(function () { /* ignoré */ }); return; }
     if (canEdit()) { mergeIn(); return; }
+    if (st.admin && !st.owner) { loadGame(false, true).catch(function () { /* ignoré */ }); return; }
     loadGame().catch(function () { /* ignoré */ });
   }
   /* Préparation à plusieurs : la carte reçue est fusionnée avec mes propres changements (js/fusion.js) au lieu de les écraser,
@@ -353,12 +371,17 @@
       }).then(function () {
         // préparation à plusieurs : le lien d'invitation donne à chacun le droit de modifier (lien co-administrateur, révocable dans Réglages)
         if (st.prep && !st.atok) { var tk = rand(20); if (envoi({ t: 'admtok', tk: tk })) st.atok = tk; }
-        active(true); startGeo(); showInvite(); saveSession();
+        active(true); startGeo(); showInvite(); saveSession(); markShared();
         if (vide) setTimeout(function () { toast('Attention : la carte est vide pour l’instant. Le partage est lancé ; ce que vous poserez sur la carte apparaîtra chez les autres.'); }, 900);
       }).catch(function (e) { st.fini = true; if (st.ws) st.ws.close(); st.room = null; renderIdle(); toast('Impossible de lancer le partage : ' + (e && e.message ? e.message : 'service indisponible') + '.'); });
     });
   }
   // Une personne qui arrive par le QR code ou le lien
+  // Le travail partagé est rangé dans la bibliothèque du navigateur avec la mention « Partage » (même après la fin du partage)
+  function markShared(fin) {
+    if (!st.room || !SM.markShared) return;
+    SM.markShared({ room: st.room, role: st.owner ? 'chef' : st.admin ? 'co-administrateur' : 'invité', prep: !!st.prep, fin: !!fin });
+  }
   function join(room, key, atok) {
     build();
     try { if (new URLSearchParams(location.search).get('prep') === '1') st.prep = true; } catch (e) { /* ignoré */ }
@@ -370,7 +393,7 @@
       importKey(key).then(function (k) { st.ck = k; return connect({ adm: atok }); }).then(function (m) {
         if (m.admin && !m.proprio) st.atok = atok;
         active(window.innerWidth > 860); return st.owner ? null : loadGame().catch(attenteCarte);
-      }).then(function () { if (st.admin) { st.lastGame = JSON.stringify(snapshot()); if (!window.SM_VIEWER) SM.setMode(st.mode); toast('Vous êtes co-administrateur : vous pouvez modifier la carte.'); } startGeo(); saveSession(); })
+      }).then(function () { markShared(); if (st.admin) { st.lastGame = JSON.stringify(snapshot()); if (!window.SM_VIEWER) SM.setMode(st.mode); toast('Vous êtes co-administrateur : vous pouvez modifier la carte.'); } startGeo(); saveSession(); })
         .catch(function (e) { if (e && e.name === 'OperationError') e = new Error('Lien incomplet : scannez de nouveau le QR code.'); st.fini = true; if (st.ws) st.ws.close(); st.room = null; renderIdle(); toast(e && e.message ? e.message : 'Connexion impossible.'); });
     };
     go.cancel = function () { st.room = null; st.key = null; };
@@ -407,7 +430,8 @@
     st.timers.push(setInterval(function () { if (st.conn !== 'ok') netUI(); }, 1000));
     st.timers.push(ticker(function () { envoi({ t: 'ping', c: Date.now() }); }, 15000));
     st.timers.push(ticker(function () { beat(); }, 10000));
-    if (canEdit()) st.timers.push(setInterval(function () { publishGame(); }, st.prep ? 1500 : 4000));
+    if (st.owner || st.admin) st.timers.push(setInterval(function () { publishGame(); }, st.prep ? 1500 : 4000));
+    applyLock();
   }
 
   // ---------- La carte partagée (envoyée par le chef, reçue en lecture seule par les autres) ----------
@@ -415,7 +439,8 @@
     if (st.mode === 'route') S.route.wps.forEach(function (w) { if (w.id == null) w.id = SM.nid(); });
     var snap = snapshot0();
     snap.by = st.name || '';
-    if (st.mode === 'route') snap.layers = S.layers.filter(function (l) { return l.type === 'route' || l.type === 'az'; }).map(function (l) { return { type: l.type, vis: l.vis !== false, data: l.data, res: l.res || null, pid: l.pid || null }; });
+    function slim(r) { return r && r.line ? { line: r.line.map(function (q) { return [Math.round(q[0] * 1e5) / 1e5, Math.round(q[1] * 1e5) / 1e5]; }), dist: r.dist, dur: r.dur, bounds: r.bounds, directs: r.directs || [], nat: [], portions: [] } : null; }
+    if (st.mode === 'route') snap.layers = S.layers.filter(function (l) { return l.type === 'route' || l.type === 'az'; }).map(function (l) { return { type: l.type, vis: l.vis !== false, data: l.data, res: slim(l.res), pid: l.pid || null }; });
     return snap;
   }
   function snapshot0() { return { app: 'ScoutMap', v: 1, name: liveName(), rail: st.mode, base: S.base, ov: S.ov, route: st.mode === 'route' ? S.route : { wps: [] }, az: st.mode === 'az' ? S.az : { pts: [] }, tracks: [], game: st.mode === 'game' ? S.game : { shapes: [] } }; }
@@ -435,7 +460,7 @@
       if (mine) { var js = JSON.stringify(data); if (st.lastGame && js === st.lastGame) return; }
       if (data.name) $('#lv-title').textContent = data.name;
       if (data.rail === 'az' || data.rail === 'game' || data.rail === 'route') { st.mode = data.rail; renderSettings(); }
-      SM.loadProject(data, null, { keepView: !!st.loaded }); st.loaded = true; st.sync.recv = Date.now(); if (st.admin) { st.lastGame = JSON.stringify(snapshot()); st.base = JSON.stringify(data); }
+      SM.loadProject(data, null, { keepView: !!st.loaded }); markShared(); st.loaded = true; st.sync.recv = Date.now(); if (st.admin) { st.lastGame = JSON.stringify(snapshot()); st.base = JSON.stringify(data); }
     }).catch(function (e) { if (e && e.name === 'OperationError') throw new Error('Lien incorrect (clé invalide) : scannez de nouveau le QR code.'); throw e; });
   }
 
@@ -562,10 +587,12 @@
       '<div class="lv-card"><label class="lv-fld">Mon prénom<span class="lv-fr"><input id="lv-nm" type="text" maxlength="24" value="' + esc(st.name) + '" autocomplete="given-name"><button type="button" class="lv-btn" id="lv-nms">Enregistrer</button></span></label></div>' +
       '<p class="lv-role">' + esc(droits) + '</p>' +
       notifCard() +
+      (st.owner ? '<div class="lv-card"><b>Verrouiller la modification</b><p>' + (st.locked ? 'La carte est verrouillée : seul vous la modifiez, les autres personnes la suivent en lecture seule.' : 'Les co-administrateurs peuvent modifier la carte. Verrouillez pour que seul vous puissiez la modifier (réversible à tout moment).') + '</p><div class="lv-acts"><button class="lv-btn" id="lv-lock" type="button">' + ico(st.locked ? 'edit' : 'lock') + (st.locked ? 'Autoriser de nouveau la modification' : 'Verrouiller la modification') + '</button></div></div>' : '') +
       (st.owner ? '<div class="lv-card"><b>Co-administrateur</b><p>Pour quelqu’un de confiance qui doit pouvoir modifier la carte avec vous.</p><div class="lv-acts"><button class="lv-btn" id="lv-acopy" type="button">' + ico('copy') + 'Copier le lien</button><button class="lv-btn" id="lv-arev" type="button">Révoquer</button></div></div>' : '') +
       '<details class="lv-diag" id="lv-diag"><summary>État technique (en cas de problème)</summary><pre id="lv-diagtxt"></pre><button type="button" class="lv-btn" id="lv-diagcopy">' + ico('copy') + 'Copier pour l’envoyer</button></details>' +
       '<div class="lv-end" id="lv-endbox"><button type="button" class="lv-btn danger" id="lv-end">' + (st.owner ? 'Terminer le partage pour tout le monde' : 'Quitter le partage') + '</button></div>';
     bindNotifCard();
+    var lk = $('#lv-lock'); if (lk) lk.addEventListener('click', function () { if (envoi({ t: 'verrou', v: !st.locked })) { st.locked = !st.locked; renderSettings(); toast(st.locked ? 'Modification verrouillée : seul vous modifiez la carte.' : 'Modification de nouveau autorisée pour les co-administrateurs.'); } else toast('Connexion en cours de rétablissement : réessayez dans un instant.'); });
     function saveNm() { var n = $('#lv-nm').value.trim(); if (!n) return; saveName(n); beat(true); renderPeople(); toast('Prénom enregistré.'); }
     $('#lv-nms').addEventListener('click', saveNm); $('#lv-nm').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNm(); });
     $('#lv-end').addEventListener('click', function () {      // confirmation dans le volet (pas de fenêtre)
@@ -592,7 +619,7 @@
     var url = inviteLink(), qr = qrcode(0, 'M'); qr.addData(url); qr.make();
     var texte = 'Suis ' + quoi() + ' en direct sur ScoutMap : ' + url, v = $('#lv-invview');
     v.innerHTML = '<div class="lv-vh"><button type="button" class="lv-ib dark" id="lv-vback" aria-label="Retour" title="Retour">' + ico('chev-left') + '</button><b>Inviter des personnes</b></div>' +
-      '<div class="lv-vc"><p class="lv-lead">Faites scanner ce code avec l’appareil photo d’un téléphone, ou envoyez le lien. La personne saisit son prénom et apparaît aussitôt sur la carte. Elle voit ' + quoi() + ' en lecture seule.</p>' +
+      '<div class="lv-vc"><p class="lv-lead">Faites scanner ce code avec l’appareil photo d’un téléphone, ou envoyez le lien. La personne saisit son prénom et apparaît aussitôt sur la carte. ' + (st.prep ? 'Elle ouvre l’application complète et modifie ' + quoi() + ' avec vous.' : 'Elle voit ' + quoi() + ' en lecture seule.') + '</p>' +
       '<div class="lv-qr">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
       '<div class="lv-linkrow"><input class="lv-link" id="lv-link" type="text" readonly value="' + esc(url) + '" aria-label="Lien du partage en direct"><button type="button" class="lv-btn" id="lv-copy">' + ico('copy') + 'Copier</button></div>' +
       '<div class="lv-acts"><a class="lv-btn" id="lv-wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(texte) + '">' + WA_LOGO + 'Envoyer par WhatsApp</a>' +
@@ -612,6 +639,7 @@
     enc({ n: st.name, c: colorOf(st.uid), bye: 1 }).then(function (e) { envoi({ t: 'pos', d: e }); }).catch(function () { /* ignoré */ }).then(function () { envoi({ t: 'sanspos' }); if (moi) envoi({ t: 'fin' }); fin(); });
   }
   function finish(msg) {
+    markShared(true); if (SM.setEditLock) SM.setEditLock(false); st.locked = false;
     if (SM.appel) SM.appel.fin();
     stopGeo(); st.fini = true; if (st.rt) { clearTimeout(st.rt); st.rt = null; } killWs(); st.conn = 'ok'; if (SM.chat) SM.chat.reset(); st.carte = null; st.loaded = false; st.warned = {}; netUI();
     st.timers.forEach(function (t) { if (typeof t === 'function') t(); else clearInterval(t); }); st.timers = [];

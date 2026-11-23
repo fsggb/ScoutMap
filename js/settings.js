@@ -144,6 +144,9 @@
         ['snapChurch', 'check', 'Poser le point sur l’église du village quand la carte est dézoomée'],
         ['flagNat', 'check', 'Signaler les routes nationales']
       ],
+      points: [
+        ['style', 'seg', 'Forme des points posés sur la carte', [['pastille', 'Pastille numérotée'], ['croix', 'Croix'], ['pointeur', 'Pointeur'], ['point', 'Point simple']]]
+      ],
       az: [
         ['unit', 'seg', 'Unité', [['deg', 'Degrés'], ['grd', 'Grades'], ['mil', 'Millièmes']]],
         ['ref', 'seg', 'Référence', [['true', 'Nord géographique'], ['mag', 'Nord magnétique']]],
@@ -158,7 +161,7 @@
         ['onesheet', 'check', 'Carte générale sur une seule feuille']
       ]
     };
-    var TITLE = { route: 'Pour chaque nouvel itinéraire', az: 'Pour chaque nouveau relevé d’azimuts', print: 'Choix proposés à l’impression' };
+    var TITLE = { points: 'Apparence des points', route: 'Pour chaque nouvel itinéraire', az: 'Pour chaque nouveau relevé d’azimuts', print: 'Choix proposés à l’impression' };
     function defCard(k) {
       var h = '<div class="set-card set-def" data-def="' + k + '"><h3>' + TITLE[k] + '</h3><p>Ces valeurs s’appliquent aux prochains ' + (k === 'print' ? 'documents imprimés (vous pouvez toujours les changer au moment d’imprimer)' : 'tracés ; le tracé ouvert garde ses propres réglages') + '.</p>';
       F[k].forEach(function (f) {
@@ -170,8 +173,8 @@
       return h + '<button type="button" class="linkbtn" data-def-reset="' + k + '">Revenir aux valeurs d’origine</button></div>';
     }
     function mountDefs() {
-      ['route', 'az', 'print'].forEach(function (k) {
-        var host = sec(k === 'print' ? 'print' : k), old = $('[data-def="' + k + '"]', page);
+      ['points', 'route', 'az', 'print'].forEach(function (k) {
+        var host = sec(k === 'print' ? 'print' : k === 'points' ? 'general' : k), old = $('[data-def="' + k + '"]', page);
         if (old) old.outerHTML = defCard(k); else host.insertAdjacentHTML('afterbegin', defCard(k));
       });
     }
@@ -189,13 +192,13 @@
       var k = inp.closest('.set-def').dataset.def, f = inp.dataset.f;
       if (inp.type === 'checkbox') D[k][f] = inp.checked;
       else if (inp.type === 'number') { var n = parseFloat(inp.value); if (isFinite(n)) D[k][f] = Math.min(+inp.max, Math.max(+inp.min, n)); }
-      SM.saveDefaults(); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' });
+      SM.saveDefaults(); if (SM.applyPointStyle) SM.applyPointStyle(); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' });
     });
     page.addEventListener('click', function (e) {
       var b = e.target.closest('.set-def .seg button[data-f]');
-      if (b) { var k = b.closest('.set-def').dataset.def; D[b.closest('.set-def').dataset.def][b.dataset.f] = JSON.parse(b.dataset.v); SM.saveDefaults(); $$('button[data-f="' + b.dataset.f + '"]', b.parentNode).forEach(function (x) { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' }); return; }
+      if (b) { var k = b.closest('.set-def').dataset.def; D[b.closest('.set-def').dataset.def][b.dataset.f] = JSON.parse(b.dataset.v); SM.saveDefaults(); if (SM.applyPointStyle) SM.applyPointStyle(); $$('button[data-f="' + b.dataset.f + '"]', b.parentNode).forEach(function (x) { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); SM.toast('Valeur par défaut enregistrée.', { kind: 'ok' }); return; }
       var r = e.target.closest('[data-def-reset]');
-      if (r) { var kk = r.dataset.defReset; Object.keys(SM.DEF_BASE[kk]).forEach(function (f) { D[kk][f] = SM.DEF_BASE[kk][f]; }); SM.saveDefaults(); mountDefs(); SM.toast('Valeurs d’origine rétablies.', { kind: 'ok' }); }
+      if (r) { var kk = r.dataset.defReset; Object.keys(SM.DEF_BASE[kk]).forEach(function (f) { D[kk][f] = SM.DEF_BASE[kk][f]; }); SM.saveDefaults(); if (SM.applyPointStyle) SM.applyPointStyle(); mountDefs(); SM.toast('Valeurs d’origine rétablies.', { kind: 'ok' }); }
     });
   }
 
