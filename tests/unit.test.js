@@ -98,3 +98,33 @@ test('Assemblage : le fichier de l\'application correspond bien aux parties de s
   const { assemble } = require('../scripts/build.js');
   assert.equal(fs.readFileSync(path.join(__dirname, '..', 'js', 'app' + '.js'), 'utf8'), assemble(), 'lancez « npm run build »');
 });
+
+test('Coordonnées : tous les formats collés dans la recherche', () => {
+  const { SMCoords } = load(['coords.js']);
+  const near = (r, lat, lon, msg) => { assert.ok(r, msg + ' : non reconnu'); assert.ok(Math.abs(r.lat - lat) < 1e-3 && Math.abs(r.lon - lon) < 1e-3, msg + ' : ' + JSON.stringify(r)); };
+  near(SMCoords.parse('45.764, 4.8357'), 45.764, 4.8357, 'décimal');
+  near(SMCoords.parse('45,764 4,8357'), 45.764, 4.8357, 'virgules décimales');
+  near(SMCoords.parse('N 45.764 E 4.8357'), 45.764, 4.8357, 'lettres devant');
+  near(SMCoords.parse('45°45\'50"N 4°50\'08"E'), 45.76389, 4.83556, 'DMS');
+  near(SMCoords.parse('45 45 50 N 4 50 8 E'), 45.76389, 4.83556, 'DMS sans symboles');
+  near(SMCoords.parse('N45°45.83\' E4°50.14\''), 45.76383, 4.83567, 'degrés minutes');
+  near(SMCoords.parse('44°50\'N 0°34\'O'), 44.83333, -0.56667, 'ouest en français');
+  near(SMCoords.parse('https://www.google.com/maps/place/Lyon/@45.75,4.83,13z/data=!3m1!4b1!4m6!3d45.764043!4d4.835659'), 45.764043, 4.835659, 'lien Google (lieu)');
+  near(SMCoords.parse('https://www.google.com/maps/@45.75,4.83,13z'), 45.75, 4.83, 'lien Google (vue)');
+  near(SMCoords.parse('https://maps.google.com/?q=45.764,4.8357'), 45.764, 4.8357, 'lien Google q=');
+  near(SMCoords.parse('https://www.openstreetmap.org/#map=15/45.7640/4.8357'), 45.764, 4.8357, 'lien OpenStreetMap');
+  near(SMCoords.parse('https://www.geoportail.gouv.fr/carte?c=4.8357,45.764&z=15'), 45.764, 4.8357, 'lien Géoportail');
+  for (const t of ['Lyon', 'rue de la paix 12', '45', '2 rue 3', '']) assert.equal(SMCoords.parse(t), null, 'pas des coordonnées : ' + t);
+  assert.ok(SMCoords.isShortLink('https://maps.app.goo.gl/abc'));
+});
+
+test('Boussole : cap du téléphone à plat, incliné, droit et au-delà (jamais inversé)', () => {
+  const { SMGeo } = load(['position.js']);
+  const h = (a, b, g, s) => SMGeo.heading(a, b, g, s || 0);
+  const near = (v, w, msg) => { const d = Math.abs(((v - w + 540) % 360) - 180); assert.ok(d < 1, msg + ' : ' + v + ' au lieu de ' + w); };
+  near(h(0, 0, 0), 0, 'à plat, haut vers le nord');
+  near(h(90, 0, 0), 270, 'à plat, haut vers l’ouest');
+  near(h(270, 0, 0), 90, 'à plat, haut vers l’est');
+  for (const beta of [30, 60, 90, 120]) { near(h(0, beta, 0), 0, 'incliné ' + beta + '° vers le nord'); near(h(270, beta, 0), 90, 'incliné ' + beta + '° vers l’est'); }
+  near(h(0, 0, 0, 90), 90, 'écran en paysage');
+});

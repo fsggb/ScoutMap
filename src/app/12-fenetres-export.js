@@ -107,7 +107,7 @@
         if (l.res) {
           var pr = RT.elevCache[lineKey(l.res.line)], ele = null;
           if (pr) { var cum = G.cumDist(l.res.line); ele = l.res.line.map(function (_, i) { var j = 0; while (j < pr.pts.length - 1 && pr.pts[j].d < cum[i]) j++; return pr.pts[j].z; }); }
-          body += G.trkXml(d.name, l.res.line, ele, G.fmtDist(l.res.dist) + ' – à pied' + (d.loop ? ' – boucle' : ''));
+          body += G.trkXml(d.name, l.res.line, ele, G.fmtDist(l.res.dist) + ' – à pied' + (loopOf(d) ? ' – boucle' : ''));
         }
       } else if (l.type === 'az') {
         var a = azParams(d);

@@ -3,7 +3,7 @@
   function layerMeta(l) {
     if (l.empty) return 'Vide';
     var d = l.data;
-    if (l.type === 'route') return (d.loop ? 'Boucle · ' : '') + (l.res ? G.fmtDist(l.res.dist) : d.wps.length + ' point(s)');
+    if (l.type === 'route') return (loopOf(d) ? 'Boucle · ' : '') + (l.res ? G.fmtDist(l.res.dist) : d.wps.length + ' point(s)');
     if (l.type === 'az') return d.pts.length + ' points · ' + G.fmtDist(G.pathLength(d.pts));
     if (l.type === 'game') return d.shapes.length + (d.shapes.length > 1 ? ' éléments' : ' élément');
     return d.mode === 'area' ? G.fmtArea(G.areaM2(d.pts)) : G.fmtDist(G.pathLength(d.pts));
