@@ -3,6 +3,15 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.3.0 — 23 novembre 2026
+
+### Préparation à plusieurs en direct
+- Le partage en direct propose deux façons de partager : **Sur le terrain** (je dirige, les autres suivent en lecture seule, comme avant) ou **Préparer à plusieurs** (tout le monde modifie la carte).
+- En préparation à plusieurs, les personnes invitées ouvrent **l'application complète** avec tous les outils ; leur travail en cours est d'abord rangé dans leur bibliothèque.
+- Les modifications faites **en même temps** sont **fusionnées** au lieu de s'écraser : chacun garde ses ajouts (insérés à leur place), les suppressions et déplacements de chacun s'appliquent, et pour une même valeur changée par deux personnes, la plus récente l'emporte. Elles arrivent chez les autres en une à deux secondes, sans interrompre ce qu'on est en train de dessiner. Une notification discrète indique qui a modifié la carte.
+- Ce qui est partagé : le tracé ouvert (itinéraire, azimuts ou grand jeu) et, pour un itinéraire, les tracés de la bibliothèque affichés avec lui.
+- Le chef peut reprendre la main seul en révoquant le lien co-administrateur (Partage › Réglages).
+
 ## 2.2.0 — 23 novembre 2026
 
 ### Pilotage par ChatGDB

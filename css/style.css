@@ -1699,3 +1699,7 @@ body.gw-open .pane[data-pane="game"]{pointer-events:none;opacity:.4}
 .embed-legend .el-t{font-family:Georgia,'Times New Roman',serif;font-size:14px;color:var(--navy);margin-bottom:2px}
 .embed-legend span{display:flex;align-items:center;gap:7px;min-width:0}
 .embed-legend i{flex:none;width:18px;height:4px;border-radius:2px}
+
+/* partage : second choix de lancement (préparation à plusieurs) */
+#live-panel .lv-big.lv-big2{margin-top:8px;background:#fff;color:#000761;border:1.5px solid #000761}
+#live-panel .lv-big.lv-big2 .ic{color:#000761}

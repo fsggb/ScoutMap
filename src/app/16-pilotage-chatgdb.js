@@ -202,3 +202,27 @@
       }, 400);
     }).catch(function () { toast('Vue de carte illisible : les données de l’adresse sont incomplètes.', { kind: 'warn' }); });
   }
+  // Préparation à plusieurs (js/live.js) : applique la carte fusionnée sans changer d'outil, de vue ni de panneau
+  function applyShared(o) {
+    if (!o || o.app !== 'ScoutMap') return;
+    var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : 'route';
+    if (rail !== S.mode) { loadProject(o, null, { keepView: true }); return; }
+    if (typeof o.name === 'string' && o.name !== S.name) { S.name = o.name; $('#proj-name').value = S.name; }
+    if (rail === 'route' && o.route) {
+      var seg = S.route.seg; S.route = Object.assign(FRESH.route(null, 1), o.route); S.route.wps = o.route.wps || []; if (seg) S.route.seg = seg; else delete S.route.seg;
+      if (SEL && SEL.k === 'route' && SEL.i >= S.route.wps.length) select(null);
+      syncNames(); syncRouteUi(); renderRouteMarkers(); computeRoute();
+    } else if (rail === 'az' && o.az) {
+      S.az = Object.assign(FRESH.az(null, 1), o.az); S.az.pts = o.az.pts || []; if (SEL && SEL.k === 'az') select(null); renderAz();
+    } else if (rail === 'game' && o.game) {
+      S.game = Object.assign(FRESH.game(null, 1), o.game); S.game.shapes = o.game.shapes || []; if (window.SM && SM.game) SM.game.render();
+    }
+    if (Array.isArray(o.layers)) {
+      S.layers = o.layers.filter(function (l) { return l && l.data && (l.type === 'route' || l.type === 'az'); }).map(function (l) {
+        var d = Object.assign(FRESH[l.type](null, 1), l.data); if (l.type === 'route') d.wps = l.data.wps || []; else d.pts = l.data.pts || [];
+        return { type: l.type, vis: l.vis !== false, data: d, res: l.res || null, pid: l.pid || null };
+      });
+      renderStored();
+    }
+    renderLayerList(); persist();
+  }
