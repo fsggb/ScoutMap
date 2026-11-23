@@ -23,18 +23,23 @@
     /* ---- Direction (boussole du téléphone) et carte orientée, comme l'application Cartes IGN :
        1er appui : position, carte au nord ; 2e appui (téléphone avec boussole) : la carte tourne pour suivre la direction du téléphone ;
        3e appui : arrêt. Le bouton « N » remet le nord en haut ; faire glisser la carte la remet aussi au nord. */
-    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
+    var CMP = { abs: false, h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
     function bearingOf(a, b) { var r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
     function screenAngle() { return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0); }
     function onOrient(e) {
       var h = null;
-      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;   // iPhone : cap magnétique direct
-      else if ((e.type === 'deviceorientationabsolute' || e.absolute === true) && typeof e.alpha === 'number' && e.alpha !== null) h = 360 - e.alpha;   // Android : orientation absolue (par rapport au nord)
-      else if (e.type === 'deviceorientation' && CMP.src === 'cmp') return;                                             // relatif : ignoré quand l'absolu fonctionne
+      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading) && e.webkitCompassHeading >= 0) {   // iPhone : cap magnétique déjà corrigé de l'inclinaison
+        h = (e.webkitCompassHeading + screenAngle() + 360) % 360;
+      } else if ((e.type === 'deviceorientationabsolute' || e.absolute === true) && typeof e.alpha === 'number') {
+        // Android : orientation absolue (par rapport au nord) ; cap calculé avec l'inclinaison (sinon il s'inverse quand on tient le téléphone droit)
+        if (e.type === 'deviceorientation' && CMP.abs) return;   // l'événement « absolu » est plus sûr : on le garde seul quand il existe
+        if (e.type === 'deviceorientationabsolute') CMP.abs = true;
+        h = SMGeo.heading(e.alpha, e.beta, e.gamma, screenAngle());
+      } else return;                                                                                                       // orientation relative : inutilisable comme boussole
       if (h === null) return;
-      h = (h + screenAngle() + 360) % 360;
+      if (typeof e.webkitCompassAccuracy === 'number' && (e.webkitCompassAccuracy < 0 || e.webkitCompassAccuracy > 35) && !CMP.calib) { CMP.calib = true; toast('Boussole imprécise : décrivez un grand 8 dans l’air avec le téléphone pour la recalibrer, loin des objets métalliques.', { kind: 'warn' }); }
       // lissage (moyenne circulaire) : la flèche ne tremble pas
-      if (CMP.h === null || CMP.src !== 'cmp') CMP.h = h; else { var d = ((h - CMP.h + 540) % 360) - 180; CMP.h = (CMP.h + d * 0.25 + 360) % 360; }
+      if (CMP.h === null || CMP.src !== 'cmp') CMP.h = h; else { var d = ((h - CMP.h + 540) % 360) - 180, k = Math.abs(d) > 30 ? 0.5 : Math.abs(d) > 8 ? 0.25 : 0.12; CMP.h = (CMP.h + d * k + 360) % 360; }
       CMP.live = true; CMP.src = 'cmp'; paintHeading();
     }
     function compassOn() {

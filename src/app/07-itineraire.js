@@ -26,7 +26,7 @@
   function natOf(m) { return /^N\s?\d/i.test(m.num) ? m.num.replace(/\s/g, '').toUpperCase() : /nationale/i.test(m.cls) ? 'nationale' : ''; }
 
   // d = données d'un calque itinéraire ; les points sont numérotés dans l'ordre de passage.
-  function loopOf(d) { return !!d.loop && d.wps.length >= 2; }
+  function loopOf(d) { return !!d.loop && d.wps.length >= 3; }   // deux points ne font jamais une boucle (sinon le retour double la distance)
   function effOf(d) { return loopOf(d) ? d.wps.concat([d.wps[0]]) : d.wps; }
   function lblOf(d, i) { return i === 0 ? 'A' : (i === d.wps.length - 1 && !loopOf(d)) ? 'B' : String(i); }
   function clsOf(d, i) { return i === 0 ? 'start' : (i === d.wps.length - 1 && !loopOf(d)) ? 'end' : 'via'; }
@@ -212,7 +212,7 @@
     var d = S.route;
     if (d.freeOrder === false || d.wps.length < 3) return;
     var hasDirect = d.wps.some(function (x) { return x.direct; });
-    var r = hasDirect ? bestBlockOrder(d.wps, !!d.loop) : bestOrder(d.wps, !!d.loop);
+    var r = hasDirect ? bestBlockOrder(d.wps, loopOf(d)) : bestOrder(d.wps, loopOf(d));
     if (r.gain < 0.002) return;
     var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
     if (r.flags) d.wps.forEach(function (x, k) { if (r.flags[k]) x.direct = true; else delete x.direct; });
@@ -221,7 +221,8 @@
     toast(hasDirect ? 'Ordre de passage optimisé : les points reliés en ligne droite restent groupés.' : 'Ordre de passage optimisé : boucle la plus courte par les points choisis.');
   }
   function closeLoop() {
-    if (S.route.wps.length < 2 || S.route.loop) return;
+    if (S.route.wps.length < 3) { toast('Il faut au moins trois points pour faire une boucle : avec deux points, c’est un aller simple.', { kind: 'info' }); return; }
+    if (S.route.loop) return;
     S.route.loop = true; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist();
     toast('Boucle fermée : le tracé revient au point de départ.');
   }
@@ -230,7 +231,7 @@
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
-    var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
+    var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
       var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
@@ -367,7 +368,7 @@
     if (RT.routeCtl) RT.routeCtl.abort();
     var w = effWps();
     if (w.length < 2) {
-      setRouteStatus(S.route.wps.length === 1 ? (S.route.loop ? 'Posez au moins un point de passage pour former la boucle.' : 'Posez l’arrivée sur la carte.') : '');
+      setRouteStatus(S.route.wps.length === 1 ? (S.route.loop ? 'Posez au moins deux autres points pour former la boucle.' : 'Posez l’arrivée sur la carte.') : (S.route.wps.length === 2 && S.route.loop ? 'Boucle : posez un troisième point. Avec deux points, l’itinéraire est un aller simple.' : ''));
       refreshProfile(); return;
     }
     setRouteStatus('Calcul de l’itinéraire…');

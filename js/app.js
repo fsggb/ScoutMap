@@ -1193,13 +1193,14 @@
     if (S.mode === 'route') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ id: 't' + t.id, label: t.name, line: t.coords, ele: t.ele }); });
     return out;
   }
-  var profToken = 0;
+  var profToken = 0, profHas = false;
   function chip(label, val, cls) { return '<span class="chip' + (cls ? ' ' + cls : '') + '">' + label + ' <b>' + val + '</b></span>'; }
   function refreshProfile() {
     var src = sources(), sel = $('#profile-src');
     sel.innerHTML = src.map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.label) + '</option>'; }).join('');
     var cur = src.filter(function (s) { return s.id === S.profileSrc; })[0] || src[0];
     $('#pempty').hidden = !!cur; $('#profile').style.display = cur ? '' : 'none';
+    if (profHas !== !!cur) { profHas = !!cur; applyDock(); }   // le profil n'apparaît qu'avec un tracé d'au moins deux points
     sel.style.display = src.length > 1 ? '' : 'none';
     if (!cur) { currentProfile = null; $('#pstats').innerHTML = ''; simSync(); return; }
     sel.value = cur.id;
@@ -1224,7 +1225,7 @@
   function toggleDock() { S.dockOpen = !S.dockOpen; applyDock(); persist(); }
   function applyDock() {
     var d = $('#dock');
-    d.hidden = !(S.mode === 'route' || S.mode === 'az' || S.mode === 'meas');
+    d.hidden = !(S.mode === 'route' || S.mode === 'az' || S.mode === 'meas') || !profHas;
     $('#app').classList.toggle('wide', S.mode === 'game');          // grand jeu : panneau plus large (le profil d'altitude est masqué)
     d.classList.toggle('closed', !S.dockOpen);
     d.style.height = S.dockH + 'px';
@@ -1355,7 +1356,7 @@
   function natOf(m) { return /^N\s?\d/i.test(m.num) ? m.num.replace(/\s/g, '').toUpperCase() : /nationale/i.test(m.cls) ? 'nationale' : ''; }
 
   // d = données d'un calque itinéraire ; les points sont numérotés dans l'ordre de passage.
-  function loopOf(d) { return !!d.loop && d.wps.length >= 2; }
+  function loopOf(d) { return !!d.loop && d.wps.length >= 3; }   // deux points ne font jamais une boucle (sinon le retour double la distance)
   function effOf(d) { return loopOf(d) ? d.wps.concat([d.wps[0]]) : d.wps; }
   function lblOf(d, i) { return i === 0 ? 'A' : (i === d.wps.length - 1 && !loopOf(d)) ? 'B' : String(i); }
   function clsOf(d, i) { return i === 0 ? 'start' : (i === d.wps.length - 1 && !loopOf(d)) ? 'end' : 'via'; }
@@ -1541,7 +1542,7 @@
     var d = S.route;
     if (d.freeOrder === false || d.wps.length < 3) return;
     var hasDirect = d.wps.some(function (x) { return x.direct; });
-    var r = hasDirect ? bestBlockOrder(d.wps, !!d.loop) : bestOrder(d.wps, !!d.loop);
+    var r = hasDirect ? bestBlockOrder(d.wps, loopOf(d)) : bestOrder(d.wps, loopOf(d));
     if (r.gain < 0.002) return;
     var ws = d.wps; d.wps = r.order.map(function (k) { return ws[k]; });
     if (r.flags) d.wps.forEach(function (x, k) { if (r.flags[k]) x.direct = true; else delete x.direct; });
@@ -1550,7 +1551,8 @@
     toast(hasDirect ? 'Ordre de passage optimisé : les points reliés en ligne droite restent groupés.' : 'Ordre de passage optimisé : boucle la plus courte par les points choisis.');
   }
   function closeLoop() {
-    if (S.route.wps.length < 2 || S.route.loop) return;
+    if (S.route.wps.length < 3) { toast('Il faut au moins trois points pour faire une boucle : avec deux points, c’est un aller simple.', { kind: 'info' }); return; }
+    if (S.route.loop) return;
     S.route.loop = true; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist();
     toast('Boucle fermée : le tracé revient au point de départ.');
   }
@@ -1559,7 +1561,7 @@
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
-    var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 2 && !d.loop;
+    var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
       var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
@@ -1696,7 +1698,7 @@
     if (RT.routeCtl) RT.routeCtl.abort();
     var w = effWps();
     if (w.length < 2) {
-      setRouteStatus(S.route.wps.length === 1 ? (S.route.loop ? 'Posez au moins un point de passage pour former la boucle.' : 'Posez l’arrivée sur la carte.') : '');
+      setRouteStatus(S.route.wps.length === 1 ? (S.route.loop ? 'Posez au moins deux autres points pour former la boucle.' : 'Posez l’arrivée sur la carte.') : (S.route.wps.length === 2 && S.route.loop ? 'Boucle : posez un troisième point. Avec deux points, l’itinéraire est un aller simple.' : ''));
       refreshProfile(); return;
     }
     setRouteStatus('Calcul de l’itinéraire…');
@@ -2293,7 +2295,7 @@
   function layerMeta(l) {
     if (l.empty) return 'Vide';
     var d = l.data;
-    if (l.type === 'route') return (d.loop ? 'Boucle · ' : '') + (l.res ? G.fmtDist(l.res.dist) : d.wps.length + ' point(s)');
+    if (l.type === 'route') return (loopOf(d) ? 'Boucle · ' : '') + (l.res ? G.fmtDist(l.res.dist) : d.wps.length + ' point(s)');
     if (l.type === 'az') return d.pts.length + ' points · ' + G.fmtDist(G.pathLength(d.pts));
     if (l.type === 'game') return d.shapes.length + (d.shapes.length > 1 ? ' éléments' : ' élément');
     return d.mode === 'area' ? G.fmtArea(G.areaM2(d.pts)) : G.fmtDist(G.pathLength(d.pts));
@@ -2841,7 +2843,7 @@
         if (l.res) {
           var pr = RT.elevCache[lineKey(l.res.line)], ele = null;
           if (pr) { var cum = G.cumDist(l.res.line); ele = l.res.line.map(function (_, i) { var j = 0; while (j < pr.pts.length - 1 && pr.pts[j].d < cum[i]) j++; return pr.pts[j].z; }); }
-          body += G.trkXml(d.name, l.res.line, ele, G.fmtDist(l.res.dist) + ' – à pied' + (d.loop ? ' – boucle' : ''));
+          body += G.trkXml(d.name, l.res.line, ele, G.fmtDist(l.res.dist) + ' – à pied' + (loopOf(d) ? ' – boucle' : ''));
         }
       } else if (l.type === 'az') {
         var a = azParams(d);
@@ -2969,7 +2971,7 @@
     ];
     if (i > 0) m.unshift(d.wps[i].direct ? { t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } } : { t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
     if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
-    if (i === 0 && n >= 2 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
+    if (i === 0 && n >= 3 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });
     if (i < n - 1 && !loop) m.push({ t: 'En faire l’arrivée', i: 'pin', a: function () { moveWp(i, n - 1); } });
     m.push({ t: 'Inverser le sens', i: 'swap', dis: function () { return n < 2; }, a: reverseRoute });
@@ -3069,12 +3071,20 @@
     }
     return { t: p.name || p.label || 'Adresse', s: ((p.postcode || '') + ' ' + (p.city || '')).trim(), k: 'home', poi: false, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], cat: '' };
   }
+  // Coordonnées de tous formats et liens de carte (Google Maps, OpenStreetMap, Géoportail…) : voir js/coords.js
   function parseCoord(v) {
+    if (window.SMCoords) return SMCoords.parse(v);
     var m = /^\s*(-?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(v);
     if (!m) return null;
     var a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.'));
     if (Math.abs(a) > 90 && Math.abs(b) <= 90) { var t = a; a = b; b = t; }
     return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? { lat: a, lon: b } : null;
+  }
+  // nom de lieu contenu dans un lien de carte sans coordonnées (ex. google.com/maps/place/Chamonix)
+  function linkText(v) {
+    var s = v; try { s = decodeURIComponent(v); } catch (e) { /* garde le texte */ }
+    var m = /\/place\/([^/@?]+)/.exec(s) || /\/search\/([^/@?]+)/.exec(s) || /[?&](?:q|query|destination|daddr)=([^&]+)/.exec(s);
+    return m ? m[1].replace(/\+/g, ' ').trim() : '';
   }
   function closeSuggest() { $('#suggest').hidden = true; qAct = -1; }
   function renderSuggest() {
@@ -3100,7 +3110,9 @@
     $('#q-clear').hidden = !this.value;
     if (v.length < 2) { closeSuggest(); return; }
     var c = parseCoord(v);
-    if (c) { qItems = [{ t: 'Aller aux coordonnées', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
+    if (c) { qItems = [{ t: 'Aller à ce point', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + (c.fmt && window.SMCoords ? ' · ' + SMCoords.label(c.fmt) : ''), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
+    if (window.SMCoords && SMCoords.isShortLink(v)) { qItems = []; $('#suggest').innerHTML = '<li class="none">Lien court Google Maps : ouvrez-le, puis copiez l’adresse complète de la page (elle contient la position).</li>'; $('#suggest').hidden = false; return; }
+    if (window.SMCoords && SMCoords.isLink(v)) { var lt = linkText(v); if (!lt) { qItems = []; $('#suggest').innerHTML = '<li class="none">Ce lien ne contient pas de position lisible.</li>'; $('#suggest').hidden = false; return; } v = lt; }
     if (v.length < 3) { closeSuggest(); return; }
     qTimer = setTimeout(function () {
       if (qCtl) qCtl.abort(); qCtl = new AbortController();
@@ -3537,18 +3549,23 @@
     /* ---- Direction (boussole du téléphone) et carte orientée, comme l'application Cartes IGN :
        1er appui : position, carte au nord ; 2e appui (téléphone avec boussole) : la carte tourne pour suivre la direction du téléphone ;
        3e appui : arrêt. Le bouton « N » remet le nord en haut ; faire glisser la carte la remet aussi au nord. */
-    var CMP = { h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
+    var CMP = { abs: false, h: null, live: false, src: '', orient: false, rot: 0, on: false, status: '', why: false, cone: 0 }, prevFix = null;
     function bearingOf(a, b) { var r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; }
     function screenAngle() { return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0); }
     function onOrient(e) {
       var h = null;
-      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;   // iPhone : cap magnétique direct
-      else if ((e.type === 'deviceorientationabsolute' || e.absolute === true) && typeof e.alpha === 'number' && e.alpha !== null) h = 360 - e.alpha;   // Android : orientation absolue (par rapport au nord)
-      else if (e.type === 'deviceorientation' && CMP.src === 'cmp') return;                                             // relatif : ignoré quand l'absolu fonctionne
+      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading) && e.webkitCompassHeading >= 0) {   // iPhone : cap magnétique déjà corrigé de l'inclinaison
+        h = (e.webkitCompassHeading + screenAngle() + 360) % 360;
+      } else if ((e.type === 'deviceorientationabsolute' || e.absolute === true) && typeof e.alpha === 'number') {
+        // Android : orientation absolue (par rapport au nord) ; cap calculé avec l'inclinaison (sinon il s'inverse quand on tient le téléphone droit)
+        if (e.type === 'deviceorientation' && CMP.abs) return;   // l'événement « absolu » est plus sûr : on le garde seul quand il existe
+        if (e.type === 'deviceorientationabsolute') CMP.abs = true;
+        h = SMGeo.heading(e.alpha, e.beta, e.gamma, screenAngle());
+      } else return;                                                                                                       // orientation relative : inutilisable comme boussole
       if (h === null) return;
-      h = (h + screenAngle() + 360) % 360;
+      if (typeof e.webkitCompassAccuracy === 'number' && (e.webkitCompassAccuracy < 0 || e.webkitCompassAccuracy > 35) && !CMP.calib) { CMP.calib = true; toast('Boussole imprécise : décrivez un grand 8 dans l’air avec le téléphone pour la recalibrer, loin des objets métalliques.', { kind: 'warn' }); }
       // lissage (moyenne circulaire) : la flèche ne tremble pas
-      if (CMP.h === null || CMP.src !== 'cmp') CMP.h = h; else { var d = ((h - CMP.h + 540) % 360) - 180; CMP.h = (CMP.h + d * 0.25 + 360) % 360; }
+      if (CMP.h === null || CMP.src !== 'cmp') CMP.h = h; else { var d = ((h - CMP.h + 540) % 360) - 180, k = Math.abs(d) > 30 ? 0.5 : Math.abs(d) > 8 ? 0.25 : 0.12; CMP.h = (CMP.h + d * k + 360) % 360; }
       CMP.live = true; CMP.src = 'cmp'; paintHeading();
     }
     function compassOn() {
@@ -3761,7 +3778,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.0.1', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,

@@ -419,14 +419,22 @@
     var chain = Promise.resolve();
     // chaque étape pose sa feuille sans attendre le chargement des tuiles (attendu une seule fois, à la fin, pour toutes les cartes) ;
     // une courte pause entre deux feuilles laisse l'aperçu s'afficher pendant la préparation
-    function step(msg, fn, grp, part, label) { chain = chain.then(function () { if (tok !== BT) throw ABORT; curGrp = grp || ''; curPart = part || ''; curLabel = label || ''; setProgress(done, total, msg); var r = fn(); return r && r.then && !r._tiles ? r : null; }).then(function () { done++; return new Promise(function (ok) { setTimeout(ok, 0); }); }); }
+    // Toutes les feuilles sont posées tout de suite, dans l'ordre (en-têtes, textes, cadres de carte vides) ; ce qui demande le réseau
+    // (noms des lieux, profil d'altitude, fonds de carte) se remplit ensuite, feuille par feuille, sans bloquer les suivantes.
+    var pend = [];
+    function step(msg, fn, grp, part, label) {
+      if (tok !== BT) return;
+      curGrp = grp || ''; curPart = part || ''; curLabel = label || '';
+      var r; try { r = fn(); } catch (e) { r = Promise.reject(e); }
+      pend.push(Promise.resolve(r && r.then && !r._tiles ? r : null).then(function () { done++; if (tok === BT) { setProgress(done, total, msg); addThumbs(tok, false); } }));
+    }
     secs.forEach(function (sec, si) {
       var gi = sec.items, rf = sec.rf, pl = sec.pl, gk = 'g' + si;
       var gl = gi.filter(function (x) { return x.type === 'route' || x.type === 'az'; }); GI[gk] = gl;
       var lab = groups.length > 1 ? (gl[0] ? (gl[0].type === 'route' ? 'Itinéraire ' : 'Parcours ') + (si + 1) + ' sur ' + groups.length + ' : ' + gl[0].name : 'Autres tracés') : '';
       if (rf.length) {
-        chain = chain.then(function () { return Promise.all(rf.filter(function (x) { return x.type === 'route'; }).map(function (x) { return SM.fillPlaces(x.data); })); });
         rf.forEach(function (it) {
+          if (it.type === 'route') it._wait = Promise.resolve(SM.fillPlaces(it.data)).catch(function () { /* noms des lieux facultatifs */ });
           step('Feuille de route…', function () {
             if (it.type === 'route') return roadmapPages(c, it, P, pm);
             var sh = newSheet(null, P[0], P[1], pm); sh.className += ' rf pp';
@@ -458,7 +466,7 @@
     });
     var sizes = '';
     $('#page-style').textContent += sizes;
-    chain.then(function () { return Promise.all(docMaps.map(function (m) { return m._ready; })); })
+    Promise.all(pend).then(function () { if (tok !== BT) throw ABORT; return Promise.all(docMaps.map(function (m) { return m._ready; })); })
       .then(function () { if (tok !== BT) return; setProgress(total, total, ''); var l = $('#doc-loading'); if (l) l.remove(); setBusy(false); addThumbs(tok, true); })
       .catch(function (e) { if (e === ABORT) return; setBusy(false); setProgress(total, total, ''); SM.toast(e && e.message || 'Document incomplet.'); });
   }
@@ -661,7 +669,10 @@
     s1.className += ' rf pp'; s2.className += ' rf pp';
     var title = c.title || it.name || 'Itinéraire';
     if (!r) { s1.innerHTML = head(title, 'Itinéraire non calculé', '1 / 2') + '<p class="d-warn">Cet itinéraire n’a pas encore de tracé calculé.</p>' + foot(); s2.remove(); return Promise.resolve(); }
-    return SM.profileFor(r.line).then(function (p) {
+    s1.innerHTML = head(title, esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · ')), '1 / 2') + '<p class="d-note">Préparation de la feuille de route…</p>' + foot();
+    s2.innerHTML = head(title, '', '2 / 2') + foot();
+    return Promise.all([SM.profileFor(r.line).catch(function () { return null; }), it._wait || null]).then(function (pa) {
+      var p = pa[0];
       var rows = stepsTable(d, r, p), sub = esc(['À pied', loop ? 'Boucle' : 'Aller simple', today()].join(' · '));
       var walk = SM.walkSecs(p, r.dist);
       // ---------- page 1

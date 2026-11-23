@@ -72,13 +72,14 @@
     if (S.mode === 'route') S.tracks.forEach(function (t) { if (t.show !== false) out.push({ id: 't' + t.id, label: t.name, line: t.coords, ele: t.ele }); });
     return out;
   }
-  var profToken = 0;
+  var profToken = 0, profHas = false;
   function chip(label, val, cls) { return '<span class="chip' + (cls ? ' ' + cls : '') + '">' + label + ' <b>' + val + '</b></span>'; }
   function refreshProfile() {
     var src = sources(), sel = $('#profile-src');
     sel.innerHTML = src.map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.label) + '</option>'; }).join('');
     var cur = src.filter(function (s) { return s.id === S.profileSrc; })[0] || src[0];
     $('#pempty').hidden = !!cur; $('#profile').style.display = cur ? '' : 'none';
+    if (profHas !== !!cur) { profHas = !!cur; applyDock(); }   // le profil n'apparaît qu'avec un tracé d'au moins deux points
     sel.style.display = src.length > 1 ? '' : 'none';
     if (!cur) { currentProfile = null; $('#pstats').innerHTML = ''; simSync(); return; }
     sel.value = cur.id;
@@ -103,7 +104,7 @@
   function toggleDock() { S.dockOpen = !S.dockOpen; applyDock(); persist(); }
   function applyDock() {
     var d = $('#dock');
-    d.hidden = !(S.mode === 'route' || S.mode === 'az' || S.mode === 'meas');
+    d.hidden = !(S.mode === 'route' || S.mode === 'az' || S.mode === 'meas') || !profHas;
     $('#app').classList.toggle('wide', S.mode === 'game');          // grand jeu : panneau plus large (le profil d'altitude est masqué)
     d.classList.toggle('closed', !S.dockOpen);
     d.style.height = S.dockH + 'px';

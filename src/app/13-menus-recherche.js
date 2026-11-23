@@ -36,7 +36,7 @@
     ];
     if (i > 0) m.unshift(d.wps[i].direct ? { t: 'Rejoindre par le chemin le plus court', i: 'route', a: function () { setDirect(i, false); } } : { t: 'Rejoindre en ligne droite depuis le point précédent', i: 'route', a: function () { setDirect(i, true); } });
     if (d.wps[i].orig) m.unshift({ t: 'Remettre à l’endroit où j’ai cliqué', i: 'undo', a: function () { restoreWp(i); } });
-    if (i === 0 && n >= 2 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
+    if (i === 0 && n >= 3 && !d.loop) m.push({ t: 'Fermer la boucle', i: 'loop', a: closeLoop });
     if (i > 0) m.push({ t: 'En faire le départ', i: 'pin', a: function () { moveWp(i, 0); } });
     if (i < n - 1 && !loop) m.push({ t: 'En faire l’arrivée', i: 'pin', a: function () { moveWp(i, n - 1); } });
     m.push({ t: 'Inverser le sens', i: 'swap', dis: function () { return n < 2; }, a: reverseRoute });
@@ -136,12 +136,20 @@
     }
     return { t: p.name || p.label || 'Adresse', s: ((p.postcode || '') + ' ' + (p.city || '')).trim(), k: 'home', poi: false, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], cat: '' };
   }
+  // Coordonnées de tous formats et liens de carte (Google Maps, OpenStreetMap, Géoportail…) : voir js/coords.js
   function parseCoord(v) {
+    if (window.SMCoords) return SMCoords.parse(v);
     var m = /^\s*(-?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(v);
     if (!m) return null;
     var a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.'));
     if (Math.abs(a) > 90 && Math.abs(b) <= 90) { var t = a; a = b; b = t; }
     return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? { lat: a, lon: b } : null;
+  }
+  // nom de lieu contenu dans un lien de carte sans coordonnées (ex. google.com/maps/place/Chamonix)
+  function linkText(v) {
+    var s = v; try { s = decodeURIComponent(v); } catch (e) { /* garde le texte */ }
+    var m = /\/place\/([^/@?]+)/.exec(s) || /\/search\/([^/@?]+)/.exec(s) || /[?&](?:q|query|destination|daddr)=([^&]+)/.exec(s);
+    return m ? m[1].replace(/\+/g, ' ').trim() : '';
   }
   function closeSuggest() { $('#suggest').hidden = true; qAct = -1; }
   function renderSuggest() {
@@ -167,7 +175,9 @@
     $('#q-clear').hidden = !this.value;
     if (v.length < 2) { closeSuggest(); return; }
     var c = parseCoord(v);
-    if (c) { qItems = [{ t: 'Aller aux coordonnées', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
+    if (c) { qItems = [{ t: 'Aller à ce point', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + (c.fmt && window.SMCoords ? ' · ' + SMCoords.label(c.fmt) : ''), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
+    if (window.SMCoords && SMCoords.isShortLink(v)) { qItems = []; $('#suggest').innerHTML = '<li class="none">Lien court Google Maps : ouvrez-le, puis copiez l’adresse complète de la page (elle contient la position).</li>'; $('#suggest').hidden = false; return; }
+    if (window.SMCoords && SMCoords.isLink(v)) { var lt = linkText(v); if (!lt) { qItems = []; $('#suggest').innerHTML = '<li class="none">Ce lien ne contient pas de position lisible.</li>'; $('#suggest').hidden = false; return; } v = lt; }
     if (v.length < 3) { closeSuggest(); return; }
     qTimer = setTimeout(function () {
       if (qCtl) qCtl.abort(); qCtl = new AbortController();

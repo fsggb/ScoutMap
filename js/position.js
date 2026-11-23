@@ -71,5 +71,23 @@
       if (!subs.length) { stopWatch(); K = null; last = null; lastEmit = null; pend = null; }
     };
   }
-  window.SMGeo = { subscribe: subscribe, last: function () { return last; }, active: function () { return watch !== null; }, feed: feed, dist: dist };      // feed : pour les tests
+  /* Cap du téléphone (0 = nord, 90 = est) à partir de l'orientation absolue (alpha, beta, gamma en degrés, norme W3C)
+     et de la rotation de l'écran. Fonctionne à plat comme tenu incliné ou droit : on additionne la direction du haut de l'écran
+     et celle du dos du téléphone, projetées à l'horizontale (l'une prend le relais quand l'autre devient verticale).
+     Renvoie null si le téléphone est tenu dans une position où aucune direction n'est fiable. */
+  function heading(alpha, beta, gamma, screenAngle) {
+    if (alpha == null || beta == null || gamma == null) return null;
+    var r = Math.PI / 180, cZ = Math.cos(alpha * r), sZ = Math.sin(alpha * r), cX = Math.cos(beta * r), sX = Math.sin(beta * r), cY = Math.cos(gamma * r), sY = Math.sin(gamma * r);
+    var th = (screenAngle || 0) * r, ct = Math.cos(th), st = Math.sin(th);
+    // axes du téléphone dans le repère (est, nord) : x (côté droit), y (haut), -z (dos)
+    var xE = cZ * cY - sZ * sX * sY, xN = sZ * cY + cZ * sX * sY;
+    var yE = -sZ * cX, yN = cZ * cX;
+    var bE = -cZ * sY - sZ * sX * cY, bN = -sZ * sY + cZ * sX * cY;
+    // haut de l'écran selon la rotation de l'écran (paysage)
+    var uE = ct * yE + st * xE, uN = ct * yN + st * xN;
+    var E = uE + bE, N = uN + bN;
+    if (Math.sqrt(E * E + N * N) < 0.15) return null;
+    return (Math.atan2(E, N) / r + 360) % 360;
+  }
+  window.SMGeo = { heading: heading, subscribe: subscribe, last: function () { return last; }, active: function () { return watch !== null; }, feed: feed, dist: dist };      // feed : pour les tests
 })();

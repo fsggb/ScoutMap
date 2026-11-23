@@ -3,6 +3,17 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.0.1 — 23 novembre 2026
+
+### Corrections
+- **Boucle à deux points** : avec seulement un départ et une arrivée, l'itinéraire est toujours un aller simple (avant, une boucle refaisait le même chemin au retour et doublait la distance). Une boucle demande au moins trois points.
+- **Profil d'altitude** : il n'apparaît qu'une fois au moins deux points placés et le tracé calculé.
+- **Boussole** : le cap tient compte de l'inclinaison du téléphone. Tenu incliné ou presque droit (comme pour lire la carte en marchant), il ne dérive plus et ne s'inverse plus. Le lissage réagit plus vite aux vrais demi-tours et filtre mieux les petits tremblements. Sur iPhone, un message propose de recalibrer quand la boussole est imprécise.
+- **Aperçu d'impression** : toutes les feuilles (feuilles de route et cartes) s'affichent tout de suite ; les noms des lieux, le profil d'altitude et les fonds de carte se remplissent ensuite sans bloquer les feuilles suivantes.
+
+### Nouveautés
+- **Recherche** : on peut coller des coordonnées dans tous les formats (degrés décimaux avec point ou virgule, degrés minutes secondes, lettres N/S/E/O, Lambert 93, UTM) et des liens de carte (Google Maps, OpenStreetMap, Géoportail, « geo: »). Un lien Google Maps sans position cherche le lieu nommé ; un lien court (maps.app.goo.gl) affiche comment obtenir le lien complet.
+
 ## 2.0.0 — 20 novembre 2026
 
 ### Nouveautés
