@@ -3803,6 +3803,30 @@
       }, 400);
     }).catch(function () { toast('Vue de carte illisible : les données de l’adresse sont incomplètes.', { kind: 'warn' }); });
   }
+  // Préparation à plusieurs (js/live.js) : applique la carte fusionnée sans changer d'outil, de vue ni de panneau
+  function applyShared(o) {
+    if (!o || o.app !== 'ScoutMap') return;
+    var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : 'route';
+    if (rail !== S.mode) { loadProject(o, null, { keepView: true }); return; }
+    if (typeof o.name === 'string' && o.name !== S.name) { S.name = o.name; $('#proj-name').value = S.name; }
+    if (rail === 'route' && o.route) {
+      var seg = S.route.seg; S.route = Object.assign(FRESH.route(null, 1), o.route); S.route.wps = o.route.wps || []; if (seg) S.route.seg = seg; else delete S.route.seg;
+      if (SEL && SEL.k === 'route' && SEL.i >= S.route.wps.length) select(null);
+      syncNames(); syncRouteUi(); renderRouteMarkers(); computeRoute();
+    } else if (rail === 'az' && o.az) {
+      S.az = Object.assign(FRESH.az(null, 1), o.az); S.az.pts = o.az.pts || []; if (SEL && SEL.k === 'az') select(null); renderAz();
+    } else if (rail === 'game' && o.game) {
+      S.game = Object.assign(FRESH.game(null, 1), o.game); S.game.shapes = o.game.shapes || []; if (window.SM && SM.game) SM.game.render();
+    }
+    if (Array.isArray(o.layers)) {
+      S.layers = o.layers.filter(function (l) { return l && l.data && (l.type === 'route' || l.type === 'az'); }).map(function (l) {
+        var d = Object.assign(FRESH[l.type](null, 1), l.data); if (l.type === 'route') d.wps = l.data.wps || []; else d.pts = l.data.pts || [];
+        return { type: l.type, vis: l.vis !== false, data: d, res: l.res || null, pid: l.pid || null };
+      });
+      renderStored();
+    }
+    renderLayerList(); persist();
+  }
   /* ==== src/app/16-position-boussole.js : ma position, direction (boussole) et carte orientée ==== */
   // ---------- Ma position (utile sur téléphone) ----------
   (function locate() {
@@ -4057,7 +4081,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.2.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.3.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
@@ -4066,6 +4090,7 @@
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
     layersList: layersList, fillPlaces: fillPlaces, scaleAt: scaleAt, zoomFor: zoomFor, curScale: curScale, niceScale: niceScale, fileName: fileName,
+    applyShared: applyShared, saveWork: function () { if (!VIEWER) projAutosave(); },
     wantOff: wantOff, openPdf: null, projLinkFor: projLinkFor, projLink: projLink, selected: function () { return []; },
     persist: persist, gGame: gGame, select: select, renderStored: renderStored, renderLayerList: renderLayerList, showCtx: showCtx, hideCtx: hideCtx,
     copyCoords: copyCoords, openDlg: openDlg, fit: fit, undoAction: undoAction, redoAction: redoAction, nid: nid, setMode: setMode, setRail: setRail, activate: activate,

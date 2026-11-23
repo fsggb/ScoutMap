@@ -137,3 +137,22 @@ test('Azimuts magnétiques : déclinaison estimée et aller-retour azimut ↔ po
   assert.equal(m.az, 90); assert.equal(m.back, 270);
   assert.ok(Math.abs(m.dist - 300) < 1, 'distance 300 m');
 });
+
+test('Préparation à plusieurs : fusion des modifications faites en même temps', () => {
+  const { SMMerge } = load(['fusion.js']);
+  const wp = (id, lat, extra) => Object.assign({ id, lat, lon: 5 }, extra || {});
+  const base = { name: 'Raid', route: { loop: false, wps: [wp(1, 45), wp(2, 45.1), wp(3, 45.2)] } };
+  // moi : j'ajoute un point après 2 et je renomme ; l'autre : déplace le point 3 et en ajoute un à la fin
+  const mine = { name: 'Raid du lac', route: { loop: false, wps: [wp(1, 45), wp(2, 45.1), wp(9, 45.15), wp(3, 45.2)] } };
+  const theirs = { name: 'Raid', route: { loop: false, wps: [wp(1, 45), wp(2, 45.1), wp(3, 45.25), wp(7, 45.3)] } };
+  const r = SMMerge.merge3(base, mine, theirs);
+  assert.equal(r.name, 'Raid du lac', 'mon renommage est gardé');
+  assert.equal(JSON.stringify(r.route.wps.map((w) => w.id)), '[1,2,9,3,7]', 'mon ajout est inséré à sa place, le leur aussi');
+  assert.equal(r.route.wps[3].lat, 45.25, 'leur déplacement est appliqué');
+  // suppressions des deux côtés
+  const m2 = { route: { wps: [wp(1, 45), wp(3, 45.2)] } }, t2 = { route: { wps: [wp(1, 45), wp(2, 45.1)] } };
+  assert.equal(JSON.stringify(SMMerge.merge3({ route: { wps: base.route.wps } }, m2, t2).route.wps.map((w) => w.id)), '[1]', 'chacun a supprimé un point : les deux suppressions comptent');
+  // même valeur changée des deux côtés : la version reçue l'emporte
+  assert.equal(SMMerge.merge3({ a: 1 }, { a: 2 }, { a: 3 }).a, 3);
+  assert.equal(JSON.stringify(SMMerge.merge3(null, { a: 2 }, { a: 3 })), '{"a":3}', 'sans état commun : la version reçue');
+});

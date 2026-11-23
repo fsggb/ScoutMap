@@ -7,7 +7,7 @@ maj: 2026-11-23
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.2.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.3.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
 
 ## Nouveautés de la version 2
 - Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
@@ -22,6 +22,9 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 - Recherche : coordonnées de tous formats (degrés décimaux, degrés minutes secondes, Lambert 93, UTM) et liens Google Maps, OpenStreetMap, Géoportail.
 - Deux points ne font jamais une boucle. Le profil d'altitude n'apparaît qu'avec un tracé calculé.
 - Pilotage par ChatGDB (section ci-dessous) et vue partielle de carte pour les artefacts.
+
+## Partage en direct (2.3)
+- Deux façons de partager : « Sur le terrain » (le chef dirige, les autres suivent) ou « Préparer à plusieurs » (tout le monde modifie la carte en même temps ; les modifications simultanées sont fusionnées, chacun garde ses ajouts). Partagé : le tracé ouvert et les tracés de la bibliothèque affichés avec lui.
 
 ## Pilotage par ChatGDB (canal de commandes, comme la suite Craft)
 Après « ouvrir » Cartes IGN, ChatGDB utilise `api_commandes`, `api_inspecter`, `api_executer`, `api_lot` et `api_requete` (méthodes engine.commands, engine.execute, document.inspect, ui.inspect, render.embed). Commandes principales :
