@@ -275,6 +275,7 @@
           it.res.line.forEach(function (p) { pts.push(p); });
         }
         d.wps.forEach(function (p, i) { if (!o.noMarkers) L.marker([p.lat, p.lon], { icon: SM.pin(SM.lblOf(d, i), SM.clsOf(d, i)), interactive: false, zIndexOffset: 1000 }).addTo(m); if (!it.res) pts.push([p.lat, p.lon]); });
+        (d.spots || []).forEach(function (q, i) { if (!o.noMarkers) L.marker([q.lat, q.lon], { icon: SM.pin('P' + (i + 1), 'spot'), interactive: false, zIndexOffset: 950 }).addTo(m); pts.push([q.lat, q.lon]); });
       }
     });
     return pts;

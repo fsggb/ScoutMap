@@ -9,6 +9,8 @@
   var esc = G.esc;
   var GP = 'https://data.geopf.fr';
   var KEY = 'scoutmap.v3';
+  var NOSAVE = false;                // vue partielle d'un artefact : rien ne s'enregistre dans le navigateur
+  var EDITLOCK = false;              // modification verrouillée par la personne qui dirige un partage en direct
   var VIEWER = !!window.SM_VIEWER;   // page web exportée : lecture seule, sans panneau ni menus
   function ic(n, c) { return '<svg class="ic' + (c ? ' ' + c : '') + '" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function sp(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
@@ -28,6 +30,7 @@
   var DEF_BASE = {
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
+    points: { style: 'pastille' },
     print: { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {
@@ -120,6 +123,7 @@
     clearTimeout(saveTimer);
     if (VIEWER) return;
     saveTimer = setTimeout(function () {
+      if (NOSAVE) return;
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* quota */ }
       projAutosave();
     }, 250);
@@ -804,8 +808,11 @@
     if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, level === 'discret' ? 2200 : Math.min(9000, 3200 + msg.length * 25));
     return card;
   }
+  // Apparence des points (Réglages › Général) : pastille numérotée, croix, pointeur ou simple point
+  function applyPointStyle() { document.body.setAttribute('data-pt', (DEF.points && DEF.points.style) || 'pastille'); }
+  applyPointStyle();
   function pin(label, cls, wrap) {
-    return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
+    return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '" data-l="' + esc(label) + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
   }
   function ll(p) { return L.latLng(p[0], p[1]); }
   function fmtP(p) { return G.formatCoord('wgs', p[0], p[1]); }
@@ -833,7 +840,7 @@
     if (row && scrollRow && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function deleteSelected() {
-    if (!SEL) return false;
+    if (!SEL || EDITLOCK) return false;
     var k = SEL.k, i = SEL.i;
     if (k === 'route') { removeWp(i); select(S.route.wps.length ? 'route' : null, Math.min(i, S.route.wps.length - 1)); }
     else if (k === 'az') {
@@ -847,6 +854,7 @@
 
   // ---------- Outils, panneau, rail ----------
   function setTool(t) {
+    if (EDITLOCK && t !== 'pan') t = 'pan';
     RT.tool = t;
     var c = map.getContainer();
     c.classList.toggle('tool-draw', t !== 'pan' && t !== 'game'); c.classList.toggle('tool-pan', t === 'pan'); c.classList.toggle('tool-game', t === 'game');
@@ -866,7 +874,7 @@
   $$('[data-edit]').forEach(function (b) { b.addEventListener('click', function () { setTool(RT.tool === 'pan' ? S.rail : 'pan'); }); });
   /* Barre d'outils flottante de l'itinéraire (comme celle du grand jeu) : Déplacer, puis la façon de rejoindre le point suivant
      (Chemin par les sentiers, Ligne droite à vol d'oiseau, Azimut à la boussole). On peut mélanger les trois dans un même itinéraire. */
-  function segOf() { return S.route.seg === 'direct' || S.route.seg === 'az' ? S.route.seg : 'route'; }
+  function segOf() { return S.route.seg === 'direct' || S.route.seg === 'az' || S.route.seg === 'spot' ? S.route.seg : 'route'; }
   function syncRbar() {
     var bar = $('#rbar'); if (!bar) return;
     var on = S.mode === 'route' && S.rail === 'route' && !VIEWER && !!($('#home') && $('#home').hidden) && !SUB;
@@ -874,6 +882,7 @@
     var cur = RT.tool === 'pan' ? 'pan' : segOf();
     $$('#rbar [data-rt]').forEach(function (b) { b.classList.toggle('on', b.dataset.rt === cur); b.setAttribute('aria-pressed', b.dataset.rt === cur ? 'true' : 'false'); });
     var aim = $('#raim'); if (aim) aim.hidden = segOf() !== 'az' || RT.tool === 'pan';
+    var sp = $('#spots-box'); if (sp) sp.hidden = !(S.route.spots && S.route.spots.length);
     var dn = $('#raim-decl'); if (dn) { var c = map.getCenter(), dc = G.declination(c.lat, c.lng); dn.textContent = 'Azimuts en degrés, pour une boussole (nord magnétique). Déclinaison estimée ici : ' + (dc >= 0 ? '+' : '−') + Math.abs(dc).toFixed(1).replace('.', ',') + '°, déjà comptée.'; }
   }
   $$('#rbar [data-rt]').forEach(function (b) {
@@ -996,6 +1005,7 @@
     var r = S.rail, n = S.route.wps.length;
     if (r === 'route') {
       var sg = segOf();
+      if (sg === 'spot') return 'Point seul : cliquez pour poser un repère isolé (il n’est relié à aucun chemin) · Échap : terminer.';
       if (n >= 1 && sg === 'az') return 'Azimut : cliquez le point suivant (ligne droite avec azimut et distance) · Échap : terminer.';
       if (n >= 1 && sg === 'direct') return 'Ligne droite : cliquez le point suivant (à vol d’oiseau) · Échap : terminer.';
       if (S.route.loop) return n === 0 ? 'Boucle : cliquez sur la carte pour poser le départ.' : 'Ajoutez des points de passage : le retour au départ est automatique.';
@@ -1054,7 +1064,7 @@
     if (!pts || !pts.length) return '';
     return t + ':' + pts.map(function (p) { return (+p[0]).toFixed(5) + ',' + (+p[1]).toFixed(5); }).join(';');
   }
-  function isEmpty(t, d) { return t === 'route' ? !d.wps.length : t === 'game' ? !d.shapes.length : !d.pts.length; }
+  function isEmpty(t, d) { return t === 'route' ? !d.wps.length && !(d.spots && d.spots.length) : t === 'game' ? !d.shapes.length : !d.pts.length; }
   // Liste unifiée des calques de tracé (en cours d'édition + stockés), regroupés par type.
   function layersList(all) {
     var out = [];
@@ -1593,8 +1603,40 @@
     S.route.loop = true; syncRouteUi(); renderRouteMarkers(); computeRoute(); persist();
     toast('Boucle fermée : le tracé revient au point de départ.');
   }
-  var routeLinks = [];
+  var routeLinks = [], spotMarkers = [];
+  // Points seuls : des repères isolés (poste de secours, point de rendez-vous…), non reliés au chemin
+  function addSpot(p, name) {
+    ensureVisible('route'); S.route.spots = S.route.spots || [];
+    if (S.route.spots.length >= 200) { toast('Deux cents points seuls au plus.', { kind: 'warn' }); return null; }
+    var o = { id: nid(), lat: p[0], lon: p[1] }; if (name) o.name = String(name).slice(0, 60);
+    S.route.spots.push(o); renderRouteMarkers(); persist(); return o;
+  }
+  function removeSpot(id) { S.route.spots = (S.route.spots || []).filter(function (x) { return x.id !== id; }); renderRouteMarkers(); persist(); }
+  function renderSpots() {
+    spotMarkers.forEach(function (m) { gRoute.removeLayer(m); }); spotMarkers = [];
+    var sp = S.route.spots || [];
+    sp.forEach(function (q, i) {
+      var m = L.marker([q.lat, q.lon], { draggable: !VIEWER && !EDITLOCK, icon: pin('P' + (i + 1), 'spot'), zIndexOffset: 950 }).addTo(gRoute);
+      m.bindTooltip(esc(q.name || 'Point ' + (i + 1)), { direction: 'top', offset: [0, -14] });
+      m.on('dragend', function () { var c = m.getLatLng(); q.lat = c.lat; q.lng = undefined; delete q.lng; q.lon = c.lng; renderRouteMarkers(); persist(); });
+      m.on('contextmenu', function (e) { L.DomEvent.stop(e); showCtx(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { t: 'Renommer…', i: 'edit', a: function () { var inp = $('#spots input[data-id="' + q.id + '"]'); if (inp) { showSub(null); inp.focus(); inp.select(); } } },
+        { t: 'Copier les coordonnées', i: 'copy', a: function () { copyCoords([q.lat, q.lon]); } },
+        { t: 'Supprimer ce point', i: 'trash', danger: true, a: function () { removeSpot(q.id); } }]); });
+      spotMarkers.push(m);
+    });
+    var box = $('#spots-box'); if (!box) return; box.hidden = !sp.length; $('#spot-count').textContent = sp.length ? '(' + sp.length + ')' : '';
+    $('#spots').innerHTML = sp.map(function (q, i) {
+      return '<li><span class="badge via spot">P' + (i + 1) + '</span><div class="wp-main"><input class="wp-name" data-id="' + q.id + '" value="' + esc(q.name || '') + '" placeholder="Point ' + (i + 1) + '" aria-label="Nom du point seul"><small>' + esc(fmtP([q.lat, q.lon])) + '</small></div><button class="ibtn danger" data-del="' + q.id + '" title="Retirer ce point" aria-label="Retirer">' + ic('x') + '</button></li>';
+    }).join('');
+  }
+  (function spotEvents() {
+    var ul = $('#spots'); if (!ul) return;
+    ul.addEventListener('input', function (e) { var i = e.target.closest('.wp-name'); if (!i) return; var q = (S.route.spots || []).filter(function (x) { return String(x.id) === i.dataset.id; })[0]; if (q) { if (i.value.trim()) q.name = i.value.trim().slice(0, 60); else delete q.name; persist(); } });
+    ul.addEventListener('click', function (e) { var d = e.target.closest('[data-del]'); if (d) removeSpot(+d.dataset.del); });
+  })();
   function renderRouteMarkers() {
+    renderSpots();
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
@@ -1607,7 +1649,7 @@
     S.route.wps.forEach(function (q) { if (q.anchor) { var ln = L.polyline([[q.lat, q.lon], [q.anchor.lat, q.anchor.lon]], { color: S.route.color, weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(gRoute); routeLinks.push(ln); } });
     var d = S.route, w = d.wps, closable = RT.tool === 'route' && w.length >= 3 && !d.loop;
     w.forEach(function (p, i) {
-      var m = L.marker([p.lat, p.lon], { draggable: !VIEWER, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
+      var m = L.marker([p.lat, p.lon], { draggable: !VIEWER && !EDITLOCK, icon: pin(lblOf(d, i), clsOf(d, i), i === 0 && closable ? 'closable' : ''), zIndexOffset: 1000 }).addTo(gRoute);
       m.bindTooltip(i === 0 && closable ? 'Cliquer pour fermer la boucle' : esc(nameOf(d, i)), { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('route', i, true); });
       m.on('dragend', function () {
@@ -2216,7 +2258,7 @@
     $('#decl-row').hidden = a.ref !== 'mag'; $('#decl-note').hidden = a.ref !== 'mag';
     var rows = '', cum = 0;
     pts.forEach(function (p, i) {
-      var m = L.marker(p, { draggable: true, icon: pin(String(i + 1), 'az', i === 0 && closable ? 'closable' : ''), zIndexOffset: 900 }).addTo(gAz);
+      var m = L.marker(p, { draggable: !EDITLOCK, icon: pin(String(i + 1), 'az', i === 0 && closable ? 'closable' : ''), zIndexOffset: 900 }).addTo(gAz);
       if (i === 0 && closable) m.bindTooltip('Cliquer pour fermer le circuit', { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('az', i, true); });
       m.on('dragend', function () {
@@ -2451,7 +2493,7 @@
   function renderMyLayers() {
     var el = document.getElementById('lib-body'); if (!el) return;
     var game = S.mode === 'game';
-    if (!VIEWER) projAutosave();
+    if (!VIEWER && SUB === 'library') projAutosave();
     var list = libEntries();
     var h = '<button type="button" class="btn-primary block" data-a="new">' + ic('plus') + 'Nouveau tracé</button>' +
       '<p class="help">' + (game ? 'Vos grands jeux enregistrés dans ce navigateur. Cliquez pour en ouvrir un.' : 'Vos tracés enregistrés dans ce navigateur. Cliquez sur un tracé pour l’ouvrir ; l’œil l’affiche aussi sur la carte, avec le tracé en cours (ils s’impriment alors tous).') + '</p>';
@@ -2465,7 +2507,7 @@
       return '<li class="lrow lib-row' + (cur ? ' active' : '') + (on ? ' on' : '') + (LIBSEL[e.id] ? ' picked' : '') + '" data-pid="' + e.id + '">' +
         (cur || game ? '<span class="lib-cur">' + (cur ? 'En cours' : '') + '</span>' : '<button class="ibtn" data-a="vis" title="' + (on ? 'Retirer de la carte' : 'Afficher aussi sur la carte') + '" aria-label="Afficher sur la carte">' + ic(on ? 'eye' : 'eye-off') + '</button>') +
         (game ? '' : '<span class="lsw" style="background:' + esc(col) + '"></span>') +
-        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(libName(e)) + '</b><small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
+        '<div class="lmeta" data-a="open" title="' + (cur ? 'Tracé en cours' : 'Ouvrir ce tracé') + ' · double-clic : renommer"><b class="lname">' + esc(libName(e)) + '</b>' + (e.partage ? '<span class="lib-share" title="' + (e.partage.fin ? 'Ancien partage en direct (terminé)' : 'Partage en direct en cours (' + esc(e.partage.role) + ')') + '">' + (e.partage.fin ? 'Partage terminé' : 'Partage') + '</span>' : '') + '<small>' + esc((e.kinds || []).join(' · ')) + ' · ' + fmtWhen(e.updated) + '</small></div>' +
         (cur ? '' : '<button class="ibtn danger" data-a="del" title="Supprimer ce tracé" aria-label="Supprimer">' + ic('trash') + '</button>') + '</li>';
     }).join('') : '<li class="pr-none">Aucun tracé enregistré pour le moment : tracez sur la carte, il apparaîtra ici tout seul.</li>') + '</ul>';
     h += '<button type="button" class="btn-ghost block" data-a="file">' + ic('upload') + 'Importer un PDF, GPX ou KML…</button>';
@@ -2604,7 +2646,7 @@
   function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function projStore(list) { try { localStorage.setItem(PKEY, JSON.stringify(list)); return true; } catch (e) { toast('Le stockage du navigateur est plein : téléchargez vos travaux pour les garder.'); return false; } }
   function projData(withRes) {
-    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks,
+    var o = { app: 'ScoutMap', v: 1, partage: S.partage || undefined, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks,
       layers: S.layers.filter(function (l) { return l.type === 'route' || l.type === 'az'; }).map(function (l) { return { type: l.type, vis: l.vis !== false, data: l.data, res: l.res || null, pid: l.pid || null }; }) };
     if (withRes && RT.route && RT.route.line) {
       o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, directs: RT.route.directs || [], nat: RT.route.nat || [],
@@ -2630,11 +2672,12 @@
     return k.split(' ')[0] + ' du ' + new Date().toLocaleDateString('fr-FR');
   }
   function projAutosave() {
-    var kinds = projKinds(); if (!kinds.length || VIEWER) return;
-    var list = projList().filter(function (e) { return e.id !== S.pid; });
+    var kinds = projKinds(); if (NOSAVE || !kinds.length || (VIEWER && !S.partage)) return;
+    var eid = (S.partage && S.partage.pid) || S.pid;     // un travail partagé garde un identifiant stable : une seule ligne dans la bibliothèque
+    var list = projList().filter(function (e) { return e.id !== eid; });
     var pd = projData(true);
     if (pd.res && pd.res.line) { var ln = pd.res.line.map(function (p) { return [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5]; }); pd.res = Object.assign({}, pd.res, { line: ln.length > 4000 ? ln.filter(function (p, i) { return i % Math.ceil(ln.length / 4000) === 0 || i === ln.length - 1; }) : ln }); }
-    list.push({ id: S.pid, name: projName(), updated: Date.now(), kinds: kinds, data: pd });
+    list.push({ id: eid, name: projName(), updated: Date.now(), kinds: kinds, data: pd, partage: S.partage || undefined });
     list.sort(function (a, b) { return b.updated - a.updated; });
     projStore(list.slice(0, 40));
   }
@@ -2643,7 +2686,7 @@
   function b64d(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
   function loadProject(o, id, opts) {
     if (!o || o.app !== 'ScoutMap') throw new Error('Ce fichier n’est pas un travail ScoutMap.');
-    S.pid = id || nid(); S.name = o.name || ''; $('#proj-name').value = S.name;
+    S.pid = id || nid(); S.name = o.name || ''; S.partage = o.partage || undefined; $('#proj-name').value = S.name;
     S.route = Object.assign(freshRoute(null, 1), o.route || {}); S.route.wps = (o.route && o.route.wps) || [];
     S.az = Object.assign(freshAz(null, 1), o.az || {}); S.az.pts = (o.az && o.az.pts) || [];
     S.game = Object.assign(freshGame(null, 1), o.game || {}); S.game.shapes = (o.game && o.game.shapes) || [];
@@ -2965,6 +3008,7 @@
       // Un clic tout près du tracé insère le point dans le tronçon concerné (ordre de passage respecté).
       if (e.originalEvent && e.originalEvent.shiftKey && S.route.wps.length) { placeAs('direct', p); return; }
       var sg = segOf();
+      if (sg === 'spot') { addSpot(p); return; }
       if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
       else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
       else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
@@ -3578,7 +3622,6 @@
   H.ready = true; H.lastKey = hKey(); H.lastSnap = hSnap(); hButtons();
   (function bootMode() {
     var hash = location.hash || '';
-    if (window.SM_EMBED) { document.body.classList.add('viewer'); embedBoot(); return; }
     if (VIEWER) {
       document.body.classList.add('viewer'); showHome(false);
       if (!window.SM_LIVE_ROOM) { try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); } }
@@ -3623,6 +3666,7 @@
       var d = S.route, w = d.wps;
       return {
         nom: d.name, boucle: loopOf(d), outil: segOf() === 'az' ? 'azimut' : segOf() === 'direct' ? 'droite' : 'chemin',
+        points_seuls: (d.spots || []).map(function (q, i) { return { id: q.id, nom: q.name || 'P' + (i + 1), lat: +q.lat.toFixed(6), lon: +q.lon.toFixed(6) }; }),
         points: w.map(function (p, i) {
           var o = { index: i, repere: lblOf(d, i), nom: nameOf(d, i), lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6) };
           if (i > 0) { o.rejoint = legMode(p); if (p.az) { var m = G.magAz([w[i - 1].lat, w[i - 1].lon], [p.lat, p.lon]); o.azimut = m.az; o.contre_azimut = m.back; o.distance_m = Math.round(m.dist); } }
@@ -3691,11 +3735,15 @@
         run: function (p) { var b = String(p.fond || ''); if (!LAYERS[b] || !LAYERS[b].base) throw new Error('fond inconnu : ' + b); S.base = b; buildTiles(); applyLayers(); persist(); return { fond: b }; } },
       { id: 'map.layers', label: 'Afficher ou masquer des couches (courbes de niveau, ombrage, sentiers…)', location: 'Affichage', params: { afficher: OVERS.join(', '), masquer: 'idem' },
         run: function (p) { [].concat(p.afficher || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = true; }); [].concat(p.masquer || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = false; }); applyLayers(); persist(); return { couches: OVERS.filter(function (k) { return S.ov[k]; }) }; } },
+      { id: 'app.point_style', label: 'Apparence des points posés sur la carte', location: 'Réglages', params: { forme: 'pastille | croix | pointeur | point' },
+        run: function (p) { var f = String(p.forme || ''); if (['pastille', 'croix', 'pointeur', 'point'].indexOf(f) < 0) throw new Error('forme : pastille, croix, pointeur ou point'); DEF.points.style = f; saveDefaults(); applyPointStyle(); return { forme: f }; } },
       { id: 'map.grid', label: 'Grille sur la carte (aucune, kilométrique, carroyage bleu, UTM, lat/long, jeu)', location: 'Affichage', params: { type: 'none | l93 | km | utm | ll | game' },
         run: function (p) { var t = String(p.type || 'none'); if (['none', 'l93', 'km', 'utm', 'll', 'game'].indexOf(t) < 0) throw new Error('grille inconnue : ' + t); S.grid = { type: t }; if (SM.grid) SM.grid.apply(); persist(); return { grille: t }; } },
       { id: 'route.add', label: 'Ajouter un point à l’itinéraire (lieu, coordonnées ou lien), relié par chemin, en ligne droite ou en azimut', location: 'Itinéraire',
         params: { query: 'lieu (ou coords, ou lat+lon)', mode: 'chemin | droite | azimut', nom: 'texte (facultatif)', at: 'position (facultatif, à la fin par défaut)' },
         run: function (p) { return addPoint({ lat: p.lat, lon: p.lon, coords: p.coords, query: p.query, name: p.nom, at: p.at }, p.mode); } },
+      { id: 'route.add_spot', label: 'Poser un point seul (repère isolé, non relié au chemin)', location: 'Itinéraire', params: { query: 'lieu (ou coords, ou lat+lon)', nom: 'texte (facultatif)' },
+        run: function (p) { needRoute(); return where(p).then(function (g) { var o = addSpot([g.lat, g.lon], p.nom || g.name); return o ? { id: o.id, lat: g.lat, lon: g.lon, nom: o.name || '' } : null; }); } },
       { id: 'route.add_azimuth', label: 'Ajouter le point suivant par azimut (degrés, boussole) et distance depuis le dernier point', location: 'Itinéraire', params: { azimut: '0 à 360', distance: 'mètres', nom: 'texte (facultatif)' },
         run: function (p) {
           needRoute(); var w = S.route.wps; if (!w.length) throw new Error('posez d’abord le point de départ (route.add)');
@@ -3720,8 +3768,10 @@
       { id: 'route.result', label: 'Attendre le calcul et donner le résultat (distance, durée, points, azimuts)', location: 'Itinéraire', run: function () { return settle(); } },
       { id: 'print.open', label: 'Ouvrir la fenêtre d’impression (la personne choisit et imprime)', location: 'Fichier', run: function () { if (!SM.openPdf) throw new Error('impression indisponible'); SM.openPdf(); return 'fenêtre d’impression ouverte'; } },
       { id: 'share.link', label: 'Lien qui ouvre ce travail complet dans ScoutMap', location: 'Fichier', run: function () { return projLink().then(function (u) { return { lien: u }; }); } },
+      { id: 'embed.show', label: 'Passer cette page en vue partielle : la carte seule avec les tracés donnés, chacun de sa couleur (lecture seule, rien n’est enregistré)', location: 'Artefact',
+        params: { donnees: 'travail ScoutMap (objet, produit par embed.spec)', titre: 'texte', legende: 'true | false', profil: 'true | false' }, run: function (p) { return embedShow(p); } },
       { id: 'embed.spec', label: 'Vue partielle pour un artefact ChatGDB : seulement la carte et les tracés choisis, chacun de sa couleur, avec une légende',
-        location: 'Artefact', params: { ids: 'identifiants de la bibliothèque (facultatif ; sinon le travail en cours)', titre: 'texte (facultatif)', fond: 'fond de carte (facultatif)', legende: 'true | false', profil: 'true | false' },
+        location: 'Artefact', params: { ids: 'identifiants de la bibliothèque (facultatif ; sinon le travail en cours)', titre: 'texte (facultatif)', legende: 'true | false', profil: 'true | false' },
         run: function (p) { return embedSpec(p); } }
     ];
     function commands() { return CMDS.map(function (c) { return { id: c.id, label: c.label, location: c.location, params: c.params || {} }; }); }
@@ -3755,15 +3805,9 @@
       function slim(r) { return r && r.line ? Object.assign({}, r, { line: r.line.map(function (q) { return [Math.round(q[0] * 1e5) / 1e5, Math.round(q[1] * 1e5) / 1e5]; }), portions: [] }) : r; }
       if (main.res) main.res = slim(main.res); main.layers = main.layers.map(function (l) { return Object.assign({}, l, { res: slim(l.res) }); });
       delete main.game; delete main.tracks;
-      return projEncode(main).then(function (code) {
-        var q = { vue: 'carte', donnees: code };
-        if (p.titre) q.titre = String(p.titre).slice(0, 80);
-        if (p.fond) q.fond = String(p.fond);
-        if (p.legende === false || p.legende === 'false') q.legende = '0';
-        if (p.profil === true || p.profil === 'true') q.profil = '1';
-        var params = Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
-        return { app: 'Cartes IGN', params: params, artefact: '<artifact id="carte" type="app" title="' + esc(p.titre || 'Carte') + '">' + JSON.stringify({ app: 'Cartes IGN', params: params }) + '</artifact>', lien: APP_URL + '?' + params, taille: params.length };
-      });
+      var args = { donnees: main, titre: p.titre ? String(p.titre).slice(0, 80) : '', legende: !(p.legende === false || p.legende === 'false'), profil: p.profil === true || p.profil === 'true' };
+      var spec = { app: 'Cartes IGN', commandes: [{ commande: 'embed.show', parametres: args }] }, txt = JSON.stringify(spec);
+      return Promise.resolve({ artefact: '<artifact id="carte" type="app" title="' + esc(p.titre || 'Carte') + '">' + txt + '</artifact>', taille: txt.length });
     }
     return { commands: commands, execute: execute, request: request, inspect: inspect };
   })();
@@ -3775,14 +3819,16 @@
     request: function (m, p) { return PILOT.request(m, p); },
     version: function () { return SM.appVersion; }
   };
-  // Démarrage en vue partielle (?vue=carte) : la carte seule, en lecture, avec les tracés reçus dans l'adresse ; rien n'est enregistré.
-  function embedBoot() {
-    var P; try { P = new URLSearchParams(location.search); } catch (e) { return; }
-    document.body.classList.add('embed'); showHome(false); S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
-    if (P.get('profil') !== '1') { var dk = $('#dock'); if (dk) dk.classList.add('embed-off'); }
-    var code = P.get('donnees');
-    var ready = code ? projDecode(code) : Promise.resolve(null);
-    ready.then(function (o) {
+  // Vue partielle (commande embed.show, utilisée par les artefacts de ChatGDB) : la carte seule, en lecture, avec les tracés reçus.
+  // Comme pour la suite Craft, rien ne passe par l'adresse ; la page ne touche jamais au travail enregistré dans le navigateur.
+  function embedShow(P) {
+    VIEWER = true; NOSAVE = true; clearTimeout(saveTimer);   // plus aucun enregistrement dans cette page (ni l'enregistrement déjà en attente)
+    if (SIM.open) simClose(true);
+    document.body.classList.add('viewer', 'embed'); showHome(false); S.panelOpen = false; $('#app').classList.add('nopanel'); setTool('pan');
+    var dk = $('#dock'); if (dk) dk.classList.toggle('embed-off', !P.profil);
+    var old = document.querySelector('.embed-legend'); if (old) old.parentNode.removeChild(old);
+    var ready = P.donnees && P.donnees.app === 'ScoutMap' ? Promise.resolve(P.donnees) : Promise.resolve(null);
+    return ready.then(function (o) {
       if (o) loadProject(o, null, { keepView: true });
       if (S.mode !== 'route' && S.mode !== 'az') setRail('route');
       setTool('pan'); S.panelOpen = false; $('#app').classList.add('nopanel');
@@ -3790,8 +3836,8 @@
       var used = [S.route.color]; S.layers.forEach(function (l) { if (l.type === 'route') { if (used.indexOf(l.data.color) >= 0) l.data.color = libColor('route', used); used.push(l.data.color); } });
       renderStored(); renderLayerList();
       var items = layersList(true).filter(function (l) { return !l.empty && (l.type === 'route' || l.type === 'az'); });
-      var titre = (P.get('titre') || '').trim();
-      if (P.get('legende') !== '0' && (items.length > 1 || titre)) {
+      var titre = String(P.titre || '').trim();
+      if (P.legende !== false && (items.length > 1 || titre)) {
         var lg = document.createElement('div'); lg.className = 'embed-legend';
         lg.innerHTML = (titre ? '<b class="el-t">' + esc(titre) + '</b>' : '') + items.map(function (l) { return '<span><i style="background:' + esc(l.color) + '"></i>' + esc(l.name) + (l.res && l.res.dist ? ' · ' + G.fmtDist(l.res.dist) : '') + '</span>'; }).join('');
         $('#mapwrap').appendChild(lg);
@@ -3801,13 +3847,14 @@
         items.forEach(function (l) { var x = layerBounds(l.key); if (x && x.isValid()) b = b ? b.extend(x) : L.latLngBounds(x.getSouthWest(), x.getNorthEast()); });
         if (b) fit(b, { padding: [40, 40], maxZoom: 16 });
       }, 400);
-    }).catch(function () { toast('Vue de carte illisible : les données de l’adresse sont incomplètes.', { kind: 'warn' }); });
+      return { tracés: items.length, titre: titre };
+    });
   }
   // Préparation à plusieurs (js/live.js) : applique la carte fusionnée sans changer d'outil, de vue ni de panneau
   function applyShared(o) {
     if (!o || o.app !== 'ScoutMap') return;
     var rail = ['route', 'az', 'game'].indexOf(o.rail) >= 0 ? o.rail : 'route';
-    if (rail !== S.mode) { loadProject(o, null, { keepView: true }); return; }
+    if (rail !== S.mode) { var keepP = S.partage; loadProject(o, null, { keepView: true }); S.partage = keepP; if (keepP && keepP.pid) S.pid = keepP.pid; return; }
     if (typeof o.name === 'string' && o.name !== S.name) { S.name = o.name; $('#proj-name').value = S.name; }
     if (rail === 'route' && o.route) {
       var seg = S.route.seg; S.route = Object.assign(FRESH.route(null, 1), o.route); S.route.wps = o.route.wps || []; if (seg) S.route.seg = seg; else delete S.route.seg;
@@ -4081,7 +4128,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.3.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.4.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
@@ -4090,6 +4137,19 @@
     profileFor: profileFor, lineKey: lineKey, renderProfileSvg: renderProfileSvg, stepText: stepText, stepMeta: stepMeta, stepName: stepName,
     loopOf: loopOf, effOf: effOf, lblOf: lblOf, clsOf: clsOf, titleOf: titleOf, nameOf: nameOf, azParams: azParams, azClosedOf: azClosedOf,
     layersList: layersList, fillPlaces: fillPlaces, scaleAt: scaleAt, zoomFor: zoomFor, curScale: curScale, niceScale: niceScale, fileName: fileName,
+    setEditLock: function (on) {
+      EDITLOCK = !!on; document.body.classList.toggle('live-locked', EDITLOCK);
+      if (EDITLOCK) { setTool('pan'); select(null); }
+      renderRouteMarkers(); renderAz();
+    },
+    // mention « Partage » : le travail partagé reste dans la bibliothèque du navigateur ; son identifiant est stable pour ne pas se dupliquer
+    markShared: function (info) {
+      var h = 0; for (var i = 0; i < info.room.length; i++) h = (h * 31 + info.room.charCodeAt(i)) >>> 0;
+      if (info.role !== 'chef') info.pid = 7e12 + h;
+      S.partage = info; if (info.pid) S.pid = info.pid;
+      projAutosave(); if (SUB === 'library') renderMyLayers();
+    },
+    applyPointStyle: applyPointStyle,
     applyShared: applyShared, saveWork: function () { if (!VIEWER) projAutosave(); },
     wantOff: wantOff, openPdf: null, projLinkFor: projLinkFor, projLink: projLink, selected: function () { return []; },
     persist: persist, gGame: gGame, select: select, renderStored: renderStored, renderLayerList: renderLayerList, showCtx: showCtx, hideCtx: hideCtx,

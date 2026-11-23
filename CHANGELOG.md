@@ -3,6 +3,31 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.4.0 — 24 novembre 2026
+
+Une seule version pour tout ce lot (partage, pilotage, points, grand jeu).
+
+### Partage en direct
+- **Verrouillage** : en préparation à plusieurs, la personne qui dirige peut **verrouiller la modification** (Partage › Réglages). Les co-administrateurs suivent alors la carte sans pouvoir la modifier ; le serveur refuse leurs envois, pas seulement l'interface. Réversible à tout moment.
+- **Données minimales** : les cartes partagées sont **compressées** avant d'être chiffrées (3 à 10 fois moins de données), les tracés calculés sont allégés (précision d'un mètre, sans les consignes détaillées), et rien n'est envoyé tant que rien ne change.
+- **Historique** : un travail partagé (qu'on dirige, qu'on suit ou qu'on modifie à plusieurs) est rangé dans la **bibliothèque du navigateur avec la mention « Partage »** (« Partage terminé » une fois fini). Une seule ligne par partage, sans doublon.
+- **Téléphone** : tous les menus de la barre du haut (Fichier, Édition, Outils, Affichage, Aide) et les trois onglets du partage restent visibles ; le texte de l'invitation dit si la personne modifie ou suit en lecture seule.
+
+### Pilotage par ChatGDB
+- Comme pour les applications Craft, **plus aucun paramètre d'adresse** : ChatGDB ouvre ScoutMap puis lui envoie des commandes natives. La vue partielle d'un artefact (carte seule, tracés de couleurs différentes, légende) s'obtient par la commande `embed.show`, avec ses données dans l'artefact et non dans le lien.
+- Nouvelles commandes : `route.add_spot` (point seul), `app.point_style` (apparence des points).
+
+### Points
+- **Point seul** : nouvel outil de la barre (Déplacer, Chemin, Droite, Point, Azimut) pour poser un repère isolé, non relié au chemin. Il se nomme, se déplace, se supprime, s'imprime sur les cartes et s'enregistre avec le tracé.
+- **Apparence des points** (Réglages › Général) : pastille numérotée, croix, pointeur ou point simple, à l'écran comme à l'impression.
+
+### Grand jeu
+- Le thème **Libre** (ex-« Personnalisé ») donne accès à toute la **bibliothèque complète** (323 éléments de tous les thèmes), classée par thème.
+- **Une seule recherche par mot-clé dans tous les thèmes à la fois** (nom, catégorie ou thème) ; un jeu avec thème garde ses éléments en premier, avec un bouton « Toute la bibliothèque (tous les thèmes) ».
+
+### Corrections
+- Le travail partagé ne se duplique plus dans la bibliothèque à chaque mise à jour.
+
 ## 2.3.0 — 23 novembre 2026
 
 ### Préparation à plusieurs en direct

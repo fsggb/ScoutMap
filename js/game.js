@@ -748,7 +748,7 @@
     applyParch(); SM.persist(); render(); renderThemes(); renderPane();
   }
   function ico(id, color, px) { var d = window.SM_ICONS && window.SM_ICONS[id]; return d ? '<svg viewBox="0 0 512 512" width="' + (px || 34) + '" height="' + (px || 34) + '"><path d="' + d + '" fill="' + color + '"/></svg>' : ''; }
-  function themeList() { return (window.SM_THEMES || []).concat([{ id: 'perso', icon: 'delapouite/flag-objective', name: 'Personnalisé', color: '#12142b', desc: 'Sans thème imposé : vous gardez les repères et formes libres.', el: [] }]); }
+  function themeList() { return (window.SM_THEMES || []).concat([{ id: 'perso', icon: 'delapouite/flag-objective', name: 'Libre', color: '#12142b', desc: 'Sans thème imposé : vous choisissez vos icônes dans toute la bibliothèque (tous les thèmes), avec une recherche par mot-clé.', el: [] }]); }
   function themeCards(sel) {
     return themeList().map(function (t) {
       var mini = (t.el || []).filter(function (e, i) { return i % 6 === 0; }).slice(0, 4).map(function (e) { return ico(e.i, t.color, 20); }).join('');
@@ -923,6 +923,10 @@
     });
     box.addEventListener('change', function (e) { if (e.target.matches('[data-tb]')) { var row = e.target.closest('.gteam'), t = teams().filter(function (x) { return x.id === row.dataset.t; })[0]; if (t) { t.base = e.target.value; SM.persist(); renderTeams(); } } else if (e.target.matches('[data-tc]')) renderTeams(); });
   }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('#gall-on')) { window.__gall = true; renderThemes(); }
+    else if (e.target.closest && e.target.closest('#gall-off')) { window.__gall = false; renderThemes(); }
+  });
   function renderThemes() {
     if (!$('#gstamps')) return;
     renderTeams(); renderImages();
@@ -931,7 +935,7 @@
     if ($('#gscale')) {
       $('#gscale').innerHTML = scaleBtns(D().scale || 0);
       $('#gs-st-size').textContent = (D().stampMm || 16) + ' mm'; $('#gcaptions').checked = !!D().captions;
-      $('#gtheme-info').textContent = th ? 'Thème : ' + th.name + '. Il se choisit à la création du jeu ; pour en changer, créez un nouveau grand jeu.' : perso ? 'Jeu personnalisé (sans thème).' : 'Aucun thème choisi pour ce jeu.';
+      $('#gtheme-info').textContent = th ? 'Thème : ' + th.name + '. Il se choisit à la création du jeu ; pour en changer, créez un nouveau grand jeu.' : perso ? 'Thème libre : toute la bibliothèque est à votre disposition (recherche par mot-clé).' : 'Aucun thème choisi pour ce jeu.';
       $('#gtheme-choose').hidden = !!D().themeLocked;
       $('#gcredit').textContent = 'Icônes : game-icons.net (CC BY 3.0) · ' + (window.SM_CREDITS || []).join(', ') + ' — Illustrations en couleur : OpenMoji (CC BY-SA 4.0), openmoji.org';
     }
@@ -948,12 +952,34 @@
       return '<details class="gsec"' + (fold[name] === false ? '' : ' open') + ' data-sec="' + esc(name) + '"><summary><span>' + esc(name) + '</span><small>' + list.length + '</small></summary>' + (hint ? '<p class="gsec-h">' + esc(hint) + '</p>' : '') + '<div class="gstamps">' + stampBtns(list, color) + '</div></details>';
     }
     function fam(t) { return '<h3 class="gfam">' + esc(t) + '</h3>'; }
-    var html = '';
-    if (th) {
+    // ---- recherche par mot-clé dans TOUS les thèmes, et bibliothèque complète (thème Libre, ou bouton « Toute la bibliothèque »)
+    function nrm(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+    function everything() {
+      var out = [], seen = {};
+      function push(group, color, e) { var k = (e.art ? 'a:' : 'i:') + e.i + '|' + e.l; if (seen[k]) return; seen[k] = 1; out.push({ g: group, c: color, e: e }); }
+      (window.SM_THEMES || []).forEach(function (t) {
+        (t.el || []).forEach(function (e) { push(t.name, t.color, e); });
+        ((window.SM_ART_THEMES && window.SM_ART_THEMES[t.id]) || []).forEach(function (e) { push(t.name, t.color, e); });
+      });
+      commons.forEach(function (e) { push('Repères du jeu', '#12142b', e); });
+      return out;
+    }
+    var GQ = (window.__gq || '').trim(), html = '';
+    if (GQ.length >= 2) {
+      var words = nrm(GQ).split(/\s+/).filter(Boolean), hits = everything().filter(function (x) { var hay = nrm([x.e.l, x.e.c, x.g].join(' ')); return words.every(function (w) { return hay.indexOf(w) >= 0; }); });
+      var by = {}, order = []; hits.forEach(function (x) { if (!by[x.g]) { by[x.g] = { c: x.c, l: [] }; order.push(x.g); } by[x.g].l.push(x.e); });
+      html = fam(hits.length ? hits.length + ' résultat' + (hits.length > 1 ? 's' : '') + ' dans tous les thèmes' : 'Aucun résultat pour « ' + GQ + ' »') + order.map(function (g) { return sec(g, sortL(by[g].l), by[g].c); }).join('') +
+        (hits.length ? '' : '<p class="gtab-help">Essayez un mot plus court (feu, tour, tente, arbre, drapeau…).</p>');
+    } else if (perso || window.__gall) {
+      var al = everything(), grp = {}, ord = []; al.forEach(function (x) { if (!grp[x.g]) { grp[x.g] = { c: x.c, l: [] }; ord.push(x.g); } grp[x.g].l.push(x.e); });
+      html = fam('Bibliothèque complète · ' + al.length + ' éléments') + '<p class="gtab-help">Tous les thèmes réunis : posez ce que vous voulez, quel que soit le thème du jeu. Utilisez la recherche pour aller plus vite.</p>' + ord.map(function (g) { return sec(g, sortL(grp[g].l), grp[g].c); }).join('') +
+        (window.__gall && !perso ? '<button type="button" class="btn-ghost block" id="gall-off">Revenir aux éléments du thème</button>' : '');
+    } else if (th) {
       var heroes = artL.filter(function (e) { return e.hero; }), illus = sortL(artL.filter(function (e) { return !e.hero; }));
       if (heroes.length || illus.length) html += fam('Illustrations en couleur') + sec('Bases', heroes, th.color, 'Grandes images détaillées : cliquez puis étirez sur la carte pour choisir la taille.') + sec('Illustrations', illus, th.color);
       html += fam('Repères') + sec('Repères du jeu', commons, '#12142b');
-      html += fam('Pictogrammes') + th.cats.map(function (c) { return sec(c, sortL(th.el.filter(function (e) { return e.c === c; })), th.color); }).join('');
+      html += fam('Pictogrammes') + th.cats.map(function (c) { return sec(c, sortL(th.el.filter(function (e) { return e.c === c; })), th.color); }).join('') +
+        '<button type="button" class="btn-ghost block" id="gall-on">Toute la bibliothèque (tous les thèmes)</button>';
     } else if (window.SM_THEMES) html = fam('Repères') + sec('Repères du jeu', commons, '#12142b');
     else html = '<p class="gtab-help">Chargement…</p>';
     $('#gcats').hidden = true; $('#gcats').innerHTML = '';
@@ -1125,7 +1151,7 @@
     secs.elements = elems;
     var bar = document.createElement('nav'); bar.className = 'gsub'; bar.id = 'gsub'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Contenu de l’onglet Poser');
     bar.innerHTML = [['elements', 'Icônes', 'g-stamp'], ['teams', 'Équipes', 'people'], ['zones', 'Terrains', 'g-polygon'], ['lines', 'Lignes', 'g-line'], ['images', 'Images', 'upload']].map(function (x) { return '<button type="button" role="tab" data-sub="' + x[0] + '"><svg class="ic"><use href="#i-' + x[2] + '"/></svg><span>' + x[1] + '</span></button>'; }).join('');
-    var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher un élément (château, drapeau…)" aria-label="Chercher un élément" autocomplete="off">';
+    var search = document.createElement('div'); search.className = 'gsearch'; search.id = 'gsearch'; search.innerHTML = '<input type="search" id="gsearch-in" placeholder="Chercher dans tous les thèmes (château, feu, tente…)" aria-label="Chercher un élément" autocomplete="off">';
     var guide = document.createElement('div'); guide.className = 'gguide'; guide.id = 'gguide'; guide.hidden = true;
     guide.innerHTML = '<b>Pour démarrer</b><ol><li><button type="button" data-sub="teams">Créez vos équipes et posez leurs bases</button></li><li><button type="button" data-sub="lines">Tracez les limites (palissades, barbelés…)</button></li><li><button type="button" data-sub="elements">Posez les chefs, objectifs et repères</button></li><li>Partagez le jeu en direct (bouton « Partage » de la barre latérale (en bas sur téléphone))</li></ol><button type="button" class="gguide-x" id="gguide-x" aria-label="Masquer ce guide">Masquer</button>';
     var wrap = document.createElement('div'); wrap.className = 'gposer'; var cont = document.createElement('div'); cont.className = 'gposer-c';
@@ -1134,7 +1160,7 @@
     wrap.appendChild(bar); wrap.appendChild(cont); tp.appendChild(wrap);
     Object.keys(secs).forEach(function (k) { secs[k].forEach(function (e) { if (e && e.tagName === 'DETAILS') { e.open = true; e.classList.add('gsubd'); } }); });
     function applyQuery() {
-      var q = QUERY.trim().toLowerCase();
+      var q = QUERY.trim().length >= 2 ? '' : QUERY.trim().toLowerCase();   // dès 2 lettres, renderThemes a déjà filtré (tous les thèmes)
       $$('#gstamps .gst').forEach(function (b) { var t = ((b.dataset.l || '') + ' ' + (b.textContent || '')).toLowerCase(); b.hidden = !!q && t.indexOf(q) < 0; });
       $$('#gstamps .gsec').forEach(function (d) { var any = $$('.gst', d).some(function (b) { return !b.hidden; }); d.hidden = !any; if (q && any) d.open = true; });
       $$('#gstamps .gfam').forEach(function (f) { var n = f.nextElementSibling, any = false; while (n && !n.classList.contains('gfam')) { if (n.classList.contains('gsec') && !n.hidden) any = true; n = n.nextElementSibling; } f.hidden = !any; });
@@ -1151,7 +1177,8 @@
     bar.addEventListener('click', function (e) { var b = e.target.closest('[data-sub]'); if (b) showSub(b.dataset.sub); });
     guide.addEventListener('click', function (e) { var b = e.target.closest('button[data-sub]'); if (b) showSub(b.dataset.sub); });
     $('#gguide-x').addEventListener('click', function () { try { localStorage.setItem('scoutmap.guide.off', '1'); } catch (er) { /* ignoré */ } renderGuide(); });
-    $('#gsearch-in').addEventListener('input', function () { QUERY = this.value; applyQuery(); });
+    // une seule recherche, dans TOUS les thèmes à la fois (mot-clé : nom, catégorie ou thème)
+    var gqT = 0; $('#gsearch-in').addEventListener('input', function () { QUERY = this.value; clearTimeout(gqT); gqT = setTimeout(function () { window.__gq = QUERY; renderThemes(); applyQuery(); }, 140); });
     // après chaque rendu de la bibliothèque (le panneau est reconstruit), on remet l'onglet et le filtre
     var oldRT = renderThemes;
     renderThemes = function () { oldRT(); showSub(SUB); renderGuide(); };

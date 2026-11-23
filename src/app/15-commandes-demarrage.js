@@ -145,7 +145,6 @@
   H.ready = true; H.lastKey = hKey(); H.lastSnap = hSnap(); hButtons();
   (function bootMode() {
     var hash = location.hash || '';
-    if (window.SM_EMBED) { document.body.classList.add('viewer'); embedBoot(); return; }
     if (VIEWER) {
       document.body.classList.add('viewer'); showHome(false);
       if (!window.SM_LIVE_ROOM) { try { loadProject(JSON.parse($('#scoutmap-data').textContent)); } catch (e) { toast('Données du raid illisibles.'); } }

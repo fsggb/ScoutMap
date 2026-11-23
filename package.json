@@ -1,6 +1,6 @@
 {
   "name": "scoutmap",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "ScoutMap : cartes IGN, itinéraires à pied, azimuts, grand jeu et impression pour les scouts (FSGGB).",
   "license": "UNLICENSED",

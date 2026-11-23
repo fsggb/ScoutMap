@@ -91,7 +91,7 @@
     $('#decl-row').hidden = a.ref !== 'mag'; $('#decl-note').hidden = a.ref !== 'mag';
     var rows = '', cum = 0;
     pts.forEach(function (p, i) {
-      var m = L.marker(p, { draggable: true, icon: pin(String(i + 1), 'az', i === 0 && closable ? 'closable' : ''), zIndexOffset: 900 }).addTo(gAz);
+      var m = L.marker(p, { draggable: !EDITLOCK, icon: pin(String(i + 1), 'az', i === 0 && closable ? 'closable' : ''), zIndexOffset: 900 }).addTo(gAz);
       if (i === 0 && closable) m.bindTooltip('Cliquer pour fermer le circuit', { direction: 'top', offset: [0, -14] });
       m.on('dragstart', function () { select('az', i, true); });
       m.on('dragend', function () {

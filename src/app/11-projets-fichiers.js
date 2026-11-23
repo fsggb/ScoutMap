@@ -4,7 +4,7 @@
   function projList() { try { var a = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function projStore(list) { try { localStorage.setItem(PKEY, JSON.stringify(list)); return true; } catch (e) { toast('Le stockage du navigateur est plein : téléchargez vos travaux pour les garder.'); return false; } }
   function projData(withRes) {
-    var o = { app: 'ScoutMap', v: 1, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks,
+    var o = { app: 'ScoutMap', v: 1, partage: S.partage || undefined, name: S.name || '', rail: S.rail, base: S.base, ov: S.ov, route: S.route, az: S.az, game: S.game, gameStyle: S.gameStyle, grid: S.grid, tracks: S.tracks,
       layers: S.layers.filter(function (l) { return l.type === 'route' || l.type === 'az'; }).map(function (l) { return { type: l.type, vis: l.vis !== false, data: l.data, res: l.res || null, pid: l.pid || null }; }) };
     if (withRes && RT.route && RT.route.line) {
       o.res = { line: RT.route.line, dist: RT.route.dist, dur: RT.route.dur, bounds: RT.route.bounds, directs: RT.route.directs || [], nat: RT.route.nat || [],
@@ -30,11 +30,12 @@
     return k.split(' ')[0] + ' du ' + new Date().toLocaleDateString('fr-FR');
   }
   function projAutosave() {
-    var kinds = projKinds(); if (!kinds.length || VIEWER) return;
-    var list = projList().filter(function (e) { return e.id !== S.pid; });
+    var kinds = projKinds(); if (NOSAVE || !kinds.length || (VIEWER && !S.partage)) return;
+    var eid = (S.partage && S.partage.pid) || S.pid;     // un travail partagé garde un identifiant stable : une seule ligne dans la bibliothèque
+    var list = projList().filter(function (e) { return e.id !== eid; });
     var pd = projData(true);
     if (pd.res && pd.res.line) { var ln = pd.res.line.map(function (p) { return [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5]; }); pd.res = Object.assign({}, pd.res, { line: ln.length > 4000 ? ln.filter(function (p, i) { return i % Math.ceil(ln.length / 4000) === 0 || i === ln.length - 1; }) : ln }); }
-    list.push({ id: S.pid, name: projName(), updated: Date.now(), kinds: kinds, data: pd });
+    list.push({ id: eid, name: projName(), updated: Date.now(), kinds: kinds, data: pd, partage: S.partage || undefined });
     list.sort(function (a, b) { return b.updated - a.updated; });
     projStore(list.slice(0, 40));
   }
@@ -43,7 +44,7 @@
   function b64d(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
   function loadProject(o, id, opts) {
     if (!o || o.app !== 'ScoutMap') throw new Error('Ce fichier n’est pas un travail ScoutMap.');
-    S.pid = id || nid(); S.name = o.name || ''; $('#proj-name').value = S.name;
+    S.pid = id || nid(); S.name = o.name || ''; S.partage = o.partage || undefined; $('#proj-name').value = S.name;
     S.route = Object.assign(freshRoute(null, 1), o.route || {}); S.route.wps = (o.route && o.route.wps) || [];
     S.az = Object.assign(freshAz(null, 1), o.az || {}); S.az.pts = (o.az && o.az.pts) || [];
     S.game = Object.assign(freshGame(null, 1), o.game || {}); S.game.shapes = (o.game && o.game.shapes) || [];

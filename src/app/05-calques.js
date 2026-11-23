@@ -8,7 +8,7 @@
     if (!pts || !pts.length) return '';
     return t + ':' + pts.map(function (p) { return (+p[0]).toFixed(5) + ',' + (+p[1]).toFixed(5); }).join(';');
   }
-  function isEmpty(t, d) { return t === 'route' ? !d.wps.length : t === 'game' ? !d.shapes.length : !d.pts.length; }
+  function isEmpty(t, d) { return t === 'route' ? !d.wps.length && !(d.spots && d.spots.length) : t === 'game' ? !d.shapes.length : !d.pts.length; }
   // Liste unifiée des calques de tracé (en cours d'édition + stockés), regroupés par type.
   function layersList(all) {
     var out = [];

@@ -8,6 +8,8 @@
   var esc = G.esc;
   var GP = 'https://data.geopf.fr';
   var KEY = 'scoutmap.v3';
+  var NOSAVE = false;                // vue partielle d'un artefact : rien ne s'enregistre dans le navigateur
+  var EDITLOCK = false;              // modification verrouillée par la personne qui dirige un partage en direct
   var VIEWER = !!window.SM_VIEWER;   // page web exportée : lecture seule, sans panneau ni menus
   function ic(n, c) { return '<svg class="ic' + (c ? ' ' + c : '') + '" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
   function sp(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
@@ -27,6 +29,7 @@
   var DEF_BASE = {
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
+    points: { style: 'pastille' },
     print: { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {
@@ -119,6 +122,7 @@
     clearTimeout(saveTimer);
     if (VIEWER) return;
     saveTimer = setTimeout(function () {
+      if (NOSAVE) return;
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* quota */ }
       projAutosave();
     }, 250);
