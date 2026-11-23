@@ -29,6 +29,9 @@ srv.listen(0, async () => {
     ok(await p.locator('#doc-pages .tile-box').count() >= 1, 'aperçu : les feuilles de carte sont posées sans attendre les fonds');
     await p.goBack(); await p.waitForTimeout(400);
     ok(p.url().startsWith(url) && !(await p.evaluate(() => document.body.classList.contains('doc-open'))), 'Retour : ferme l’aperçu sans quitter la page');
+    const nc = await p.evaluate(() => window.scoutmap && window.scoutmap.commands().then((l) => l.length));
+    const err = await p.evaluate(() => window.scoutmap.execute('commande.inconnue', {}).then(() => '', (e) => e.message));
+    ok(nc >= 20 && /inconnue/.test(err), 'pilotage ChatGDB : ' + nc + ' commandes, refus clair d’une commande inconnue');
     await p.evaluate(() => SM.toast('Essai de notification')); await p.waitForTimeout(9000);
     ok(await p.locator('.ntf').count() === 0 && (await p.locator('#ntf-recent').innerText()).includes('Essai'), 'notifications : rangées dans le bouton Notifications');
   } finally {

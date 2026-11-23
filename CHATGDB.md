@@ -2,12 +2,12 @@
 # Fiche de connaissances ChatGDB (format : ScoutHub/docs/projet-chatgdb.md, §5).
 # ChatGDB lit ce fichier pour répondre aux questions sur les applications de ce dépôt.
 depot: fsggb/ScoutMap
-maj: 2026-11-20
+maj: 2026-11-23
 ---
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.0.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.2.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
 
 ## Nouveautés de la version 2
 - Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
@@ -16,6 +16,22 @@ Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans
 - Impression groupée : Bibliothèque, Ctrl + clic sur plusieurs tracés, puis Imprimer ; un onglet par tracé dans l'aperçu.
 - Grille « Carroyage kilométrique bleu » comme les cartes IGN.
 - Le bouton Retour du navigateur ne quitte plus l'application.
+
+## Nouveautés de la version 2.1 et 2.2
+- Itinéraire et azimuts réunis : barre d'outils flottante Déplacer / Chemin / Droite / Azimut. Chaque point est rejoint par le chemin (sentiers), en ligne droite ou en azimut, et on peut les mélanger dans un même itinéraire. L'azimut est en degrés, par rapport au nord magnétique (déclinaison estimée automatiquement), avec contre-azimut et distance ; on peut placer le point suivant par azimut et distance.
+- Recherche : coordonnées de tous formats (degrés décimaux, degrés minutes secondes, Lambert 93, UTM) et liens Google Maps, OpenStreetMap, Géoportail.
+- Deux points ne font jamais une boucle. Le profil d'altitude n'apparaît qu'avec un tracé calculé.
+- Pilotage par ChatGDB (section ci-dessous) et vue partielle de carte pour les artefacts.
+
+## Pilotage par ChatGDB (canal de commandes, comme la suite Craft)
+Après « ouvrir » Cartes IGN, ChatGDB utilise `api_commandes`, `api_inspecter`, `api_executer`, `api_lot` et `api_requete` (méthodes engine.commands, engine.execute, document.inspect, ui.inspect, render.embed). Commandes principales :
+- `project.new` {type: itineraire | azimuts | grandjeu, nom} ; `project.rename` {nom}.
+- `route.add` {query (lieu) ou coords (texte, tous formats, lien Google Maps) ou lat + lon, mode: chemin | droite | azimut, nom, at} ; `route.add_azimuth` {azimut en degrés, distance en mètres, nom} ; `route.mode` {index, mode} ; `route.tool` {mode} ; `route.remove` {index} ; `route.rename_point` {index, nom} ; `route.loop` {boucle} ; `route.reverse` ; `route.options` {optimisation: rapide | court, distance_max_km} ; `route.clear`.
+- `route.result` : attend le calcul et renvoie la distance (m), la durée (s), les points, les azimuts et contre-azimuts.
+- `library.list` (tracés du navigateur, avec leur id) ; `library.open` {id} ; `library.show` {id, visible} (affiche un tracé en plus, de sa couleur).
+- `view.place` {query, zoom} ; `view.center` {lat, lon, zoom} ; `view.scale` {echelle} ; `view.fit` ; `map.base` {fond} ; `map.layers` {afficher, masquer} ; `map.grid` {type: none | l93 | km | utm | ll | game}.
+- `print.open` (ouvre la fenêtre d'impression pour la personne) ; `share.link` (lien du travail complet).
+- `embed.spec` {ids (bibliothèque, facultatif ; sinon le travail en cours), titre, fond, legende, profil} : renvoie la balise artefact de type app à recopier telle quelle. L'artefact montre seulement la carte avec les tracés choisis, chacun de sa couleur, et une légende (nom et distance). Rien n'est modifié dans le navigateur de la personne.
 
 ## Fonctions
 - Fonds : Plan IGN, photographies aériennes ; couches : courbes de niveau, ombrage, pentes, cadastre.
