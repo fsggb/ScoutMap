@@ -54,11 +54,15 @@
       var a = k * Math.PI / 3, dd = R - 500;
       centers.push([lat + Math.cos(a) * dd / 110540, lon + Math.sin(a) * dd / (111320 * Math.cos(lat * Math.PI / 180)), 500]);
     }
-    return Promise.all(centers.map(function (c) {
+    function ask(c) {
       var circle = JSON.stringify({ type: 'Circle', coordinates: [+c[1].toFixed(6), +c[0].toFixed(6)], radius: Math.round(c[2]) });
       return fetch(GP + '/geocodage/reverse?index=poi&limit=15&category=' + encodeURIComponent(cat) + '&lon=' + c[1].toFixed(6) + '&lat=' + c[0].toFixed(6) + '&searchgeom=' + encodeURIComponent(circle))
         .then(function (x) { return x.ok ? x.json() : { features: [] }; }).then(function (j) { return j.features || []; }).catch(function () { return []; });
-    })).then(function (all) {
+    }
+    // d'abord le cercle central (une seule requête) ; la couronne (6 requêtes) seulement si rien n'y est trouvé : bien moins de requêtes qu'avant
+    return ask(centers[0]).then(function (f0) {
+      return f0.length || centers.length < 2 ? [f0] : Promise.all(centers.slice(1).map(ask)).then(function (rest) { return [f0].concat(rest); });
+    }).then(function (all) {
       var seen = {}, out = [];
       all.forEach(function (fs) { fs.forEach(function (f) {
         var g = f.geometry && f.geometry.coordinates; if (!g) return;
@@ -94,6 +98,10 @@
     });
   }
   // Placement d'un point : village / hameau / col / sommet proche, sinon chemin le plus proche ; très zoomé, le point reste où l'on clique.
+  // le point se place d'abord où l'on clique et le tracé s'affiche ; la recherche du village (plusieurs requêtes) vient ensuite
+  function afterRoute(fn) {
+    return new Promise(function (res) { var t0 = Date.now(); (function w() { if (RT.route || S.route.wps.length < 2 || Date.now() - t0 > 5000) res(fn()); else setTimeout(w, 150); })(); });
+  }
   function snapToChurch(w) {
     if (!w || S.route.snapChurch === false || w.noSnap || w.direct) return Promise.resolve();
     var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
@@ -260,7 +268,7 @@
     ul.addEventListener('click', function (e) { var d = e.target.closest('[data-del]'); if (d) removeSpot(+d.dataset.del); });
   })();
   function renderRouteMarkers() {
-    renderSpots();
+    renderSpots(); renderMask();
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
@@ -368,7 +376,33 @@
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
   $('#route-pdf').addEventListener('click', function () { openPdf(); });
   function onMaxChange() { restyleRoute(); renderRouteStats(); renderGauge(); refreshProfile(); }
+  /* Épreuve « sans carte » : la carte est masquée sous la zone des azimuts (ou entièrement) pour qu'on se guide à la boussole
+     et non en suivant les routes. Le masque se voit à l'écran et se dessine aussi sur les cartes imprimées. */
+  function maskBounds(d) {
+    var w = d.wps || [], pts = [];
+    w.forEach(function (p, i) { if (p.az && i > 0) { pts.push([w[i - 1].lat, w[i - 1].lon]); pts.push([p.lat, p.lon]); } });
+    if (!pts.length) pts = w.map(function (p) { return [p.lat, p.lon]; });
+    if (!pts.length) return null;
+    var b = L.latLngBounds(pts).pad(0.15);
+    return L.latLngBounds([b.getSouth() - 0.0015, b.getWest() - 0.0022], [b.getNorth() + 0.0015, b.getEast() + 0.0022]);
+  }
+  function maskFor(d, m) {
+    var mode = d && d.mask; if (mode !== 'zone' && mode !== 'all') return null;
+    var b = mode === 'all' ? L.latLngBounds([-85, -180], [85, 180]) : maskBounds(d); if (!b) return null;
+    if (!m.getPane('maskPane')) { var pn = m.createPane('maskPane'); pn.style.zIndex = 250; pn.style.pointerEvents = 'none'; }
+    var g = L.layerGroup();
+    L.rectangle(b, { pane: 'maskPane', stroke: true, color: '#8a7a4a', weight: 2, dashArray: '8 6', fillColor: '#efe9d6', fillOpacity: 1, interactive: false }).addTo(g);
+    if (mode === 'zone') { var c = b.getCenter(); L.marker([b.getNorth(), c.lng], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'mask-lbl', html: '<span>Zone sans carte : à la boussole</span>', iconSize: [0, 0] }) }).addTo(g); }
+    return g;
+  }
+  var maskLayer = null;
+  function renderMask() {
+    if (maskLayer) { gRoute.removeLayer(maskLayer); maskLayer = null; }
+    maskLayer = maskFor(S.route, map); if (maskLayer) maskLayer.addTo(gRoute);
+  }
+  $('#route-mask').addEventListener('change', function () { S.route.mask = this.value; renderMask(); persist(); });
   function syncRouteUi() {
+    $('#route-mask').value = S.route.mask === 'zone' || S.route.mask === 'all' ? S.route.mask : 'off';
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
     $('#route-opt').value = S.route.opt; $('#speed').value = S.speed;
     $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat; $('#opt-noback').checked = S.route.noBack !== false; $('#opt-church').checked = S.route.snapChurch !== false; $('#opt-free').checked = S.route.freeOrder !== false;

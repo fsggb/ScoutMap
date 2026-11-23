@@ -31,7 +31,7 @@
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
     points: { style: 'pastille' },
-    print: { paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
+    print: { sharp: 'auto', paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {
     var d = JSON.parse(JSON.stringify(DEF_BASE));
@@ -61,7 +61,7 @@
     detail: 'auto', speed: DEF.route.speed, profileSrc: 'route', dockOpen: true, dockH: 230,
     vis: { route: true, az: true, meas: true, game: true }, grid: { type: 'none' },
     route: freshRoute(null, 1), az: freshAz(null, 1), meas: freshMeas(null, 1), game: freshGame(null, 1), layers: [],
-    gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 3, size: 18, fontColor: '#12142b', dash: false },
+    gameStyle: { fill: '#c0262d', alpha: 0.35, stroke: '#c0262d', linked: true, weight: 2, size: 18, fontColor: '#12142b', dash: false },
     tracks: [], view: { c: [46.6, 2.5], z: 5.6 }
   };
   try {
@@ -315,6 +315,12 @@
     if (S25P.ok) { img.onerror = function () { img.onerror = null; s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ }); }; img.src = s25ProxyUrl(10, x, y); return; }
     s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ });
   }
+  // Une tuile qui manque n'est pas une panne : le message « indisponible » n'apparaît que si plusieurs tuiles échouent et qu'aucune n'a jamais réussi.
+  function warnS25() {
+    SCAN25.nfail = (SCAN25.nfail || 0) + 1;
+    if (!SCAN25.warned && !S25P.seen && SCAN25.nfail >= 6) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); }
+  }
+  var GIF0 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   function scan25Layer(off, extra) {
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
     var so = Math.max(0, Math.min(2, off | 0));   // 2 : tuiles du niveau 16 (la meilleure définition de l'IGN) affichées en 64 px, soit environ 380 ppp à l'impression
@@ -325,9 +331,13 @@
         var H = L.GridLayer.extend({ createTile: function (co, done) {
           var im = document.createElement('img'); im.alt = '';
           var viaRelay = function () {   // secours : lots demandés au serveur ScoutHub
+            // « pas de données » (404/400 : hors de la carte) = tuile vide, sans alerte ni secours ; une vraie panne (5xx, réseau) passe au secours
+            fetch(s25ProxyUrl(co.z + so, co.x, co.y)).then(function (r) { if (r.status === 404 || r.status === 400) { im.onload = function () { done(null, im); }; im.src = GIF0; return true; } throw new Error('http ' + r.status); }).catch(function () { return false; }).then(function (vide) { if (!vide) relay2(); });
+          };
+          var relay2 = function () {
             s25Fetch(co.z + so, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
               var m = (e && e.message) || 'échec'; if (window.console) console.warn('SCAN 25 :', m);
-              if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } done(new Error(m), im);
+              warnS25(); done(new Error(m), im);
             });
           };
           if (!S25P.ok) { viaRelay(); return im; }
@@ -348,7 +358,7 @@
       var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
       var G = L.GridLayer.extend({ createTile: function (co, done) {
         var im = document.createElement('img'), n = 0; im.alt = '';
-        var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
+        var fail = function (msg) { warnS25(); if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
         var go = function () {
           var req = c.hub
             ? hubApi().then(function (api) {
@@ -1430,11 +1440,15 @@
       var a = k * Math.PI / 3, dd = R - 500;
       centers.push([lat + Math.cos(a) * dd / 110540, lon + Math.sin(a) * dd / (111320 * Math.cos(lat * Math.PI / 180)), 500]);
     }
-    return Promise.all(centers.map(function (c) {
+    function ask(c) {
       var circle = JSON.stringify({ type: 'Circle', coordinates: [+c[1].toFixed(6), +c[0].toFixed(6)], radius: Math.round(c[2]) });
       return fetch(GP + '/geocodage/reverse?index=poi&limit=15&category=' + encodeURIComponent(cat) + '&lon=' + c[1].toFixed(6) + '&lat=' + c[0].toFixed(6) + '&searchgeom=' + encodeURIComponent(circle))
         .then(function (x) { return x.ok ? x.json() : { features: [] }; }).then(function (j) { return j.features || []; }).catch(function () { return []; });
-    })).then(function (all) {
+    }
+    // d'abord le cercle central (une seule requête) ; la couronne (6 requêtes) seulement si rien n'y est trouvé : bien moins de requêtes qu'avant
+    return ask(centers[0]).then(function (f0) {
+      return f0.length || centers.length < 2 ? [f0] : Promise.all(centers.slice(1).map(ask)).then(function (rest) { return [f0].concat(rest); });
+    }).then(function (all) {
       var seen = {}, out = [];
       all.forEach(function (fs) { fs.forEach(function (f) {
         var g = f.geometry && f.geometry.coordinates; if (!g) return;
@@ -1470,6 +1484,10 @@
     });
   }
   // Placement d'un point : village / hameau / col / sommet proche, sinon chemin le plus proche ; très zoomé, le point reste où l'on clique.
+  // le point se place d'abord où l'on clique et le tracé s'affiche ; la recherche du village (plusieurs requêtes) vient ensuite
+  function afterRoute(fn) {
+    return new Promise(function (res) { var t0 = Date.now(); (function w() { if (RT.route || S.route.wps.length < 2 || Date.now() - t0 > 5000) res(fn()); else setTimeout(w, 150); })(); });
+  }
   function snapToChurch(w) {
     if (!w || S.route.snapChurch === false || w.noSnap || w.direct) return Promise.resolve();
     var mpp = 156543.03392 * Math.cos(w.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
@@ -1636,7 +1654,7 @@
     ul.addEventListener('click', function (e) { var d = e.target.closest('[data-del]'); if (d) removeSpot(+d.dataset.del); });
   })();
   function renderRouteMarkers() {
-    renderSpots();
+    renderSpots(); renderMask();
     routeMarkers.forEach(function (m) { gRoute.removeLayer(m); }); routeMarkers = [];
     routeLinks.forEach(function (l) { gRoute.removeLayer(l); }); routeLinks = [];
     // tronçons en azimut : azimut magnétique et distance au milieu du tronçon
@@ -1744,7 +1762,33 @@
   $('#max-km').addEventListener('input', function () { S.route.maxKm = Math.max(0, +this.value || 0); onMaxChange(); persist(); });
   $('#route-pdf').addEventListener('click', function () { openPdf(); });
   function onMaxChange() { restyleRoute(); renderRouteStats(); renderGauge(); refreshProfile(); }
+  /* Épreuve « sans carte » : la carte est masquée sous la zone des azimuts (ou entièrement) pour qu'on se guide à la boussole
+     et non en suivant les routes. Le masque se voit à l'écran et se dessine aussi sur les cartes imprimées. */
+  function maskBounds(d) {
+    var w = d.wps || [], pts = [];
+    w.forEach(function (p, i) { if (p.az && i > 0) { pts.push([w[i - 1].lat, w[i - 1].lon]); pts.push([p.lat, p.lon]); } });
+    if (!pts.length) pts = w.map(function (p) { return [p.lat, p.lon]; });
+    if (!pts.length) return null;
+    var b = L.latLngBounds(pts).pad(0.15);
+    return L.latLngBounds([b.getSouth() - 0.0015, b.getWest() - 0.0022], [b.getNorth() + 0.0015, b.getEast() + 0.0022]);
+  }
+  function maskFor(d, m) {
+    var mode = d && d.mask; if (mode !== 'zone' && mode !== 'all') return null;
+    var b = mode === 'all' ? L.latLngBounds([-85, -180], [85, 180]) : maskBounds(d); if (!b) return null;
+    if (!m.getPane('maskPane')) { var pn = m.createPane('maskPane'); pn.style.zIndex = 250; pn.style.pointerEvents = 'none'; }
+    var g = L.layerGroup();
+    L.rectangle(b, { pane: 'maskPane', stroke: true, color: '#8a7a4a', weight: 2, dashArray: '8 6', fillColor: '#efe9d6', fillOpacity: 1, interactive: false }).addTo(g);
+    if (mode === 'zone') { var c = b.getCenter(); L.marker([b.getNorth(), c.lng], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'mask-lbl', html: '<span>Zone sans carte : à la boussole</span>', iconSize: [0, 0] }) }).addTo(g); }
+    return g;
+  }
+  var maskLayer = null;
+  function renderMask() {
+    if (maskLayer) { gRoute.removeLayer(maskLayer); maskLayer = null; }
+    maskLayer = maskFor(S.route, map); if (maskLayer) maskLayer.addTo(gRoute);
+  }
+  $('#route-mask').addEventListener('change', function () { S.route.mask = this.value; renderMask(); persist(); });
   function syncRouteUi() {
+    $('#route-mask').value = S.route.mask === 'zone' || S.route.mask === 'all' ? S.route.mask : 'off';
     $$('#route-mode button').forEach(function (b) { b.classList.toggle('on', (b.dataset.v === 'loop') === !!S.route.loop); });
     $('#route-opt').value = S.route.opt; $('#speed').value = S.speed;
     $('#opt-motorway').checked = !!S.route.avoidMotorway; $('#opt-national').checked = !!S.route.flagNat; $('#opt-noback').checked = S.route.noBack !== false; $('#opt-church').checked = S.route.snapChurch !== false; $('#opt-free').checked = S.route.freeOrder !== false;
@@ -2899,8 +2943,9 @@
     if (main.indexOf(S.base) < 0 && LAYERS[S.base]) main.push(S.base);   // fond choisi dans la bibliothèque : reste visible ici
     main.forEach(function (k) { h += baseBtn(k, sc, lat, BASE_MAIN_LBL[k]); });
     h += '</div>';
-    if (!viewer) h += '<button type="button" class="base-more" data-more="1">' + (baseMore ? 'Masquer les autres fonds' : 'Tous les fonds de carte…') + '</button>';
-    if (baseMore && !viewer) {
+    var tous = baseMore || S.mode === 'game';   // dans le grand jeu, tous les fonds sont montrés directement
+    if (!viewer && S.mode !== 'game') h += '<button type="button" class="base-more" data-more="1">' + (baseMore ? 'Masquer les autres fonds' : 'Tous les fonds de carte…') + '</button>';
+    if (tous && !viewer) {
       BASEGROUPS.forEach(function (g) {
         var ks = g[1].filter(function (k) { return LAYERS[k] && !LAYERS[k].hidden && BASE_MAIN.indexOf(k) < 0; });
         if (!ks.length) return;
@@ -3011,7 +3056,7 @@
       if (sg === 'spot') { addSpot(p); return; }
       if (RT.route && pixelDistToRoute(e.latlng) <= 14) insertOnRoute(p);
       else if (sg !== 'route' && S.route.wps.length) addWp(p, null, null, sg);   // ligne droite ou azimut : le point reste là où on a cliqué
-      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; snapToChurch(nw).then(function () { reorderFree(nw); }); }
+      else { addWp(p); var nw = S.route.wps[S.route.wps.length - 1]; afterRoute(function () { return snapToChurch(nw); }).then(function () { reorderFree(nw); }); }
     }
     else if (RT.tool === 'az') addAz(p);
     else if (RT.tool === 'meas') { ensureVisible('meas'); S.meas.pts.push(p); renderMeas(); persist(); select('meas', S.meas.pts.length - 1); }
@@ -3229,7 +3274,19 @@
     if (v.length < 2) { closeSuggest(); return; }
     var c = parseCoord(v);
     if (c) { qItems = [{ t: 'Aller à ce point', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + (c.fmt && window.SMCoords ? ' · ' + SMCoords.label(c.fmt) : ''), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
-    if (window.SMCoords && SMCoords.isShortLink(v)) { qItems = []; $('#suggest').innerHTML = '<li class="none">Lien court Google Maps : ouvrez-le, puis copiez l’adresse complète de la page (elle contient la position).</li>'; $('#suggest').hidden = false; return; }
+    if (window.SMCoords && SMCoords.isShortLink(v)) {   // lien court Google Maps : le serveur ScoutHub lit l'adresse complète (un navigateur ne peut pas la lire lui-même)
+      qItems = []; $('#suggest').innerHTML = '<li class="none">Lecture du lien Google Maps…</li>'; $('#suggest').hidden = false;
+      var raw = v, lk = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+      fetch('https://scouthub.fsggb.workers.dev/lien?u=' + encodeURIComponent(lk)).then(function (r) { return r.json(); }).then(function (j) {
+        if ($('#q').value.trim() !== raw) return;
+        var full = j && j.url, c2 = full && SMCoords.parse(full);
+        if (c2) { qItems = [{ t: 'Aller à ce lieu (lien Google Maps)', s: c2.lat.toFixed(5) + ', ' + c2.lon.toFixed(5), k: 'target', coord: true, lat: c2.lat, lon: c2.lon }]; qAct = 0; renderSuggest(); return; }
+        var nm = full && linkText(full);
+        if (nm) { $('#q').value = nm; $('#q').dispatchEvent(new Event('input')); return; }
+        $('#suggest').innerHTML = '<li class="none">Ce lien ne donne pas de position lisible.</li>';
+      }).catch(function () { $('#suggest').innerHTML = '<li class="none">Lien Google Maps illisible pour le moment : réessayez ou collez les coordonnées.</li>'; });
+      return;
+    }
     if (window.SMCoords && SMCoords.isLink(v)) { var lt = linkText(v); if (!lt) { qItems = []; $('#suggest').innerHTML = '<li class="none">Ce lien ne contient pas de position lisible.</li>'; $('#suggest').hidden = false; return; } v = lt; }
     if (v.length < 3) { closeSuggest(); return; }
     qTimer = setTimeout(function () {
@@ -3520,15 +3577,13 @@
       { t: 'Enregistrer (page web .html : se rouvre ici, se partage)', i: 'download', k: 'Ctrl+S', a: function () { exportHtml(); } },
       { t: 'Exporter la trace en GPX (autres applications)', i: 'export', a: openExport },
       '-',
-      { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
-      { t: 'Enregistrer en PDF…', i: 'download', a: function () { openPdf(); } }
+      { t: 'Imprimer ou enregistrer en PDF…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
       { t: 'Rétablir', i: 'redo', k: 'Ctrl+Y', a: redoAction, dis: function () { return !H.redo.length; } },
       '-',
       { t: 'Supprimer le point sélectionné', i: 'trash', k: 'Suppr', a: deleteSelected, dis: function () { return !SEL; } },
-      { t: 'Retirer le dernier point posé', i: 'undo', a: removeLast, dis: function () { return !canUndo(); } },
       { t: 'Inverser le sens de l’itinéraire', i: 'swap', a: reverseRoute, dis: function () { return S.route.wps.length < 2; } },
       '-',
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
@@ -3547,14 +3602,11 @@
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
       { t: 'Échelle 1 : 10 000', g: 1, a: function () { setScale(10000); } },
       { t: 'Échelle 1 : 5 000', g: 1, a: function () { setScale(5000); } },
-      { t: 'Échelle 1 : 2 000', g: 1, a: function () { setScale(2000); } },
-      { t: 'Échelle 1 : 1 000', g: 1, a: function () { setScale(1000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Installer l’application / hors connexion…', i: 'download', a: function () { togglePop('off-pop', true); } },
-      { t: 'Forcer la mise à jour du site (version ' + SITE_V + ')', i: 'download', a: forceUpdate },
+      { t: 'Mettre à jour le site (version ' + SITE_V + ')', i: 'download', a: forceUpdate },
       '-',
       { t: 'Tutoriel global', i: 'play', a: function () { openTuto('global'); } },
       { t: 'Tutoriel itinéraire', i: 'route', a: function () { openTuto('route'); } },
@@ -3562,8 +3614,7 @@
       { t: 'Tutoriel grand jeu', i: 'flag', a: function () { openTuto('game'); } },
       '-',
       { t: 'Contacter le service informatique : service-informatique@fsggb.fr', i: 'file', a: function () { window.location.href = 'mailto:service-informatique@fsggb.fr?subject=' + encodeURIComponent('ScoutMap'); } },
-      { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
-      { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
+      { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } }
     ]
   };
   var openMenu = null;
@@ -3742,6 +3793,34 @@
       { id: 'route.add', label: 'Ajouter un point à l’itinéraire (lieu, coordonnées ou lien), relié par chemin, en ligne droite ou en azimut', location: 'Itinéraire',
         params: { query: 'lieu (ou coords, ou lat+lon)', mode: 'chemin | droite | azimut', nom: 'texte (facultatif)', at: 'position (facultatif, à la fin par défaut)' },
         run: function (p) { return addPoint({ lat: p.lat, lon: p.lon, coords: p.coords, query: p.query, name: p.nom, at: p.at }, p.mode); } },
+      { id: 'info.sun', label: 'Heures de lever et de coucher du soleil (heure de France) pour un lieu et un jour', location: 'Jeu', params: { query: 'lieu (ou coords, ou lat+lon ; sinon le centre de la carte)', date: 'AAAA-MM-JJ (aujourd’hui par défaut)' },
+        run: function (p) {
+          var go = function (la, lo) { var d = p.date ? new Date(String(p.date) + 'T12:00:00') : new Date(); if (isNaN(d)) throw new Error('date : AAAA-MM-JJ'); var t = G.sunTimes(la, lo, d);
+            return { lat: +la.toFixed(4), lon: +lo.toFixed(4), date: d.toISOString().slice(0, 10), heure_ete: t.ete, lever: G.fmtMin(t.lever), coucher: G.fmtMin(t.coucher), minutes_de_jour: t.lever != null && t.coucher != null ? t.coucher - t.lever : null }; };
+          if (p.lat != null || p.coords || p.query) return where(p).then(function (g) { return go(g.lat, g.lon); });
+          var c = map.getCenter(); return go(c.lat, c.lng);
+        } },
+      { id: 'route.analyse', label: 'Analyse d’un itinéraire pour un jeu ou un raid : distance, dénivelé, durée de marche, heure d’arrivée comparée au coucher du soleil, alertes', location: 'Jeu',
+        params: { depart: 'heure de départ HH:MM (défaut 09:00)', date: 'AAAA-MM-JJ (aujourd’hui par défaut)', allure_kmh: 'allure sur le plat (défaut : réglage de l’application)', pauses_min: 'minutes de pauses et d’épreuves (défaut 0)' },
+        run: function (p) {
+          needRoute(); var r = RT.route; if (!r || !r.line || r.line.length < 2) throw new Error('aucun itinéraire calculé : posez au moins deux points (route.result attend le calcul)');
+          if (p.allure_kmh != null) S.speed = Math.max(1, Math.min(8, num(p.allure_kmh, 'allure_kmh')));
+          return profileFor(r.line).then(function (pr) {
+            var dist = r.dist, km = dist / 1000, asc = pr ? Math.round(pr.asc) : null, desc = pr ? Math.round(pr.desc) : null, sec = walkSecs(pr, dist), pause = Math.max(0, +p.pauses_min || 0) * 60;
+            var m0 = /^(\d{1,2})[:h ]?(\d{2})?$/.exec(String(p.depart || '09:00').trim()), dep = m0 ? (+m0[1]) * 60 + (+(m0[2] || 0)) : 540;
+            var d = p.date ? new Date(String(p.date) + 'T12:00:00') : new Date(), a0 = r.line[0], sun = G.sunTimes(a0[0], a0[1], isNaN(d) ? new Date() : d);
+            var arr = dep + Math.round((sec + pause) / 60), alertes = [];
+            if (km > 40) alertes.push('Plus de 40 km en une journée : c’est très long pour des jeunes (même à vélo, à voir), à proposer à la réflexion du chef.');
+            else if (km > 25) alertes.push('Plus de 25 km : une longue journée de marche, à adapter à l’âge et à l’entraînement.');
+            if (asc != null && asc >= 500 && km > 15) alertes.push('Dénivelé positif de ' + asc + ' m sur ' + km.toFixed(1).replace('.', ',') + ' km : l’effort est supérieur à la distance seule, prévoir du temps en plus.');
+            if (asc != null && km > 0 && asc / km > 60) alertes.push('Terrain raide (' + Math.round(asc / km) + ' m de montée par km).');
+            if (sun.coucher != null && arr > sun.coucher - 45) alertes.push('Arrivée estimée à ' + G.fmtMin(arr) + ', trop près du coucher du soleil (' + G.fmtMin(sun.coucher) + ') : prévoir de partir plus tôt, de raccourcir, ou des lampes.');
+            if (sun.coucher != null && arr > sun.coucher) alertes.push('Une partie du parcours se fera de nuit : jeu nocturne à préparer exprès (encadrement, lampes, sécurité).');
+            return { distance_km: +km.toFixed(2), denivele_positif_m: asc, denivele_negatif_m: desc, altitude_min_m: pr ? Math.round(pr.min) : null, altitude_max_m: pr ? Math.round(pr.max) : null, allure_kmh: S.speed,
+              duree_marche: G.fmtDur(sec), pauses_min: pause / 60, depart: G.fmtMin(dep), arrivee_estimee: G.fmtMin(arr), lever_soleil: G.fmtMin(sun.lever), coucher_soleil: G.fmtMin(sun.coucher),
+              marge_avant_coucher_min: sun.coucher != null ? sun.coucher - arr : null, alertes: alertes };
+          });
+        } },
       { id: 'route.add_spot', label: 'Poser un point seul (repère isolé, non relié au chemin)', location: 'Itinéraire', params: { query: 'lieu (ou coords, ou lat+lon)', nom: 'texte (facultatif)' },
         run: function (p) { needRoute(); return where(p).then(function (g) { var o = addSpot([g.lat, g.lon], p.nom || g.name); return o ? { id: o.id, lat: g.lat, lon: g.lon, nom: o.name || '' } : null; }); } },
       { id: 'route.add_azimuth', label: 'Ajouter le point suivant par azimut (degrés, boussole) et distance depuis le dernier point', location: 'Itinéraire', params: { azimut: '0 à 360', distance: 'mètres', nom: 'texte (facultatif)' },
@@ -4128,7 +4207,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.4.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.5.0', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,
@@ -4149,7 +4228,7 @@
       S.partage = info; if (info.pid) S.pid = info.pid;
       projAutosave(); if (SUB === 'library') renderMyLayers();
     },
-    applyPointStyle: applyPointStyle,
+    applyPointStyle: applyPointStyle, maskFor: maskFor,
     applyShared: applyShared, saveWork: function () { if (!VIEWER) projAutosave(); },
     wantOff: wantOff, openPdf: null, projLinkFor: projLinkFor, projLink: projLink, selected: function () { return []; },
     persist: persist, gGame: gGame, select: select, renderStored: renderStored, renderLayerList: renderLayerList, showCtx: showCtx, hideCtx: hideCtx,

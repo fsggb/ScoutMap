@@ -43,15 +43,13 @@
       { t: 'Enregistrer (page web .html : se rouvre ici, se partage)', i: 'download', k: 'Ctrl+S', a: function () { exportHtml(); } },
       { t: 'Exporter la trace en GPX (autres applications)', i: 'export', a: openExport },
       '-',
-      { t: 'Imprimer…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } },
-      { t: 'Enregistrer en PDF…', i: 'download', a: function () { openPdf(); } }
+      { t: 'Imprimer ou enregistrer en PDF…', i: 'printer', k: 'Ctrl+P', a: function () { openPdf(); } }
     ],
     edit: [
       { t: 'Annuler', i: 'undo', k: 'Ctrl+Z', a: undoAction, dis: function () { return !H.undo.length; } },
       { t: 'Rétablir', i: 'redo', k: 'Ctrl+Y', a: redoAction, dis: function () { return !H.redo.length; } },
       '-',
       { t: 'Supprimer le point sélectionné', i: 'trash', k: 'Suppr', a: deleteSelected, dis: function () { return !SEL; } },
-      { t: 'Retirer le dernier point posé', i: 'undo', a: removeLast, dis: function () { return !canUndo(); } },
       { t: 'Inverser le sens de l’itinéraire', i: 'swap', a: reverseRoute, dis: function () { return S.route.wps.length < 2; } },
       '-',
       { t: 'Tout effacer…', i: 'trash', a: function () { resetAll(true); } }
@@ -70,14 +68,11 @@
       { t: 'Échelle 1 : 25 000', a: function () { setScale(25000); } },
       { t: 'Échelle 1 : 10 000', g: 1, a: function () { setScale(10000); } },
       { t: 'Échelle 1 : 5 000', g: 1, a: function () { setScale(5000); } },
-      { t: 'Échelle 1 : 2 000', g: 1, a: function () { setScale(2000); } },
-      { t: 'Échelle 1 : 1 000', g: 1, a: function () { setScale(1000); } },
       { t: 'Échelle 1 : 50 000', a: function () { setScale(50000); } },
       { t: 'Voir toute la France', a: function () { map.setView([46.6, 2.5], 5.6); } }
     ],
     help: [
-      { t: 'Installer l’application / hors connexion…', i: 'download', a: function () { togglePop('off-pop', true); } },
-      { t: 'Forcer la mise à jour du site (version ' + SITE_V + ')', i: 'download', a: forceUpdate },
+      { t: 'Mettre à jour le site (version ' + SITE_V + ')', i: 'download', a: forceUpdate },
       '-',
       { t: 'Tutoriel global', i: 'play', a: function () { openTuto('global'); } },
       { t: 'Tutoriel itinéraire', i: 'route', a: function () { openTuto('route'); } },
@@ -85,8 +80,7 @@
       { t: 'Tutoriel grand jeu', i: 'flag', a: function () { openTuto('game'); } },
       '-',
       { t: 'Contacter le service informatique : service-informatique@fsggb.fr', i: 'file', a: function () { window.location.href = 'mailto:service-informatique@fsggb.fr?subject=' + encodeURIComponent('ScoutMap'); } },
-      { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } },
-      { t: 'Cartes IGN – Géoplateforme', i: 'map', a: function () { window.open('https://geoservices.ign.fr/', '_blank', 'noopener'); } }
+      { t: 'Raccourcis clavier', i: 'help', a: function () { openDlg('dlg-help'); } }
     ]
   };
   var openMenu = null;

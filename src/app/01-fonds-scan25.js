@@ -182,6 +182,12 @@
     if (S25P.ok) { img.onerror = function () { img.onerror = null; s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ }); }; img.src = s25ProxyUrl(10, x, y); return; }
     s25Fetch(10, x, y).then(function (d) { img.src = 'data:image/jpeg;base64,' + d; }, function () { /* garde le dessin de remplacement */ });
   }
+  // Une tuile qui manque n'est pas une panne : le message « indisponible » n'apparaît que si plusieurs tuiles échouent et qu'aucune n'a jamais réussi.
+  function warnS25() {
+    SCAN25.nfail = (SCAN25.nfail || 0) + 1;
+    if (!SCAN25.warned && !S25P.seen && SCAN25.nfail >= 6) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); }
+  }
+  var GIF0 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   function scan25Layer(off, extra) {
     var c = SCAN25.cfg; if (!c) return L.featureGroup();
     var so = Math.max(0, Math.min(2, off | 0));   // 2 : tuiles du niveau 16 (la meilleure définition de l'IGN) affichées en 64 px, soit environ 380 ppp à l'impression
@@ -192,9 +198,13 @@
         var H = L.GridLayer.extend({ createTile: function (co, done) {
           var im = document.createElement('img'); im.alt = '';
           var viaRelay = function () {   // secours : lots demandés au serveur ScoutHub
+            // « pas de données » (404/400 : hors de la carte) = tuile vide, sans alerte ni secours ; une vraie panne (5xx, réseau) passe au secours
+            fetch(s25ProxyUrl(co.z + so, co.x, co.y)).then(function (r) { if (r.status === 404 || r.status === 400) { im.onload = function () { done(null, im); }; im.src = GIF0; return true; } throw new Error('http ' + r.status); }).catch(function () { return false; }).then(function (vide) { if (!vide) relay2(); });
+          };
+          var relay2 = function () {
             s25Fetch(co.z + so, co.x, co.y).then(function (d) { im.onload = function () { done(null, im); }; im.onerror = function () { done(new Error('image illisible'), im); }; im.src = 'data:image/jpeg;base64,' + d; }, function (e) {
               var m = (e && e.message) || 'échec'; if (window.console) console.warn('SCAN 25 :', m);
-              if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } done(new Error(m), im);
+              warnS25(); done(new Error(m), im);
             });
           };
           if (!S25P.ok) { viaRelay(); return im; }
@@ -215,7 +225,7 @@
       var pump = function () { while (running < 6 && queue.length) { running++; queue.shift()(); } };
       var G = L.GridLayer.extend({ createTile: function (co, done) {
         var im = document.createElement('img'), n = 0; im.alt = '';
-        var fail = function (msg) { if (!SCAN25.warned) { SCAN25.warned = true; toast('Carte IGN SCAN 25 momentanément indisponible : choisissez un autre fond dans « Fonds et infos ».', { kind: 'warn' }); } if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
+        var fail = function (msg) { warnS25(); if (window.console) console.warn('SCAN 25 :', msg); done(new Error(msg), im); };
         var go = function () {
           var req = c.hub
             ? hubApi().then(function (api) {

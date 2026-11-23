@@ -182,7 +182,19 @@
     if (v.length < 2) { closeSuggest(); return; }
     var c = parseCoord(v);
     if (c) { qItems = [{ t: 'Aller à ce point', s: c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + (c.fmt && window.SMCoords ? ' · ' + SMCoords.label(c.fmt) : ''), k: 'target', coord: true, lat: c.lat, lon: c.lon }]; qAct = 0; renderSuggest(); return; }
-    if (window.SMCoords && SMCoords.isShortLink(v)) { qItems = []; $('#suggest').innerHTML = '<li class="none">Lien court Google Maps : ouvrez-le, puis copiez l’adresse complète de la page (elle contient la position).</li>'; $('#suggest').hidden = false; return; }
+    if (window.SMCoords && SMCoords.isShortLink(v)) {   // lien court Google Maps : le serveur ScoutHub lit l'adresse complète (un navigateur ne peut pas la lire lui-même)
+      qItems = []; $('#suggest').innerHTML = '<li class="none">Lecture du lien Google Maps…</li>'; $('#suggest').hidden = false;
+      var raw = v, lk = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+      fetch('https://scouthub.fsggb.workers.dev/lien?u=' + encodeURIComponent(lk)).then(function (r) { return r.json(); }).then(function (j) {
+        if ($('#q').value.trim() !== raw) return;
+        var full = j && j.url, c2 = full && SMCoords.parse(full);
+        if (c2) { qItems = [{ t: 'Aller à ce lieu (lien Google Maps)', s: c2.lat.toFixed(5) + ', ' + c2.lon.toFixed(5), k: 'target', coord: true, lat: c2.lat, lon: c2.lon }]; qAct = 0; renderSuggest(); return; }
+        var nm = full && linkText(full);
+        if (nm) { $('#q').value = nm; $('#q').dispatchEvent(new Event('input')); return; }
+        $('#suggest').innerHTML = '<li class="none">Ce lien ne donne pas de position lisible.</li>';
+      }).catch(function () { $('#suggest').innerHTML = '<li class="none">Lien Google Maps illisible pour le moment : réessayez ou collez les coordonnées.</li>'; });
+      return;
+    }
     if (window.SMCoords && SMCoords.isLink(v)) { var lt = linkText(v); if (!lt) { qItems = []; $('#suggest').innerHTML = '<li class="none">Ce lien ne contient pas de position lisible.</li>'; $('#suggest').hidden = false; return; } v = lt; }
     if (v.length < 3) { closeSuggest(); return; }
     qTimer = setTimeout(function () {

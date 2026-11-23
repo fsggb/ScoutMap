@@ -104,14 +104,21 @@
       }
     }
   });
+  /* Les éléments restent à leur place sur le TERRAIN : au zoom correspondant à l'échelle du jeu ils ont leur taille réglée (celle du papier) ;
+     on dézoome, ils rétrécissent avec la carte ; on zoome, ils grossissent. Les icônes, elles, suivaient déjà. Sur les cartes imprimées, facteur 1. */
+  var PRINTCTX = false;
+  function zk() {
+    try { var z0 = SM.zoomFor(D().scale || 10000, map.getCenter().lat); return Math.max(0.2, Math.min(3, Math.pow(2, map.getZoom() - z0))); } catch (e) { return 1; }
+  }
+  function kz() { return PRINTCTX ? 1 : zk(); }
   function decoDefs(s) {
-    var w = s.weight, c = s.stroke;
+    var w = Math.max(0.7, s.weight * kz()), c = s.stroke;
     switch (s.deco) {
-      case 'river': return { under: [{ color: shade(c, 0.7), weight: w + 2 }], over: [{ color: '#dbeafe', weight: Math.max(1, w * 0.3), opacity: 0.65 }] };
-      case 'road': return { under: [{ color: '#3d2a14', weight: w + 3 }], over: [{ color: '#f5e6c8', weight: Math.max(1, w * 0.35), opacity: 0.95, dashArray: '10 8' }] };
-      case 'wall': return { under: [{ color: '#2b2b2b', weight: w + 3 }], over: [{ color: '#2b2b2b', weight: w + 3, dashArray: '3 9', lineCap: 'butt' }] };
+      case 'river': return { under: [{ color: shade(c, 0.7), weight: w + 1.2 }], over: [{ color: '#dbeafe', weight: Math.max(1, w * 0.3), opacity: 0.65 }] };
+      case 'road': return { under: [{ color: '#3d2a14', weight: w + 1.6 }], over: [{ color: '#f5e6c8', weight: Math.max(1, w * 0.35), opacity: 0.95, dashArray: '10 8' }] };
+      case 'wall': return { under: [{ color: '#2b2b2b', weight: w + 1.6 }], over: [{ color: '#2b2b2b', weight: w + 1.6, dashArray: '3 9', lineCap: 'butt' }] };
       case 'rail': return { under: [{ color: '#222', weight: w }], over: [{ color: '#fff', weight: Math.max(1, w - 2), dashArray: '9 9', lineCap: 'butt' }] };
-      case 'trench': return { under: [{ color: '#2e1f0f', weight: w + 2 }], over: [{ color: '#b08d57', weight: Math.max(1, w - 2), dashArray: '3 5' }] };
+      case 'trench': return { under: [{ color: '#2e1f0f', weight: w + 1.2 }], over: [{ color: '#b08d57', weight: Math.max(1, w - 2), dashArray: '3 5' }] };
     }
     return null;
   }
@@ -119,16 +126,16 @@
     var da = s.dash === 'dot' ? '1 9' : s.dash ? '10 8' : null;
     if (s.deco === 'border') da = '12 6 3 6'; else if (s.deco === 'sea') da = '1 9'; else if (s.deco === 'path') da = '7 6';
     var tex = s.tex && TEXG[s.tex];
-    return { color: s.stroke, weight: s.weight, opacity: opv(s), fillColor: tex ? 'url(#' + texId(s) + ')' : s.fill, fillOpacity: (tex ? 1 : s.alpha) * opv(s), dashArray: da, lineJoin: 'round', lineCap: 'round' };
+    return { color: s.stroke, weight: Math.max(0.7, s.weight * kz()), opacity: opv(s), fillColor: tex ? 'url(#' + texId(s) + ')' : s.fill, fillOpacity: (tex ? 1 : s.alpha) * opv(s), dashArray: da, lineJoin: 'round', lineCap: 'round' };
   }
   function opv(s) { return s.op == null ? 1 : s.op; }
   function arrowIcon(s, ang) {
-    var sz = 14 + s.weight * 3;
+    var sz = Math.max(8, Math.round((14 + s.weight * 3) * kz()));
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
       html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" style="transform:rotate(' + ang.toFixed(1) + 'deg);opacity:' + opv(s) + '"><path d="M12 1L22 22L12 17L2 22Z" fill="' + s.stroke + '" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>' });
   }
   function crossIcon(s) {
-    var sz = 18 + s.weight * 4, sw = (s.weight * 1.3 + 1) * 24 / sz;
+    var sz = Math.max(9, Math.round((18 + s.weight * 4) * kz())), sw = (s.weight * 1.3 + 1) * 24 / Math.max(sz, 1) * Math.min(1, kz() + 0.2);
     return L.divIcon({ className: 'g-icon', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
       html: '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke-linecap="round" style="opacity:' + opv(s) + '"><path d="M4 4L20 20M20 4L4 20" stroke="#fff" stroke-width="' + (sw + 2.2) + '"/><path d="M4 4L20 20M20 4L4 20" stroke="' + s.stroke + '" stroke-width="' + sw + '"/></svg>' });
   }
@@ -138,9 +145,9 @@
   var LEGACY = { sans: 'arial', serif: 'georgia', hand: 'comic', title: 'impact', mono: 'courier' };
   function fontKey(s) { var k = (s && s.font) || 'arial'; k = LEGACY[k] || k; return FONTS[k] ? k : 'arial'; }
   function textIcon(s) {
-    var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2);
+    var bg = s.alpha > 0 ? rgba(s.fill, s.alpha) : 'transparent', bw = Math.round(s.weight / 2), fs = Math.max(6, Math.round(s.size * kz()));
     return L.divIcon({ className: 'g-icon', iconSize: [0, 0],
-      html: '<div class="gtext" title="Double-clic : modifier le texte" style="' + ((s.rot || s.op != null) ? 'transform:translate(-50%,-50%) rotate(' + (s.rot || 0) + 'deg);opacity:' + opv(s) + ';' : '') + 'background:' + bg + ';color:' + s.fontColor + ';font-size:' + s.size + 'px;font-family:' + FONTS[fontKey(s)] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
+      html: '<div class="gtext" title="Double-clic : modifier le texte" style="' + ((s.rot || s.op != null) ? 'transform:translate(-50%,-50%) rotate(' + (s.rot || 0) + 'deg);opacity:' + opv(s) + ';' : '') + 'background:' + bg + ';color:' + s.fontColor + ';font-size:' + fs + 'px;font-family:' + FONTS[fontKey(s)] + ';text-align:' + (s.align || 'center') + ';font-weight:' + (s.bold ? 700 : 400) + ';font-style:' + (s.italic ? 'italic' : 'normal') + ';text-decoration:' + (s.underline ? 'underline' : 'none') + ';border:' + bw + 'px solid ' + (bw ? s.stroke : 'transparent') + '">' + (esc(s.text || '') || '&nbsp;').replace(/\n/g, '<br>') + '</div>' });
   }
   // ---------- Éléments de thème : icônes dont la taille suit l'échelle du jeu (millimètres sur le papier à cette échelle) ----------
   var themesP = null;
@@ -287,10 +294,16 @@
     return ob;
   }
   function build(d, group, o) {
-    o = o || {}; var out = {};
+    o = o || {}; var out = {}, was = PRINTCTX; PRINTCTX = !(o.active || o.stored);
     d.shapes.forEach(function (s, i) { if (s.hidden) return; var ob = out[s.id] = buildShape(s, group, o); if (ob && ob.marker && ob.marker.setZIndexOffset) ob.marker.setZIndexOffset(i * 10); });
-    return out;
+    PRINTCTX = was; return out;
   }
+  // zoom / dézoom : les tracés, croix, flèches et textes se redessinent à la taille du terrain
+  var lastKz = 1, kzTimer = 0;
+  map.on('zoomend', function () {
+    if (S.mode !== 'game') return; var k = zk(); if (Math.abs(k - lastKz) / lastKz < 0.04) return; lastKz = k;
+    clearTimeout(kzTimer); kzTimer = setTimeout(function () { (D().shapes || []).forEach(function (s) { if (s.kind !== 'stamp' && live[s.id]) refreshStyle(s); }); }, 90);
+  });
   // Charge les ressources (icônes, illustrations, motifs de lignes) avant l'impression ou l'export
   function ready(d) {
     return Promise.all([loadThemes().catch(function () { /* hors ligne */ }), loadArt().catch(function () { /* hors ligne */ })]).then(function () {
@@ -748,7 +761,7 @@
     applyParch(); SM.persist(); render(); renderThemes(); renderPane();
   }
   function ico(id, color, px) { var d = window.SM_ICONS && window.SM_ICONS[id]; return d ? '<svg viewBox="0 0 512 512" width="' + (px || 34) + '" height="' + (px || 34) + '"><path d="' + d + '" fill="' + color + '"/></svg>' : ''; }
-  function themeList() { return (window.SM_THEMES || []).concat([{ id: 'perso', icon: 'delapouite/flag-objective', name: 'Libre', color: '#12142b', desc: 'Sans thème imposé : vous choisissez vos icônes dans toute la bibliothèque (tous les thèmes), avec une recherche par mot-clé.', el: [] }]); }
+  function themeList() { return (window.SM_THEMES || []).concat([{ id: 'perso', icon: 'delapouite/flag-objective', name: 'Thème libre', color: '#12142b', desc: 'Sans thème imposé : vous choisissez vos icônes dans toute la bibliothèque (tous les thèmes), avec une recherche par mot-clé.', el: [] }]); }
   function themeCards(sel) {
     return themeList().map(function (t) {
       var mini = (t.el || []).filter(function (e, i) { return i % 6 === 0; }).slice(0, 4).map(function (e) { return ico(e.i, t.color, 20); }).join('');
@@ -947,9 +960,9 @@
     var commons = FLAGS.concat(window.SM_ART_COMMON || [], window.SM_COMMON || []);
     function sortL(a) { return a.slice().sort(function (x, y) { return String(x.l || '').localeCompare(String(y.l || ''), 'fr'); }); }
     var fold = {}; try { fold = JSON.parse(localStorage.getItem('scoutmap.gsec') || '{}'); } catch (e) { fold = {}; }
-    function sec(name, list, color, hint) {
+    function sec(name, list, color, hint, closed) {
       if (!list.length) return '';
-      return '<details class="gsec"' + (fold[name] === false ? '' : ' open') + ' data-sec="' + esc(name) + '"><summary><span>' + esc(name) + '</span><small>' + list.length + '</small></summary>' + (hint ? '<p class="gsec-h">' + esc(hint) + '</p>' : '') + '<div class="gstamps">' + stampBtns(list, color) + '</div></details>';
+      return '<details class="gsec"' + (closed ? (fold[name] === true ? ' open' : '') : (fold[name] === false ? '' : ' open')) + ' data-sec="' + esc(name) + '"><summary><span>' + esc(name) + '</span><small>' + list.length + '</small></summary>' + (hint ? '<p class="gsec-h">' + esc(hint) + '</p>' : '') + '<div class="gstamps">' + stampBtns(list, color) + '</div></details>';
     }
     function fam(t) { return '<h3 class="gfam">' + esc(t) + '</h3>'; }
     // ---- recherche par mot-clé dans TOUS les thèmes, et bibliothèque complète (thème Libre, ou bouton « Toute la bibliothèque »)
@@ -972,14 +985,17 @@
         (hits.length ? '' : '<p class="gtab-help">Essayez un mot plus court (feu, tour, tente, arbre, drapeau…).</p>');
     } else if (perso || window.__gall) {
       var al = everything(), grp = {}, ord = []; al.forEach(function (x) { if (!grp[x.g]) { grp[x.g] = { c: x.c, l: [] }; ord.push(x.g); } grp[x.g].l.push(x.e); });
-      html = fam('Bibliothèque complète · ' + al.length + ' éléments') + '<p class="gtab-help">Tous les thèmes réunis : posez ce que vous voulez, quel que soit le thème du jeu. Utilisez la recherche pour aller plus vite.</p>' + ord.map(function (g) { return sec(g, sortL(grp[g].l), grp[g].c); }).join('') +
+      html = fam('Bibliothèque complète · ' + al.length + ' éléments') + '<p class="gtab-help">Tous les thèmes réunis : posez ce que vous voulez, quel que soit le thème du jeu. Utilisez la recherche pour aller plus vite.</p>' + ord.map(function (g, i) { return sec(g, sortL(grp[g].l), grp[g].c, '', i > 0); }).join('') +
         (window.__gall && !perso ? '<button type="button" class="btn-ghost block" id="gall-off">Revenir aux éléments du thème</button>' : '');
     } else if (th) {
       var heroes = artL.filter(function (e) { return e.hero; }), illus = sortL(artL.filter(function (e) { return !e.hero; }));
       if (heroes.length || illus.length) html += fam('Illustrations en couleur') + sec('Bases', heroes, th.color, 'Grandes images détaillées : cliquez puis étirez sur la carte pour choisir la taille.') + sec('Illustrations', illus, th.color);
       html += fam('Repères') + sec('Repères du jeu', commons, '#12142b');
-      html += fam('Pictogrammes') + th.cats.map(function (c) { return sec(c, sortL(th.el.filter(function (e) { return e.c === c; })), th.color); }).join('') +
-        '<button type="button" class="btn-ghost block" id="gall-on">Toute la bibliothèque (tous les thèmes)</button>';
+      html += fam('Pictogrammes') + th.cats.map(function (c) { return sec(c, sortL(th.el.filter(function (e) { return e.c === c; })), th.color); }).join('');
+      // tous les autres éléments (les autres thèmes), fermés, en dessous : on peut les utiliser quel que soit le thème du jeu
+      var others = everything().filter(function (x) { return x.g !== th.name && x.g !== 'Repères du jeu'; }), og = {}, oo = [];
+      others.forEach(function (x) { if (!og[x.g]) { og[x.g] = { c: x.c, l: [] }; oo.push(x.g); } og[x.g].l.push(x.e); });
+      if (oo.length) html += fam('Autres thèmes') + oo.map(function (g) { return sec(g, sortL(og[g].l), og[g].c, '', true); }).join('');
     } else if (window.SM_THEMES) html = fam('Repères') + sec('Repères du jeu', commons, '#12142b');
     else html = '<p class="gtab-help">Chargement…</p>';
     $('#gcats').hidden = true; $('#gcats').innerHTML = '';
@@ -1087,7 +1103,7 @@
       function draw() {
         killMap();
         var body, foot;
-        if (step === 1) body = '<label class="gwz-name">Nom du jeu <input id="gw-name" type="text" maxlength="60" placeholder="Ex. Domaine de Henriques, Camp de Pâques…" autocomplete="off" value="' + esc(pick.name) + '"></label><h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
+        if (step === 1) body = '<div class="gwz-name"><h2>Donnez un nom au jeu</h2><input id="gw-name" type="text" maxlength="60" placeholder="Ex. Domaine de Henriques, Camp de Pâques…" aria-label="Nom du jeu" autocomplete="off" value="' + esc(pick.name) + '"></div><h2>Choisissez le thème du jeu</h2><p class="gwz-sub">Il donne les illustrations, les couleurs, les bases et les lignes (palissades, barbelés…). Il ne pourra plus être changé ensuite.</p><div class="gwz-themes">' + themeCards(pick.th) + '</div>';
         else if (step === 3) body = '<div class="gwz-cols"><div><h2>Effets sur la carte</h2><p class="gwz-sub">Facultatif : donnez un style à la carte. L’aperçu à droite se met à jour tout de suite. Rien n’est appliqué par défaut, et vous pourrez tout régler plus tard dans l’onglet Effets.</p><div class="gfx-grid" id="gw-fx"></div></div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         else body = '<div class="gwz-cols"><div><h2>Échelle de départ</h2><p class="gwz-sub">Elle règle la taille des éléments sur le papier. Vous pourrez zoomer et dézoomer librement ensuite.</p><div class="gscale gwz-sc">' + scaleBtns(pick.sc) + '</div><p class="gwz-note"><b>À savoir :</b> la taille des éléments dépend de cette échelle de départ. Ils gardent la même taille sur le papier (en millimètres) : si vous changez d’échelle plus tard, ils paraîtront plus gros ou plus petits sur la carte.</p><h2 class="gwz-h2b">Fond de carte</h2><p class="gwz-sub">Un fond adapté au thème est déjà choisi : changez-le seulement si vous préférez. La photo aérienne est souvent plus pratique pour repérer les haies, chemins et bâtiments ; elle se change aussi plus tard dans l’onglet Effets.</p>' + baseSel() + '</div><div class="gwz-r"><div id="gw-map"></div><p id="gw-cap"></p></div></div>';
         foot = '<button type="button" class="btn-ghost" id="gwz-cancel">Annuler</button><span class="gwz-fill"></span>' + (step > 1 ? '<button type="button" class="btn-ghost" id="gwz-back">Retour</button>' : '') +
@@ -1114,7 +1130,7 @@
         var go = $('#gwz-go', ov);
         if (go) go.addEventListener('click', function () {
           killMap(); ov.remove(); document.body.classList.remove('gw-open'); if (pick.name.trim()) { D().name = pick.name.trim(); var gn = $('#game-name'); if (gn) gn.value = D().name; if (!S.name) { S.name = D().name; var pn = $('#proj-name'); if (pn) pn.value = S.name; } } setScale(pick.sc); applyTheme(pick.th); D().fx = Object.assign({}, pick.fx); delete D().parch; applyParch();
-          var th = thNow(), b = baseNow(); if (th && b !== th.base) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
+          var b = baseNow(); if (b && S.base !== b) { S.base = b; if (SM.applyLayers) SM.applyLayers(); SM.persist(); }
           setTab('tools'); setTimeout(function () { try { map.invalidateSize(); } catch (e) { /* ignoré */ } }, 50);
         });
         if (step > 1) setTimeout(preview, 60);

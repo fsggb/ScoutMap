@@ -98,6 +98,34 @@
       { id: 'route.add', label: 'Ajouter un point à l’itinéraire (lieu, coordonnées ou lien), relié par chemin, en ligne droite ou en azimut', location: 'Itinéraire',
         params: { query: 'lieu (ou coords, ou lat+lon)', mode: 'chemin | droite | azimut', nom: 'texte (facultatif)', at: 'position (facultatif, à la fin par défaut)' },
         run: function (p) { return addPoint({ lat: p.lat, lon: p.lon, coords: p.coords, query: p.query, name: p.nom, at: p.at }, p.mode); } },
+      { id: 'info.sun', label: 'Heures de lever et de coucher du soleil (heure de France) pour un lieu et un jour', location: 'Jeu', params: { query: 'lieu (ou coords, ou lat+lon ; sinon le centre de la carte)', date: 'AAAA-MM-JJ (aujourd’hui par défaut)' },
+        run: function (p) {
+          var go = function (la, lo) { var d = p.date ? new Date(String(p.date) + 'T12:00:00') : new Date(); if (isNaN(d)) throw new Error('date : AAAA-MM-JJ'); var t = G.sunTimes(la, lo, d);
+            return { lat: +la.toFixed(4), lon: +lo.toFixed(4), date: d.toISOString().slice(0, 10), heure_ete: t.ete, lever: G.fmtMin(t.lever), coucher: G.fmtMin(t.coucher), minutes_de_jour: t.lever != null && t.coucher != null ? t.coucher - t.lever : null }; };
+          if (p.lat != null || p.coords || p.query) return where(p).then(function (g) { return go(g.lat, g.lon); });
+          var c = map.getCenter(); return go(c.lat, c.lng);
+        } },
+      { id: 'route.analyse', label: 'Analyse d’un itinéraire pour un jeu ou un raid : distance, dénivelé, durée de marche, heure d’arrivée comparée au coucher du soleil, alertes', location: 'Jeu',
+        params: { depart: 'heure de départ HH:MM (défaut 09:00)', date: 'AAAA-MM-JJ (aujourd’hui par défaut)', allure_kmh: 'allure sur le plat (défaut : réglage de l’application)', pauses_min: 'minutes de pauses et d’épreuves (défaut 0)' },
+        run: function (p) {
+          needRoute(); var r = RT.route; if (!r || !r.line || r.line.length < 2) throw new Error('aucun itinéraire calculé : posez au moins deux points (route.result attend le calcul)');
+          if (p.allure_kmh != null) S.speed = Math.max(1, Math.min(8, num(p.allure_kmh, 'allure_kmh')));
+          return profileFor(r.line).then(function (pr) {
+            var dist = r.dist, km = dist / 1000, asc = pr ? Math.round(pr.asc) : null, desc = pr ? Math.round(pr.desc) : null, sec = walkSecs(pr, dist), pause = Math.max(0, +p.pauses_min || 0) * 60;
+            var m0 = /^(\d{1,2})[:h ]?(\d{2})?$/.exec(String(p.depart || '09:00').trim()), dep = m0 ? (+m0[1]) * 60 + (+(m0[2] || 0)) : 540;
+            var d = p.date ? new Date(String(p.date) + 'T12:00:00') : new Date(), a0 = r.line[0], sun = G.sunTimes(a0[0], a0[1], isNaN(d) ? new Date() : d);
+            var arr = dep + Math.round((sec + pause) / 60), alertes = [];
+            if (km > 40) alertes.push('Plus de 40 km en une journée : c’est très long pour des jeunes (même à vélo, à voir), à proposer à la réflexion du chef.');
+            else if (km > 25) alertes.push('Plus de 25 km : une longue journée de marche, à adapter à l’âge et à l’entraînement.');
+            if (asc != null && asc >= 500 && km > 15) alertes.push('Dénivelé positif de ' + asc + ' m sur ' + km.toFixed(1).replace('.', ',') + ' km : l’effort est supérieur à la distance seule, prévoir du temps en plus.');
+            if (asc != null && km > 0 && asc / km > 60) alertes.push('Terrain raide (' + Math.round(asc / km) + ' m de montée par km).');
+            if (sun.coucher != null && arr > sun.coucher - 45) alertes.push('Arrivée estimée à ' + G.fmtMin(arr) + ', trop près du coucher du soleil (' + G.fmtMin(sun.coucher) + ') : prévoir de partir plus tôt, de raccourcir, ou des lampes.');
+            if (sun.coucher != null && arr > sun.coucher) alertes.push('Une partie du parcours se fera de nuit : jeu nocturne à préparer exprès (encadrement, lampes, sécurité).');
+            return { distance_km: +km.toFixed(2), denivele_positif_m: asc, denivele_negatif_m: desc, altitude_min_m: pr ? Math.round(pr.min) : null, altitude_max_m: pr ? Math.round(pr.max) : null, allure_kmh: S.speed,
+              duree_marche: G.fmtDur(sec), pauses_min: pause / 60, depart: G.fmtMin(dep), arrivee_estimee: G.fmtMin(arr), lever_soleil: G.fmtMin(sun.lever), coucher_soleil: G.fmtMin(sun.coucher),
+              marge_avant_coucher_min: sun.coucher != null ? sun.coucher - arr : null, alertes: alertes };
+          });
+        } },
       { id: 'route.add_spot', label: 'Poser un point seul (repère isolé, non relié au chemin)', location: 'Itinéraire', params: { query: 'lieu (ou coords, ou lat+lon)', nom: 'texte (facultatif)' },
         run: function (p) { needRoute(); return where(p).then(function (g) { var o = addSpot([g.lat, g.lon], p.nom || g.name); return o ? { id: o.id, lat: g.lat, lon: g.lon, nom: o.name || '' } : null; }); } },
       { id: 'route.add_azimuth', label: 'Ajouter le point suivant par azimut (degrés, boussole) et distance depuis le dernier point', location: 'Itinéraire', params: { azimut: '0 à 360', distance: 'mètres', nom: 'texte (facultatif)' },
