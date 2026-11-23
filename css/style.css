@@ -1690,3 +1690,12 @@ body.gw-open .pane[data-pane="game"]{pointer-events:none;opacity:.4}
 .direct-lbl span.is-az{white-space:nowrap}
 .rpalette .gtools button{width:52px}
 @media (max-width:860px){.rpalette .gtools button{width:44px}}
+
+/* vue partielle (?vue=carte) : seulement la carte et les tracés */
+.embed #searchcard,.embed #coords,.embed .menubar,.embed #btn-edit,.embed #toolhint,.embed .dock.embed-off,.embed #rbar,.embed #gpalette{display:none!important}
+.embed .app{position:fixed!important;inset:0!important;display:block!important}
+.embed .stage{position:absolute!important;inset:0!important}
+.embed-legend{position:absolute;left:10px;top:10px;z-index:800;display:flex;flex-direction:column;gap:4px;max-width:min(320px,70%);padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.95);border:1px solid var(--line-2);box-shadow:0 4px 16px rgba(0,7,97,.15);font-size:12.5px;color:var(--ink)}
+.embed-legend .el-t{font-family:Georgia,'Times New Roman',serif;font-size:14px;color:var(--navy);margin-bottom:2px}
+.embed-legend span{display:flex;align-items:center;gap:7px;min-width:0}
+.embed-legend i{flex:none;width:18px;height:4px;border-radius:2px}

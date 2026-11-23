@@ -3,6 +3,12 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.2.0 — 23 novembre 2026
+
+### Pilotage par ChatGDB
+- ScoutMap offre maintenant à ChatGDB le **même canal de commandes que les applications de la suite Craft** (Word, Excel…) : ChatGDB peut créer un itinéraire, ajouter des points par nom de lieu, coordonnées ou azimut, choisir chemin, ligne droite ou azimut, lire la distance et la durée, ouvrir et afficher des tracés de la bibliothèque, changer le fond, la grille ou l'échelle, ouvrir l'impression. 27 commandes, décrites dans la fiche ChatGDB.
+- **Vue partielle** (`?vue=carte`) : la carte seule, avec les tracés choisis chacun de sa couleur et une légende (nom et distance), en lecture seule, sans rien enregistrer. ChatGDB s'en sert pour montrer une carte dans un artefact.
+
 ## 2.1.0 — 23 novembre 2026
 
 ### Itinéraire et azimuts réunis
