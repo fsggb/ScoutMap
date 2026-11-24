@@ -3,6 +3,10 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.7.1 — 24 novembre 2026
+
+- **Gel possible du navigateur** : le calcul « combien de tuiles sont déjà enregistrées » (nouveau en 2.6.0) n'était pas plafonné et pouvait, avec beaucoup de grandes zones hors connexion, bloquer longtemps la page (« cette page ne répond pas »). Il est maintenant limité à 60 000 tuiles ; au-delà, l'estimation se contente du nombre de tuiles, sans dédoublonnage. Je n'ai pas pu reproduire le blocage complet signalé : si ça se reproduit, dites-moi ce qui était ouvert au même moment (fenêtre « Cartes hors connexion », grand jeu avec beaucoup d'éléments…).
+
 ## 2.7.0 — 24 novembre 2026
 
 **Correction** : un défaut introduit dans la 2.6.2 faisait erreur dans l'outil Grand jeu (étiquettes des éléments et sélection) ; il est corrigé.
