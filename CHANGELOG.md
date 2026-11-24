@@ -3,6 +3,11 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.6.2 — 24 novembre 2026
+
+- **Préparer un jeu avec ChatGDB** : nouvelles commandes `game.add` (texte, croix, ligne, zone, cercle, flèche, rectangle, éventuellement comme étape numérotée avec énigme, système de codage et solution), `game.steps` (étapes dans l'ordre ; avec `chef=true`, énigmes et solutions pour le document des chefs), `game.reveal` (ne montrer le parcours que jusqu'à une étape, pour imprimer la carte d'une étape ou la révéler progressivement) et `game.remove`.
+- Attention : les solutions saisies sur une étape sont enregistrées dans le travail (et donc dans le fichier ou le lien de partage) ; elles ne s'impriment pas sur les cartes.
+
 ## 2.6.1 — 24 novembre 2026
 
 - **Nouveaux points : les épingles.** Les points posés sur la carte sont des épingles en forme de goutte (contour blanc, ombre douce, numéro lisible), la pointe posée exactement sur le lieu : départ vert, arrivée rouge, étapes bleues, azimuts dorés, repères violets. C'est la forme par défaut ; la pastille numérotée et le point simple restent au choix dans Réglages. La croix et l'ancien pointeur sont supprimés.
