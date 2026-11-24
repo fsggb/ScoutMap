@@ -30,7 +30,7 @@
   var DEF_BASE = {
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
-    points: { style: 'pastille' },
+    points: { style: 'epingle' },
     print: { sharp: 'auto', paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {
@@ -818,8 +818,8 @@
     if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, level === 'discret' ? 2200 : Math.min(9000, 3200 + msg.length * 25));
     return card;
   }
-  // Apparence des points (Réglages › Général) : pastille numérotée, croix, pointeur ou simple point
-  function applyPointStyle() { document.body.setAttribute('data-pt', (DEF.points && DEF.points.style) || 'pastille'); }
+  // Apparence des points (Réglages › Général) : épingle (par défaut), pastille numérotée ou simple point
+  function applyPointStyle() { var v = DEF.points && DEF.points.style; document.body.setAttribute('data-pt', v === 'pastille' || v === 'point' ? v : 'epingle'); }
   applyPointStyle();
   function pin(label, cls, wrap) {
     return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '" data-l="' + esc(label) + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
@@ -3818,8 +3818,8 @@
         run: function (p) { var b = String(p.fond || ''); if (!LAYERS[b] || !LAYERS[b].base) throw new Error('fond inconnu : ' + b); S.base = b; buildTiles(); applyLayers(); persist(); return { fond: b }; } },
       { id: 'map.layers', label: 'Afficher ou masquer des couches (courbes de niveau, ombrage, sentiers…)', location: 'Affichage', params: { afficher: OVERS.join(', '), masquer: 'idem' },
         run: function (p) { [].concat(p.afficher || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = true; }); [].concat(p.masquer || []).forEach(function (k) { if (S.ov.hasOwnProperty(k)) S.ov[k] = false; }); applyLayers(); persist(); return { couches: OVERS.filter(function (k) { return S.ov[k]; }) }; } },
-      { id: 'app.point_style', label: 'Apparence des points posés sur la carte', location: 'Réglages', params: { forme: 'pastille | croix | pointeur | point' },
-        run: function (p) { var f = String(p.forme || ''); if (['pastille', 'croix', 'pointeur', 'point'].indexOf(f) < 0) throw new Error('forme : pastille, croix, pointeur ou point'); DEF.points.style = f; saveDefaults(); applyPointStyle(); return { forme: f }; } },
+      { id: 'app.point_style', label: 'Apparence des points posés sur la carte', location: 'Réglages', params: { forme: 'epingle | pastille | point' },
+        run: function (p) { var f = String(p.forme || ''); if (['epingle', 'pastille', 'point'].indexOf(f) < 0) throw new Error('forme : epingle, pastille ou point'); DEF.points.style = f; saveDefaults(); applyPointStyle(); return { forme: f }; } },
       { id: 'map.grid', label: 'Grille sur la carte (aucune, kilométrique, carroyage bleu, UTM, lat/long, jeu)', location: 'Affichage', params: { type: 'none | l93 | km | utm | ll | game' },
         run: function (p) { var t = String(p.type || 'none'); if (['none', 'l93', 'km', 'utm', 'll', 'game'].indexOf(t) < 0) throw new Error('grille inconnue : ' + t); S.grid = { type: t }; if (SM.grid) SM.grid.apply(); persist(); return { grille: t }; } },
       { id: 'route.add', label: 'Ajouter un point à l’itinéraire (lieu, coordonnées ou lien), relié par chemin, en ligne droite ou en azimut', location: 'Itinéraire',
@@ -4301,7 +4301,7 @@
   // API interne pour doc.js
   window.SM_test = { bestBlockOrder: bestBlockOrder, blocksOf: blocksOf };
   window.SM = {
-    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.6.0', build: SITE_V,
+    traceSig: traceSig, isMobile: isMobile, closePanel: function () { S.panelOpen = false; applyPanel(); persist(); }, ntfStow: ntfStow, DEF: DEF, DEF_BASE: DEF_BASE, saveDefaults: saveDefaults, forceUpdate: forceUpdate, appVersion: '2.6.1', build: SITE_V,
     applyLayers: applyLayers, loadProject: loadProject, ensureAnchor: ensureAnchor, renderRouteMarkers: renderRouteMarkers, hikeDraw: hikeDraw, hikeFailed: function () { return false; },
     openOffline: function () { showHome(false); togglePop('off-pop', true); },
     layerDate: layerDate, ovOn: ovOn, drawDirects: drawDirects, walkSecs: walkSecs, persist: persist, waterDraw: waterDraw, srcUrl: srcUrl,

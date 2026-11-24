@@ -29,7 +29,7 @@
   var DEF_BASE = {
     route: { loop: true, opt: 'fastest', freeOrder: true, maxOn: false, maxKm: 10, avoidMotorway: true, noBack: true, snapChurch: true, flagNat: true, speed: 5 },
     az: { unit: 'deg', ref: 'true', decl: 0 },
-    points: { style: 'pastille' },
+    points: { style: 'epingle' },
     print: { sharp: 'auto', paper: 'A4', tscale: 25000, line: false, roadmap: true, maps: true, onesheet: false }
   };
   var DEF = (function () {

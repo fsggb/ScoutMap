@@ -145,7 +145,7 @@
         ['flagNat', 'check', 'Signaler les routes nationales']
       ],
       points: [
-        ['style', 'seg', 'Forme des points posés sur la carte', [['pastille', 'Pastille numérotée'], ['croix', 'Croix'], ['pointeur', 'Pointeur'], ['point', 'Point simple']]]
+        ['style', 'seg', 'Forme des points posés sur la carte', [['epingle', 'Épingle'], ['pastille', 'Pastille numérotée'], ['point', 'Point simple']]]
       ],
       az: [
         ['unit', 'seg', 'Unité', [['deg', 'Degrés'], ['grd', 'Grades'], ['mil', 'Millièmes']]],
