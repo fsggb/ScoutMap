@@ -1470,10 +1470,10 @@
   function leave() { closeWizard(); cancelDraft(); SELID = null; gHandles.clearLayers(); clearFx(); }
 
   /* ---------- Préparation par programme (ChatGDB) : poser des éléments de jeu, des étapes avec énigme, révéler le parcours progressivement ---------- */
-  var KINDS = { texte: 'text', text: 'text', croix: 'cross', cross: 'cross', ligne: 'line', line: 'line', zone: 'polygon', polygone: 'polygon', polygon: 'polygon', cercle: 'circle', circle: 'circle', fleche: 'arrow', 'flèche': 'arrow', arrow: 'arrow', rectangle: 'rect', rect: 'rect' };
+  var PKINDS = { texte: 'text', text: 'text', croix: 'cross', cross: 'cross', ligne: 'line', line: 'line', zone: 'polygon', polygone: 'polygon', polygon: 'polygon', cercle: 'circle', circle: 'circle', fleche: 'arrow', 'flèche': 'arrow', arrow: 'arrow', rectangle: 'rect', rect: 'rect' };
   function isPt(p) { return Array.isArray(p) && p.length >= 2 && isFinite(+p[0]) && isFinite(+p[1]) && Math.abs(+p[0]) <= 90 && Math.abs(+p[1]) <= 180; }
   function addProg(o) {
-    o = o || {}; var kind = KINDS[String(o.type || o.kind || '').toLowerCase()]; if (!kind) throw new Error('type : texte, croix, ligne, zone, cercle, fleche ou rectangle');
+    o = o || {}; var kind = PKINDS[String(o.type || o.kind || '').toLowerCase()]; if (!kind) throw new Error('type : texte, croix, ligne, zone, cercle, fleche ou rectangle');
     var pts = (Array.isArray(o.points) ? o.points : o.lat != null ? [[o.lat, o.lon]] : []).slice(0, 200).map(function (q) { return [+q[0], +q[1]]; });
     var need = { text: 1, cross: 1, circle: 1, line: 2, polygon: 3, arrow: 2, rect: 2 }[kind];
     if (pts.length < need || !pts.every(isPt)) throw new Error('points : au moins ' + need + ' point(s) [lat, lon] valides pour « ' + o.type + ' »');
