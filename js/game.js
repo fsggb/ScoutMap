@@ -1469,7 +1469,42 @@
   function onTool(t) { if (t !== 'game') cancelDraft(); applyParch(); render(); }
   function leave() { closeWizard(); cancelDraft(); SELID = null; gHandles.clearLayers(); clearFx(); }
 
-  SM.game = { closeWizard: closeWizard, ready: ready, applyFx: applyFx, loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
+  /* ---------- Préparation par programme (ChatGDB) : poser des éléments de jeu, des étapes avec énigme, révéler le parcours progressivement ---------- */
+  var KINDS = { texte: 'text', text: 'text', croix: 'cross', cross: 'cross', ligne: 'line', line: 'line', zone: 'polygon', polygone: 'polygon', polygon: 'polygon', cercle: 'circle', circle: 'circle', fleche: 'arrow', 'flèche': 'arrow', arrow: 'arrow', rectangle: 'rect', rect: 'rect' };
+  function isPt(p) { return Array.isArray(p) && p.length >= 2 && isFinite(+p[0]) && isFinite(+p[1]) && Math.abs(+p[0]) <= 90 && Math.abs(+p[1]) <= 180; }
+  function addProg(o) {
+    o = o || {}; var kind = KINDS[String(o.type || o.kind || '').toLowerCase()]; if (!kind) throw new Error('type : texte, croix, ligne, zone, cercle, fleche ou rectangle');
+    var pts = (Array.isArray(o.points) ? o.points : o.lat != null ? [[o.lat, o.lon]] : []).slice(0, 200).map(function (q) { return [+q[0], +q[1]]; });
+    var need = { text: 1, cross: 1, circle: 1, line: 2, polygon: 3, arrow: 2, rect: 2 }[kind];
+    if (pts.length < need || !pts.every(isPt)) throw new Error('points : au moins ' + need + ' point(s) [lat, lon] valides pour « ' + o.type + ' »');
+    if (D().shapes.length >= 1500) throw new Error('trop d’éléments (1500 au plus)');
+    if (S.mode !== 'game') SM.setMode('game');
+    var sh = newShape(kind, kind === 'rect' ? [pts[0], pts[1]] : kind === 'text' || kind === 'cross' || kind === 'circle' ? [pts[0]] : pts);
+    if (kind === 'circle') sh.r = Math.max(2, Math.min(50000, +o.rayon_m || 100));
+    var col = /^#[0-9a-fA-F]{6}$/.test(String(o.couleur || '')) ? o.couleur : null;
+    if (col) { sh.stroke = col; if (kind === 'polygon' || kind === 'circle' || kind === 'rect') sh.fill = col; if (kind === 'text' || kind === 'cross') sh.fontColor = col; }
+    if (o.texte != null) sh.text = String(o.texte).slice(0, 300);
+    if (o.nom != null) sh.name = String(o.nom).slice(0, 80);
+    if (o.taille != null && isFinite(+o.taille)) sh.size = Math.max(8, Math.min(72, +o.taille));
+    if (o.etape != null && isFinite(+o.etape)) sh.etape = Math.max(0, Math.min(99, Math.round(+o.etape)));
+    ['enigme', 'reponse', 'code', 'patrouille'].forEach(function (k) { if (o[k] != null) sh[k] = String(o[k]).slice(0, 600); });
+    insertShape(sh); SELID = null; SM.persist(); render(); SM.renderLayerList();
+    return { id: sh.id, type: kind, etape: sh.etape };
+  }
+  function stepsInfo(chef) {
+    var out = (D().shapes || []).filter(function (x) { return x.etape != null; }).sort(function (a, b) { return a.etape - b.etape; }).map(function (x) {
+      var c = x.pts && x.pts[0], o = { etape: x.etape, id: x.id, type: x.kind, nom: x.name || '', texte: x.text || '', lat: c ? +(+c[0]).toFixed(5) : undefined, lon: c ? +(+c[1]).toFixed(5) : undefined, visible: !x.hidden };
+      if (x.patrouille) o.patrouille = x.patrouille; if (x.enigme) o.enigme = x.enigme; if (chef) { if (x.reponse) o.reponse = x.reponse; if (x.code) o.code = x.code; } return o;
+    });
+    return out;
+  }
+  function reveal(n) {
+    var k = n == null ? Infinity : +n; if (isNaN(k)) throw new Error('jusqua : un numéro d’étape (ou rien pour tout montrer)');
+    var c = 0; (D().shapes || []).forEach(function (x) { if (x.etape != null) { x.hidden = x.etape > k; c++; } });
+    SM.persist(); render(); return { etapes: c, visibles_jusqua: k === Infinity ? 'toutes' : k };
+  }
+  function removeProg(id) { var a = D().shapes, i = a.map(function (x) { return x.id; }).indexOf(id); if (i < 0) throw new Error('élément introuvable'); a.splice(i, 1); SELID = null; SM.persist(); render(); SM.renderLayerList(); return { retire: id }; }
+  SM.game = { addProg: addProg, stepsInfo: stepsInfo, reveal: reveal, removeProg: removeProg, closeWizard: closeWizard, ready: ready, applyFx: applyFx, loadArt: loadArt, theme: function () { return themeById(D().theme); }, wizard: wizard, addLegend: addLegend, loadThemes: loadThemes, rightClick: rightClick, render: render, build: build, points: points, onTool: onTool, leave: leave, hint: hint, hintBtn: hintBtn, hintAction: hintAction, escape: escape,
     hasSel: function () { return !!SELID && !!shapeById(SELID); }, deleteSel: deleteSel, addAt: addAt };
   map.getContainer().classList.add('gt-select');
   render(); SM.renderStored();
