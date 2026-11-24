@@ -94,17 +94,28 @@
     return n;
   }
   // tuiles déjà présentes grâce aux autres zones enregistrées : elles ne sont ni redemandées ni enregistrées deux fois (le stockage est indexé par adresse de tuile)
+  // Calcul potentiellement long (énumérer toutes les tuiles de toutes les zones enregistrées) : mis en cache par signature des
+  // zones, et plafonné (SAVEDSET_MAX) pour ne jamais bloquer longtemps la page même avec beaucoup de grandes zones enregistrées.
   var keepCache = { sig: '', set: null };
+  var SAVEDSET_MAX = 60000;   // au-delà, l'estimation se contente d'un calcul approximatif (pas de dédoublonnage tuile à tuile)
+  function savedSetSync(l) {
+    var set = {}, total = 0;
+    for (var i = 0; i < l.length && total <= SAVEDSET_MAX; i++) {
+      var z = l[i]; if (countTiles(z) > MAXTILES) continue;
+      var ts = tilesOf(z);
+      for (var j = 0; j < ts.length && total <= SAVEDSET_MAX; j++) { set[tileUrl(ts[j])] = 1; total++; }
+    }
+    return total > SAVEDSET_MAX ? null : set;   // trop de tuiles pour un calcul instantané : pas d'estimation de doublons cette fois
+  }
   function savedSet() {
     var l = load(), sig = l.map(function (z) { return z.id; }).join(',');
-    if (keepCache.sig === sig && keepCache.set) return keepCache.set;
-    var set = {}, total = 0;
-    l.forEach(function (z) { if (total > 400000 || countTiles(z) > MAXTILES) return; tilesOf(z).forEach(function (t) { set[tileUrl(t)] = 1; total++; }); });
+    if (keepCache.sig === sig) return keepCache.set;
+    var set = savedSetSync(l);
     keepCache = { sig: sig, set: set }; return set;
   }
   function estimate() {
     var c = current(), n = countTiles(c), dup = 0;
-    if (n && n <= MAXTILES && load().length) { var have = savedSet(); tilesOf(c).forEach(function (t) { if (have[tileUrl(t)]) dup++; }); }
+    if (n && n <= MAXTILES && load().length) { var have = savedSet(); if (have) tilesOf(c).forEach(function (t) { if (have[tileUrl(t)]) dup++; }); }
     var avg = { scan25: 26, plan: 22, ortho: 28 }, per = c.layers.map(function (k) { return avg[k] || 25; }), mean = per.length ? per.reduce(function (a, b) { return a + b; }, 0) / per.length : 25;
     return { n: n, dup: dup, mb: Math.round((n - dup) * mean / 1024) };
   }
