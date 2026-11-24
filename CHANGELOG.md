@@ -3,6 +3,13 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.6.0 — 24 novembre 2026
+
+- **Cartes hors connexion** : toutes les zones enregistrées sont maintenant dessinées par **un seul contour** (les chevauchements disparaissent), avec un léger remplissage vert. Les tuiles communes à plusieurs cartes ne sont ni retéléchargées ni enregistrées deux fois (le stockage est indexé par adresse de tuile) ; l'estimation avant enregistrement indique combien de tuiles sont déjà sur l'appareil.
+- **Azimuts sans carte** : le masque est plus large (au moins 450 m autour de la zone) pour qu'aucune route proche ne guide à vue ; il reste sous le tracé, les points et les flèches, qui restent toujours lisibles.
+- **Accueil sur téléphone** : les cartes d'accueil s'empilent sur une colonne (icône à gauche, texte entier) au lieu de se serrer sur trois colonnes.
+- **ChatGDB** : nouvelles commandes `info.gr` (GR, GR de Pays et PR proches d'un lieu, avec longueur et points le long du tracé), `route.add_gr` (poser un tronçon de GR dans l'itinéraire) et `info.poi` (points de vue, patrimoine, eau, camping, refuge proches). Données OpenStreetMap (ODbL).
+
 ## 2.5.0 — 25 novembre 2026
 
 ### Vitesse

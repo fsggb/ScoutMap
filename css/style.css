@@ -1738,6 +1738,8 @@ body[data-pt] .pin-wrap.sel .pin:not(.search){transform:none}
 
 .mask-lbl span{display:inline-block;transform:translate(-50%,6px);white-space:nowrap;padding:3px 10px;border-radius:999px;background:#fff;border:1px solid #8a7a4a;color:#5b4d22;font:700 11.5px Inter,system-ui,sans-serif}
 .home-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media (max-width:860px){.home-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width:620px){.home-grid{grid-template-columns:1fr!important;gap:10px}.home-card{display:grid!important;grid-template-columns:52px minmax(0,1fr);column-gap:14px;row-gap:2px;align-items:center;padding:12px 14px}.home-card .hc-ic{grid-row:1 / span 2;margin:0}.home-card b{font-size:16px}.home-card small{font-size:13px}}
 
 /* Notifications et bulles d'aide : toutes en clair, sur le même modèle (carte blanche, filet or) */
 .toolhint{background:rgba(255,255,255,.96)!important;color:var(--ink)!important;border:1px solid var(--line-2);border-left:4px solid var(--gold);border-radius:14px!important;box-shadow:0 8px 28px rgba(0,7,97,.16)!important}

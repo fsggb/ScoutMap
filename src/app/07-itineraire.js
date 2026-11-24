@@ -383,8 +383,9 @@
     w.forEach(function (p, i) { if (p.az && i > 0) { pts.push([w[i - 1].lat, w[i - 1].lon]); pts.push([p.lat, p.lon]); } });
     if (!pts.length) pts = w.map(function (p) { return [p.lat, p.lon]; });
     if (!pts.length) return null;
-    var b = L.latLngBounds(pts).pad(0.15);
-    return L.latLngBounds([b.getSouth() - 0.0015, b.getWest() - 0.0022], [b.getNorth() + 0.0015, b.getEast() + 0.0022]);
+    // marge large (au moins ~450 m tout autour) : aucune route ni aucun chemin proche de la zone ne doit rester visible pour guider à vue
+    var b = L.latLngBounds(pts).pad(0.4);
+    return L.latLngBounds([b.getSouth() - 0.004, b.getWest() - 0.006], [b.getNorth() + 0.004, b.getEast() + 0.006]);
   }
   function maskFor(d, m) {
     var mode = d && d.mask; if (mode !== 'zone' && mode !== 'all') return null;

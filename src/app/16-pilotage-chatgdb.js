@@ -17,6 +17,37 @@
         var pr = f.properties || {}; return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], name: p.name || String(pr.toponym || pr.name || pr.label || txt).slice(0, 80) };
       });
     }
+    // Overpass avec secours entre serveurs (délai 25 s chacun)
+    function grAsk(q) {
+      var ends = HK.ends.slice(), last = null;
+      function tryOne(i) {
+        if (i >= ends.length) return Promise.reject(last || new Error('le service des sentiers (OpenStreetMap) ne répond pas : réessayez dans un moment'));
+        var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (ctl) ctl.abort(); }, 25000);
+        return fetch(ends[i], { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
+          .then(function (r) { clearTimeout(t); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .catch(function (e) { clearTimeout(t); last = e; return tryOne(i + 1); });
+      }
+      return tryOne(0);
+    }
+    // Met bout à bout les tronçons d'un sentier (ils arrivent en désordre) en partant de celui qui passe le plus près du centre
+    function grChain(ways, c0) {
+      var segs = ways.filter(function (w) { return w.length > 1; }).map(function (w) { return w.slice(); }), used = segs.map(function () { return false; });
+      if (!segs.length) return [];
+      var best = -1, bd = Infinity;
+      segs.forEach(function (w, i) { w.forEach(function (pt) { var d = c0.distanceTo(L.latLng(pt[0], pt[1])); if (d < bd) { bd = d; best = i; } }); });
+      var chain = segs[best].slice(); used[best] = true;
+      function d2(a, b) { return L.latLng(a[0], a[1]).distanceTo(L.latLng(b[0], b[1])); }
+      function grow(atEnd) {
+        for (;;) {
+          var tip = atEnd ? chain[chain.length - 1] : chain[0], pick = -1, rev = false, bdd = 60;
+          segs.forEach(function (w, i) { if (used[i]) return; var a = d2(tip, w[0]), b = d2(tip, w[w.length - 1]); if (a < bdd) { bdd = a; pick = i; rev = false; } if (b < bdd) { bdd = b; pick = i; rev = true; } });
+          if (pick < 0) return; used[pick] = true;
+          var w = rev ? segs[pick].slice().reverse() : segs[pick];
+          if (atEnd) chain = chain.concat(w); else chain = w.slice().reverse().concat(chain);
+        }
+      }
+      grow(true); grow(false); return chain;
+    }
     function legMode(w) { return w.az ? 'azimut' : w.direct ? 'droite' : 'chemin'; }
     function routeInfo() {
       var d = S.route, w = d.wps;
@@ -125,6 +156,68 @@
               duree_marche: G.fmtDur(sec), pauses_min: pause / 60, depart: G.fmtMin(dep), arrivee_estimee: G.fmtMin(arr), lever_soleil: G.fmtMin(sun.lever), coucher_soleil: G.fmtMin(sun.coucher),
               marge_avant_coucher_min: sun.coucher != null ? sun.coucher - arr : null, alertes: alertes };
           });
+        } },
+      /* GR, GR de Pays et PR proches d'un lieu (données OpenStreetMap, comme la couche « Sentiers » de la carte) : nom, longueur dans la zone, et des points
+         régulièrement espacés le long du tracé, que route.add_gr (ou route.add) peut poser comme points d'un itinéraire qui suit le sentier. */
+      { id: 'info.gr', label: 'Sentiers de grande randonnée (GR, GR de Pays, PR) proches d’un lieu : référence, distance au lieu, longueur dans la zone, points le long du tracé', location: 'Jeu',
+        params: { query: 'lieu (ou coords, ou lat+lon ; sinon le centre de la carte)', rayon_km: '1 à 15 (défaut 8)', pas_km: 'espacement des points rendus, 0,5 à 5 (défaut 2)' },
+        run: function (p) {
+          var R = Math.max(1, Math.min(15, +p.rayon_km || 8)), step = Math.max(0.5, Math.min(5, +p.pas_km || 2));
+          var go = function (la, lo) {
+            var dl = R / 110.54, dn = R / (111.32 * Math.cos(la * Math.PI / 180)), q = hkQuery(la - dl, lo - dn, la + dl, lo + dn), c0 = L.latLng(la, lo);
+            return grAsk(q).then(function (j) {
+              var rs = hkParse(j), byRef = {};
+              rs.forEach(function (r) { var k = (r.ref || r.cls) + '|' + r.cls; (byRef[k] = byRef[k] || { ref: r.ref, cls: r.cls, ways: [] }).ways = byRef[k].ways.concat(r.ways); });
+              var out = Object.keys(byRef).map(function (k) {
+                var r = byRef[k], chain = grChain(r.ways, c0), near = Infinity, len = 0;
+                chain.forEach(function (pt, i) { var d = c0.distanceTo(L.latLng(pt[0], pt[1])); if (d < near) near = d; if (i) len += L.latLng(chain[i - 1][0], chain[i - 1][1]).distanceTo(L.latLng(pt[0], pt[1])); });
+                var pts = [], acc = 0, nextAt = 0;
+                chain.forEach(function (pt, i) { if (i) acc += L.latLng(chain[i - 1][0], chain[i - 1][1]).distanceTo(L.latLng(pt[0], pt[1])); if (!i || acc >= nextAt) { pts.push({ km: +(acc / 1000).toFixed(2), lat: +pt[0].toFixed(5), lon: +pt[1].toFixed(5) }); nextAt = acc + step * 1000; } });
+                return { ref: r.ref || '(sans numéro)', type: r.cls === 'GR' ? 'GR' : r.cls === 'GRP' ? 'GR de Pays' : 'PR (promenade et randonnée)', distance_au_lieu_km: +(near / 1000).toFixed(1), longueur_dans_la_zone_km: +(len / 1000).toFixed(1), points: pts.slice(0, 60) };
+              }).filter(function (r) { return r.longueur_dans_la_zone_km > 0.3; }).sort(function (a, b) { return a.distance_au_lieu_km - b.distance_au_lieu_km; }).slice(0, 10);
+              return { centre: [+la.toFixed(5), +lo.toFixed(5)], rayon_km: R, sentiers: out, source: 'OpenStreetMap (ODbL)', note: out.length ? 'Les points suivent le tracé dans l’ordre ; route.add_gr les pose en itinéraire.' : 'Aucun GR/PR trouvé dans ce rayon (essayez un rayon plus grand ou un autre lieu).' };
+            });
+          };
+          if (p.lat != null || p.coords || p.query) return where(p).then(function (g) { return go(g.lat, g.lon); });
+          var c = map.getCenter(); return go(c.lat, c.lng);
+        } },
+      { id: 'route.add_gr', label: 'Ajouter à l’itinéraire un tronçon de GR (ou GR de Pays, PR) : ses points sont posés le long du sentier, reliés par chemin', location: 'Itinéraire',
+        params: { ref: 'référence (ex. GR 65, GR 13 ; sinon le plus proche)', query: 'lieu proche du tronçon (ou coords, ou lat+lon)', depuis_km: 'début du tronçon sur le tracé de info.gr (défaut 0)', jusqua_km: 'fin du tronçon (défaut : tout ce qui est dans la zone)', rayon_km: '1 à 15 (défaut 8)', pas_km: 'espacement des points posés, 0,5 à 5 (défaut 1,5)' },
+        run: function (p) {
+          needRoute();
+          var ref = String(p.ref || '').replace(/\s+/g, '').toUpperCase(), from = Math.max(0, +p.depuis_km || 0), to = p.jusqua_km == null ? Infinity : +p.jusqua_km, pas = Math.max(0.5, Math.min(5, +p.pas_km || 1.5));
+          var cmd = null; for (var i = 0; i < CMDS.length; i++) if (CMDS[i].id === 'info.gr') cmd = CMDS[i];
+          return cmd.run({ lat: p.lat, lon: p.lon, coords: p.coords, query: p.query, rayon_km: p.rayon_km, pas_km: pas }).then(function (r) {
+            var cand = r.sentiers.filter(function (x) { return !ref || String(x.ref).replace(/\s+/g, '').toUpperCase() === ref; })[0];
+            if (!cand) throw new Error(ref ? 'aucun ' + p.ref + ' dans ce rayon autour du lieu : essayez rayon_km plus grand ou un lieu plus proche' : 'aucun sentier trouvé');
+            var pts = cand.points.filter(function (x) { return x.km >= from && x.km <= to; }); if (pts.length < 2) throw new Error('tronçon trop court : élargissez depuis_km / jusqua_km');
+            ensureVisible('route');
+            pts.forEach(function (x, k) { var w = { lat: x.lat, lon: x.lon }; if (k === 0) w.name = cand.ref + ' (début)'; else if (k === pts.length - 1) w.name = cand.ref + ' (fin)'; S.route.wps.push(w); });
+            renderRouteMarkers(); computeRoute(); persist(); fillPlaces(S.route);
+            return { ref: cand.ref, points_poses: pts.length, de_km: pts[0].km, a_km: pts[pts.length - 1].km, suite: 'Utilisez route.result puis route.analyse pour vérifier la distance, le dénivelé et le coucher du soleil.' };
+          });
+        } },
+      { id: 'info.poi', label: 'Lieux touristiques, points de vue, châteaux, églises, sources… proches d’un lieu (OpenStreetMap), avec distance', location: 'Jeu',
+        params: { query: 'lieu (ou coords, ou lat+lon ; sinon le centre de la carte)', rayon_km: '0,5 à 15 (défaut 5)', type: 'tout | point_de_vue | patrimoine | eau | camping | refuge (défaut tout)' },
+        run: function (p) {
+          var R = Math.max(0.5, Math.min(15, +p.rayon_km || 5)), t = String(p.type || 'tout');
+          var sel = { point_de_vue: ['["tourism"="viewpoint"]'], patrimoine: ['["historic"~"castle|monument|ruins|archaeological_site|memorial|fort|manor|wayside_cross"]', '["tourism"~"attraction|museum"]', '["amenity"="place_of_worship"]["name"]'], eau: ['["natural"="spring"]', '["amenity"="drinking_water"]', '["natural"="waterfall"]'], camping: ['["tourism"~"camp_site|caravan_site"]'], refuge: ['["tourism"~"alpine_hut|wilderness_hut"]', '["amenity"="shelter"]'], tout: ['["tourism"~"viewpoint|attraction|museum|alpine_hut|camp_site"]', '["historic"~"castle|monument|ruins|archaeological_site|fort|manor|wayside_cross"]', '["natural"~"waterfall|spring|peak"]["name"]'] }[t] || null;
+          if (!sel) throw new Error('type : tout, point_de_vue, patrimoine, eau, camping ou refuge');
+          var go = function (la, lo) {
+            var ar = '(around:' + Math.round(R * 1000) + ',' + la + ',' + lo + ')', q = '[out:json][timeout:25];(' + sel.map(function (f) { return 'nwr' + f + ar + ';'; }).join('') + ');out center 80;';
+            return grAsk(q).then(function (j) {
+              var c0 = L.latLng(la, lo), seen = {}, out = [];
+              (j.elements || []).forEach(function (e) {
+                var tg = e.tags || {}, y = e.lat != null ? e.lat : e.center && e.center.lat, x = e.lon != null ? e.lon : e.center && e.center.lon; if (y == null || x == null) return;
+                var nom = tg.name || ''; if (!nom && t === 'tout') return; var key = nom + (+y).toFixed(3); if (seen[key]) return; seen[key] = 1;
+                out.push({ nom: nom || '(sans nom)', genre: tg.tourism || tg.historic || tg.natural || tg.amenity || '', lat: +(+y).toFixed(5), lon: +(+x).toFixed(5), distance_km: +(c0.distanceTo(L.latLng(y, x)) / 1000).toFixed(2), altitude_m: tg.ele ? Math.round(+tg.ele) : undefined });
+              });
+              out.sort(function (a, b) { return a.distance_km - b.distance_km; });
+              return { centre: [+la.toFixed(5), +lo.toFixed(5)], rayon_km: R, lieux: out.slice(0, 30), source: 'OpenStreetMap (ODbL)' };
+            });
+          };
+          if (p.lat != null || p.coords || p.query) return where(p).then(function (g) { return go(g.lat, g.lon); });
+          var c = map.getCenter(); return go(c.lat, c.lng);
         } },
       { id: 'route.add_spot', label: 'Poser un point seul (repère isolé, non relié au chemin)', location: 'Itinéraire', params: { query: 'lieu (ou coords, ou lat+lon)', nom: 'texte (facultatif)' },
         run: function (p) { needRoute(); return where(p).then(function (g) { var o = addSpot([g.lat, g.lon], p.nom || g.name); return o ? { id: o.id, lat: g.lat, lon: g.lon, nom: o.name || '' } : null; }); } },
