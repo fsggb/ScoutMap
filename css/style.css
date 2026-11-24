@@ -1755,3 +1755,16 @@ body[data-pt] .pin-wrap.sel .pin:not(.search){transform:none}
 .gwz-name{margin:0 0 18px}.gwz-name h2{margin:0 0 8px}
 .gwz-name input{width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid var(--line-2);border-radius:12px;font:inherit;font-size:16px}
 .gwz-name input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-l)}.gwz-name input.bad{border-color:var(--danger)}
+
+/* ===== Épingles (forme par défaut des points) : goutte colorée à contour blanc et ombre douce, pointe posée exactement sur le lieu ===== */
+body[data-pt=epingle] .pin:not(.search){--pin-shape:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 42'%3E%3Cpath d='M16 41C16 41 3 26.5 3 15.5 3 8 8.8 2 16 2s13 6 13 13.5C29 26.5 16 41 16 41z'/%3E%3C/svg%3E");
+  position:absolute;left:50%;top:50%;width:32px;height:42px;margin:-42px 0 0 -16px;border:0;border-radius:0;background:transparent!important;box-shadow:none;isolation:isolate;z-index:0;
+  display:block;text-align:center;line-height:30px;padding:0;font-size:13px;font-weight:700;color:#fff;transform-origin:50% 100%;filter:drop-shadow(0 2px 2.5px rgba(0,0,0,.38));transition:transform .12s}
+body[data-pt=epingle] .pin:not(.search)::before,body[data-pt=epingle] .pin:not(.search)::after{content:"";position:absolute;z-index:-1;-webkit-mask:var(--pin-shape) center/100% 100% no-repeat;mask:var(--pin-shape) center/100% 100% no-repeat}
+body[data-pt=epingle] .pin:not(.search)::before{inset:-1.5px -1.5px -2px;background:#fff}
+body[data-pt=epingle] .pin:not(.search)::after{inset:0;background:var(--pc,var(--navy))}
+body[data-pt=epingle] .pin:not(.search).az{color:#1d1700}
+body[data-pt=epingle] .pin-wrap:hover .pin:not(.search){transform:scale(1.08)}
+body[data-pt=epingle] .pin-wrap.sel .pin:not(.search){transform:scale(1.22);filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 5px rgba(0,0,0,.5)) drop-shadow(0 0 5px var(--gold))}
+body[data-pt] .pin.start{--pc:#1e8e3e}body[data-pt] .pin.end{--pc:#d93025}body[data-pt] .pin.via{--pc:#1a56c4}body[data-pt] .pin.az{--pc:#f2b705}body[data-pt] .pin.spot{--pc:#8e44ad}
+body[data-pt=epingle] .pin:not(.search):not(.start):not(.end):not(.az):not(.spot){--pc:#1a56c4}

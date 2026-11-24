@@ -113,8 +113,8 @@
     if (!card._sticky) card._t = setTimeout(function () { ntfStow(card); }, level === 'discret' ? 2200 : Math.min(9000, 3200 + msg.length * 25));
     return card;
   }
-  // Apparence des points (Réglages › Général) : pastille numérotée, croix, pointeur ou simple point
-  function applyPointStyle() { document.body.setAttribute('data-pt', (DEF.points && DEF.points.style) || 'pastille'); }
+  // Apparence des points (Réglages › Général) : épingle (par défaut), pastille numérotée ou simple point
+  function applyPointStyle() { var v = DEF.points && DEF.points.style; document.body.setAttribute('data-pt', v === 'pastille' || v === 'point' ? v : 'epingle'); }
   applyPointStyle();
   function pin(label, cls, wrap) {
     return L.divIcon({ className: 'pin-wrap' + (wrap ? ' ' + wrap : ''), html: '<div class="pin ' + (cls || '') + '" data-l="' + esc(label) + '">' + esc(label) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });

@@ -3,6 +3,10 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.6.1 — 24 novembre 2026
+
+- **Nouveaux points : les épingles.** Les points posés sur la carte sont des épingles en forme de goutte (contour blanc, ombre douce, numéro lisible), la pointe posée exactement sur le lieu : départ vert, arrivée rouge, étapes bleues, azimuts dorés, repères violets. C'est la forme par défaut ; la pastille numérotée et le point simple restent au choix dans Réglages. La croix et l'ancien pointeur sont supprimés.
+
 ## 2.6.0 — 24 novembre 2026
 
 - **Cartes hors connexion** : toutes les zones enregistrées sont maintenant dessinées par **un seul contour** (les chevauchements disparaissent), avec un léger remplissage vert. Les tuiles communes à plusieurs cartes ne sont ni retéléchargées ni enregistrées deux fois (le stockage est indexé par adresse de tuile) ; l'estimation avant enregistrement indique combien de tuiles sont déjà sur l'appareil.
