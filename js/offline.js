@@ -93,10 +93,20 @@
     });
     return n;
   }
+  // tuiles déjà présentes grâce aux autres zones enregistrées : elles ne sont ni redemandées ni enregistrées deux fois (le stockage est indexé par adresse de tuile)
+  var keepCache = { sig: '', set: null };
+  function savedSet() {
+    var l = load(), sig = l.map(function (z) { return z.id; }).join(',');
+    if (keepCache.sig === sig && keepCache.set) return keepCache.set;
+    var set = {}, total = 0;
+    l.forEach(function (z) { if (total > 400000 || countTiles(z) > MAXTILES) return; tilesOf(z).forEach(function (t) { set[tileUrl(t)] = 1; total++; }); });
+    keepCache = { sig: sig, set: set }; return set;
+  }
   function estimate() {
-    var c = current(), n = countTiles(c);
+    var c = current(), n = countTiles(c), dup = 0;
+    if (n && n <= MAXTILES && load().length) { var have = savedSet(); tilesOf(c).forEach(function (t) { if (have[tileUrl(t)]) dup++; }); }
     var avg = { scan25: 26, plan: 22, ortho: 28 }, per = c.layers.map(function (k) { return avg[k] || 25; }), mean = per.length ? per.reduce(function (a, b) { return a + b; }, 0) / per.length : 25;
-    return { n: n, mb: Math.round(n * mean / 1024) };
+    return { n: n, dup: dup, mb: Math.round((n - dup) * mean / 1024) };
   }
   function tileUrl(t) { return SM.srcUrl(t.k, t.z, t.x, t.y); }
 
@@ -194,11 +204,47 @@
   });
   // les cartes enregistrées dessinées sur la carte (pointillés verts) : sans réseau, on voit où l'on a une carte
   var gZones = L.layerGroup();
+  /* Union de rectangles alignés (les zones enregistrées) : renvoie les contours extérieurs (et les trous) sous forme d'anneaux [[lat,lon],…].
+     Principe : on découpe le plan avec toutes les coordonnées, on marque les cases couvertes, puis on relie les côtés de cases qui touchent le vide. */
+  function unionRings(rects) {
+    var xs = [], ys = [];
+    rects.forEach(function (r) { ys.push(r[0], r[2]); xs.push(r[1], r[3]); });
+    function uniq(a) { a.sort(function (p, q) { return p - q; }); return a.filter(function (v, i) { return !i || v !== a[i - 1]; }); }
+    xs = uniq(xs); ys = uniq(ys);
+    var nx = xs.length - 1, ny = ys.length - 1; if (nx < 1 || ny < 1) return [];
+    var cov = []; for (var i = 0; i < nx; i++) { cov.push([]); for (var j = 0; j < ny; j++) cov[i].push(false); }
+    function ix(v) { return xs.indexOf(v); } function iy(v) { return ys.indexOf(v); }
+    rects.forEach(function (r) { for (var a = ix(r[1]); a < ix(r[3]); a++) for (var b = iy(r[0]); b < iy(r[2]); b++) cov[a][b] = true; });
+    function c(a, b) { return a >= 0 && b >= 0 && a < nx && b < ny && cov[a][b]; }
+    var next = {};   // sommet « a,b » → sommets suivants (côtés orientés, intérieur à gauche)
+    function add(p, q) { (next[p] = next[p] || []).push(q); }
+    for (var a = 0; a < nx; a++) for (var b = 0; b < ny; b++) {
+      if (!cov[a][b]) continue;
+      if (!c(a, b - 1)) add(a + ',' + b, (a + 1) + ',' + b);
+      if (!c(a + 1, b)) add((a + 1) + ',' + b, (a + 1) + ',' + (b + 1));
+      if (!c(a, b + 1)) add((a + 1) + ',' + (b + 1), a + ',' + (b + 1));
+      if (!c(a - 1, b)) add(a + ',' + (b + 1), a + ',' + b);
+    }
+    var rings = [];
+    Object.keys(next).forEach(function (start) {
+      while (next[start] && next[start].length) {
+        var ring = [], cur = start, guard = 0;
+        do { var n = next[cur].pop(); ring.push(cur); cur = n; } while (cur !== start && next[cur] && next[cur].length && ++guard < 100000);
+        // on retire les sommets alignés
+        var pts = ring.map(function (k) { var q = k.split(','); return [+q[0], +q[1]]; }), out = [];
+        for (var m = 0; m < pts.length; m++) { var p0 = pts[(m + pts.length - 1) % pts.length], p1 = pts[m], p2 = pts[(m + 1) % pts.length]; if ((p1[0] - p0[0]) * (p2[1] - p1[1]) !== (p1[1] - p0[1]) * (p2[0] - p1[0])) out.push(p1); }
+        if (out.length >= 3) rings.push(out.map(function (q) { return [ys[q[1]], xs[q[0]]]; }));
+      }
+    });
+    return rings;
+  }
   function drawZones() {
     gZones.clearLayers();
     var on = navigator.onLine === false || ($('#off-pop') && !$('#off-pop').hidden) || zonesShown;
     if (!on) { if (map.hasLayer(gZones)) map.removeLayer(gZones); return; }
-    load().forEach(function (z) { L.rectangle([[z.b[0], z.b[1]], [z.b[2], z.b[3]]], { color: '#1a7f37', weight: 2, dashArray: '4 6', fill: false, interactive: false }).bindTooltip(z.name, { permanent: false }).addTo(gZones); });
+    // un seul tracé pour l'ensemble des zones enregistrées (les chevauchements ne se voient pas) ; leurs noms en infobulle
+    var zs = load(), rings = zs.length ? unionRings(zs.map(function (z) { return z.b; })) : [];
+    if (rings.length) L.polygon(rings, { color: '#1a7f37', weight: 2.5, dashArray: '6 6', fillColor: '#1a7f37', fillOpacity: 0.07, interactive: true, bubblingMouseEvents: true }).bindTooltip(zs.map(function (z) { return z.name; }).join(' · '), { sticky: true }).addTo(gZones);
     if (!map.hasLayer(gZones)) gZones.addTo(map);
   }
   var zonesShown = false;
@@ -223,7 +269,7 @@
     h += '<div class="off-prec" role="radiogroup" aria-label="Taille de la zone">' + FMT.map(function (f) { return '<button type="button" role="radio" aria-checked="' + (st.fmt === f[0]) + '" class="off-p' + (st.fmt === f[0] ? ' on' : '') + '" data-ofmt="' + f[0] + '"><b>' + (f[1] ? f[0] : 'Écran') + '</b><small>' + (f[1] ? Math.round(f[1] * 25 / 100) / 10 + ' × ' + Math.round(f[2] * 25 / 100) / 10 + ' km' : 'ce qui est affiché') + '</small></button>'; }).join('') + '</div>';
     if (st.fmt !== 'ecran') h += '<div class="off-orient"><label class="off-ck"><input type="checkbox" id="off-land"' + (st.land ? ' checked' : '') + '><span class="gcal-box"></span>Paysage (cadre couché)</label></div>';
     h += '<input id="off-name" class="off-name" type="text" maxlength="50" placeholder="Nom de la zone (ex. Camp de Pâques)" aria-label="Nom de la zone">';
-    h += '<p class="off-est' + (e.n > MAXTILES ? ' bad' : '') + '">' + (e.n > MAXTILES ? 'Zone trop grande : ' + e.n + ' tuiles (maximum ' + MAXTILES + '). Choisissez un format plus petit ou un seul fond.' : '≈ ' + e.n + ' tuiles, environ ' + e.mb + ' Mo') + '</p>';
+    h += '<p class="off-est' + (e.n > MAXTILES ? ' bad' : '') + '">' + (e.n > MAXTILES ? 'Zone trop grande : ' + e.n + ' tuiles (maximum ' + MAXTILES + '). Choisissez un format plus petit ou un seul fond.' : '≈ ' + e.n + ' tuiles' + (e.dup ? ', dont ' + e.dup + ' déjà enregistrées (non retéléchargées, non doublées) : environ ' + e.mb + ' Mo de plus' : ', environ ' + e.mb + ' Mo')) + '</p>';
     h += '<div class="off-bar" id="off-bar" hidden><i></i></div><p class="off-prog" id="off-prog"></p>';
     h += st.busy ? '<button type="button" class="btn-ghost sm" id="off-cancel">Annuler</button>' : '<button type="button" class="btn-primary sm" id="off-dl"' + (e.n > MAXTILES || !e.n ? ' disabled' : '') + '>Enregistrer cette zone</button>';
     h += '</div>';
