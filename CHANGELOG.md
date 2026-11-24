@@ -3,6 +3,12 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.7.0 — 24 novembre 2026
+
+**Correction** : un défaut introduit dans la 2.6.2 faisait erreur dans l'outil Grand jeu (étiquettes des éléments et sélection) ; il est corrigé.
+
+Version de clôture de la série 2.6 : tutoriels vidéo « Azimuts » et « Grand jeu » refaits avec l'interface actuelle (outil Azimuts dans l'itinéraire, épreuve sans carte, thème libre, épingles). Récapitulatif de la série 2.6 : zones hors connexion en un seul contour sans tuiles en double, masque d'azimuts plus large, accueil lisible sur téléphone, épingles à la place de la croix et du pointeur, commandes de ChatGDB pour les GR, les lieux touristiques et la préparation d'un jeu.
+
 ## 2.6.2 — 24 novembre 2026
 
 - **Préparer un jeu avec ChatGDB** : nouvelles commandes `game.add` (texte, croix, ligne, zone, cercle, flèche, rectangle, éventuellement comme étape numérotée avec énigme, système de codage et solution), `game.steps` (étapes dans l'ordre ; avec `chef=true`, énigmes et solutions pour le document des chefs), `game.reveal` (ne montrer le parcours que jusqu'à une étape, pour imprimer la carte d'une étape ou la révéler progressivement) et `game.remove`.

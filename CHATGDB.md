@@ -7,7 +7,7 @@ maj: 2026-11-23
 
 # ScoutMap : Cartes IGN (orientation et raids)
 
-Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.6.2 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
+Site : https://fsggb.github.io/ScoutMap/ . Cartes de la Géoplateforme IGN, sans clé ni compte. Version 2.7.0 (historique : CHANGELOG.md, ou Réglages › Version et nouveautés).
 
 ## Nouveautés de la version 2
 - Hors connexion : la carte SCAN 25 d'une feuille A0 au 1:25 000 s'enregistre par défaut (Réglages › Hors connexion, ou menu Outils) ; l'application s'installe sur téléphone et ordinateur.
