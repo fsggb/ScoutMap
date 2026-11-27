@@ -1768,3 +1768,13 @@ body[data-pt=epingle] .pin-wrap:hover .pin:not(.search){transform:scale(1.08)}
 body[data-pt=epingle] .pin-wrap.sel .pin:not(.search){transform:scale(1.22);filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 5px rgba(0,0,0,.5)) drop-shadow(0 0 5px var(--gold))}
 body[data-pt] .pin.start{--pc:#1e8e3e}body[data-pt] .pin.end{--pc:#d93025}body[data-pt] .pin.via{--pc:#1a56c4}body[data-pt] .pin.az{--pc:#f2b705}body[data-pt] .pin.spot{--pc:#8e44ad}
 body[data-pt=epingle] .pin:not(.search):not(.start):not(.end):not(.az):not(.spot){--pc:#1a56c4}
+
+/* Connexion unifiée ScoutHub (voir js/sso.js) : panneau plein écran tant qu'aucun compte n'est confirmé. */
+.sso-invite{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;background:linear-gradient(180deg,#f0e3c3,#fafafc 60%);padding:20px}
+.sso-card{max-width:420px;text-align:center;background:#fff;border:1px solid #e7e4dc;border-top:4px solid var(--gold);border-radius:16px;padding:34px;box-shadow:0 8px 28px rgba(0,7,97,.12);color:#0a0c25}
+.sso-card .logo{border-radius:14px;object-fit:contain}
+.sso-card h1{margin:12px 0 8px;color:var(--navy);font-weight:600}
+.sso-card p{color:#4e505d;font-size:14px}
+.sso-card .btn{display:inline-block;margin:8px 0;padding:10px 20px;border-radius:999px;background:var(--navy);color:#fff;text-decoration:none;font-weight:600}
+.sso-card .btn:hover{background:var(--navy-2)}
+.sso-card .link{display:block;margin-top:10px;color:var(--navy);font-size:13px}
