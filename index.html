@@ -20,6 +20,26 @@
 </head>
 <body>
 
+<script>/* invité d'un partage en direct : page en lecture seule, sauf en préparation à plusieurs (prep=1 : application
+complète). Déplacé ici, avant js/sso.js plus bas, qui doit voir SM_LIVE_ROOM pour ne pas lui demander de connexion. */
+if(/[?&]direct=/.test(location.search)&&!/[?&]prep=1/.test(location.search)){window.SM_VIEWER=true;window.SM_LIVE_ROOM=true;}</script>
+
+<!-- Connexion unifiée ScoutHub : application de la fédération, pas ouverte aux invités (sauf invité d'un
+     partage en direct, déjà en lecture seule — voir js/sso.js). Même système que ChatGDB (même origine
+     fsggb.github.io, ScoutHub/common.js partagé : une seule connexion pour toutes les applications). -->
+<div id="sso-invite" class="sso-invite" hidden>
+  <div class="sso-card">
+    <img class="logo" src="assets/fsggb.png" alt="" width="64" height="64">
+    <h1>ScoutMap</h1>
+    <p>Cartes IGN, itinéraires, azimuts et grands jeux pour l’orientation scoute. Connectez-vous pour l’utiliser.</p>
+    <a class="btn" id="sso-login" href="#">Se connecter</a>
+    <a class="link" href="/ScoutHub/">Retour à ScoutHub</a>
+  </div>
+</div>
+<script src="/ScoutHub/config.js"></script>
+<script src="/ScoutHub/common.js"></script>
+<script src="js/sso.js?v=__V__"></script>
+
 <!-- Icônes -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
   <symbol id="i-pan" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></symbol>
@@ -624,8 +644,6 @@
 </div>
 <style id="page-style"></style>
 
-<script>/* invité d'un partage en direct : page en lecture seule, sauf en préparation à plusieurs (prep=1 : application complète) */
-if(/[?&]direct=/.test(location.search)&&!/[?&]prep=1/.test(location.search)){window.SM_VIEWER=true;window.SM_LIVE_ROOM=true;}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
 <script src="js/geo.js?v=__V__"></script>

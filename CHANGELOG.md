@@ -3,6 +3,10 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.8.0 — 27 novembre 2026
+
+- **Connexion obligatoire** : ScoutMap demande maintenant de se connecter avec un compte ScoutHub (n'importe lequel ; pas besoin d'être une adresse @fsggb.fr). C'est la même connexion que ChatGDB et les autres applications de la fédération : si vous êtes déjà connecté sur l'une d'elles, ScoutMap le sait tout de suite, sans redemander. Un lien de partage en direct (`?direct=`) reste utilisable sans compte, en lecture seule, comme avant.
+
 ## 2.7.1 — 24 novembre 2026
 
 - **Gel possible du navigateur** : le calcul « combien de tuiles sont déjà enregistrées » (nouveau en 2.6.0) n'était pas plafonné et pouvait, avec beaucoup de grandes zones hors connexion, bloquer longtemps la page (« cette page ne répond pas »). Il est maintenant limité à 60 000 tuiles ; au-delà, l'estimation se contente du nombre de tuiles, sans dédoublonnage. Je n'ai pas pu reproduire le blocage complet signalé : si ça se reproduit, dites-moi ce qui était ouvert au même moment (fenêtre « Cartes hors connexion », grand jeu avec beaucoup d'éléments…).
