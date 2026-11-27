@@ -3,8 +3,14 @@
 // ChatGDB (chatgdb.js) : un compte en cache s'affiche tout de suite, sans attendre le serveur ; sinon le
 // panneau d'invitation à se connecter. Un invité d'un partage en direct (?direct=, SM_LIVE_ROOM, voir plus
 // haut dans la page) reste en lecture seule sans avoir besoin de compte : non concerné par ce fichier.
+//
+// OBLIGATION SUSPENDUE (27/11/2026, à la demande de l'administrateur) : le reste de ce fichier est prêt et
+// inchangé, juste jamais exécuté pour l'instant (le temps que l'accès membre, fsggb/ScoutHub#26, soit déployé
+// et qu'on puisse vraiment se connecter). Pour réactiver l'obligation : retirer la ligne qui suit.
 (async () => {
   "use strict";
+  return;   // <-- retirer cette ligne pour réactiver l'obligation de connexion
+  // eslint-disable-next-line no-unreachable
   if (window.SM_LIVE_ROOM) return;
   const inviter = () => { const el = document.getElementById("sso-invite"); if (el) el.hidden = false; };
   const retour = encodeURIComponent(location.pathname + location.search);
