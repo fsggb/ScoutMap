@@ -3,6 +3,10 @@
 Chaque version publiée est notée ici (la plus récente en haut). Les numéros suivent la règle « majeure.mineure.correctif ».
 On retrouve cet historique dans l'application : **Réglages › Version et nouveautés**.
 
+## 2.8.1 — 27 novembre 2026
+
+- **Connexion de nouveau facultative** : l'obligation de se connecter (2.8.0) est suspendue le temps que l'accès membre de ScoutHub (compte Google quelconque, pas seulement @fsggb.fr) soit vraiment disponible. Le code reste en place, prêt à être réactivé dès que possible.
+
 ## 2.8.0 — 27 novembre 2026
 
 - **Connexion obligatoire** : ScoutMap demande maintenant de se connecter avec un compte ScoutHub (n'importe lequel ; pas besoin d'être une adresse @fsggb.fr). C'est la même connexion que ChatGDB et les autres applications de la fédération : si vous êtes déjà connecté sur l'une d'elles, ScoutMap le sait tout de suite, sans redemander. Un lien de partage en direct (`?direct=`) reste utilisable sans compte, en lecture seule, comme avant.
